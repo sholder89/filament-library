@@ -1,0 +1,28 @@
+# Server-specific settings. Copy to docker-compose.override.yml — Compose picks
+# that up automatically and it stays out of git.
+#
+# Labels merge by key, so naming just the two router rules replaces the
+# placeholder domain in docker-compose.yml and leaves the rest intact.
+
+services:
+  filament-library:
+    labels:
+      - "traefik.http.routers.filament-library.rule=Host(`filament.example.com`)"
+      - "traefik.http.routers.filament-library-secure.rule=Host(`filament.example.com`)"
+
+    environment:
+      # Traefik terminates TLS and forwards plain HTTP, so without this the QR
+      # codes would encode http:// for an https:// site.
+      #
+      # APP_BASE_URL wins outright, and pinning it means a printed sticker
+      # always resolves to the same URL no matter how the app was opened.
+      # TRUST_PROXY is belt-and-braces for anything else deriving the scheme
+      # from the request.
+      APP_BASE_URL: https://filament.example.com
+      TRUST_PROXY: "true"
+
+    # Uncomment to also reach the app directly on the LAN, bypassing Traefik.
+    # Compose appends this to the base port list rather than replacing it, so
+    # remove the ports entry from docker-compose.yml if you want only this one.
+    # ports:
+    #   - "192.168.1.10:8088:8080"

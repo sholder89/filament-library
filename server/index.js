@@ -15,6 +15,27 @@ const HOST = process.env.HOST || '0.0.0.0';
 const app = express();
 
 app.disable('x-powered-by');
+
+/**
+ * Behind a reverse proxy, TLS is terminated upstream and the app is reached
+ * over plain HTTP — so req.protocol would say "http" for an https:// site and
+ * the QR codes would encode the wrong scheme. Trusting X-Forwarded-Proto fixes
+ * that.
+ *
+ * Off by default: these headers are client-supplied, and trusting them on a
+ * directly-exposed container would let a caller dictate the URL. Accepts
+ * "true", a hop count, or a comma-separated list of trusted proxy addresses.
+ * Setting APP_BASE_URL sidesteps this entirely.
+ */
+const TRUST_PROXY = process.env.TRUST_PROXY;
+if (TRUST_PROXY) {
+  const asNumber = Number(TRUST_PROXY);
+  app.set(
+    'trust proxy',
+    TRUST_PROXY === 'true' ? true : Number.isInteger(asNumber) ? asNumber : TRUST_PROXY,
+  );
+}
+
 app.use(express.json({ limit: '256kb' }));
 
 app.get('/api/health', (_req, res) => {

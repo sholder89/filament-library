@@ -164,6 +164,32 @@ rewrites the date you opened a spool.
 
 ---
 
+## Behind a reverse proxy
+
+The compose file ships Traefik labels using the `proxy` external network, `http`
+/ `https` entrypoints and the `cloudflare` cert resolver. The domain is a
+placeholder — set your own in `docker-compose.override.yml`, which Compose picks
+up automatically and git ignores:
+
+```bash
+cp docker-compose.override.yml.example docker-compose.override.yml
+```
+
+Labels merge by key, so naming just the two router rules replaces the domain and
+leaves everything else intact.
+
+**Set `APP_BASE_URL` to your `https://` hostname.** Traefik terminates TLS and
+forwards plain HTTP, so without it the app sees an `http` request and prints QR
+codes pointing at `http://` — which then redirect, or fail outright if the plain
+entrypoint isn't reachable. `TRUST_PROXY=true` makes the app honour
+`X-Forwarded-Proto` for anything else that derives the scheme.
+
+Since the QR URL is printed onto a sticker, whatever hostname you pin has to
+resolve from your phone. An internal-only name needs split-horizon DNS or a
+matching local record.
+
+---
+
 ## Troubleshooting
 
 **`unable to open database file` / container restart loop**

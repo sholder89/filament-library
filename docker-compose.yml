@@ -6,11 +6,16 @@ services:
     restart: unless-stopped
 
     ports:
+      # Direct LAN access alongside the reverse proxy. Restrict or drop this in
+      # docker-compose.override.yml if you only want to reach it through Traefik.
       - "${HOST_PORT:-8088}:8080"
 
     volumes:
       # The SQLite database. Back this folder up and you've backed up everything.
       - ./data:/data
+
+    networks:
+      - proxy
 
     environment:
       # User the app runs as. Must be able to write ./data — the entrypoint
@@ -21,7 +26,12 @@ services:
 
       # Pin the URL the QR codes point at. Leave empty and the app uses whatever
       # host you browsed in on, which is usually what you want on a home LAN.
+      # Set it to your https:// hostname when running behind a reverse proxy.
       APP_BASE_URL: ${APP_BASE_URL:-}
+
+      # Honour X-Forwarded-Proto/Host from the proxy so generated URLs get the
+      # right scheme. Only enable when the app is actually behind one.
+      TRUST_PROXY: ${TRUST_PROXY:-}
 
       # Voice Label Printer — prints go through the relay server, the same path
       # Alexa and Siri use. The Windows client picks the job up on its next poll.
@@ -40,8 +50,27 @@ services:
 
       TZ: ${TZ:-UTC}
 
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.filament-library.entrypoints=http"
+      - "traefik.http.routers.filament-library.rule=Host(`your-domain.com`)"  # override in docker-compose.override.yml
+      - "traefik.http.middlewares.filament-library-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.filament-library.middlewares=filament-library-https-redirect"
+      - "traefik.http.routers.filament-library-secure.entrypoints=https"
+      - "traefik.http.routers.filament-library-secure.rule=Host(`your-domain.com`)"
+      - "traefik.http.routers.filament-library-secure.tls=true"
+      - "traefik.http.routers.filament-library-secure.tls.certresolver=cloudflare"
+      - "traefik.http.routers.filament-library-secure.service=filament-library"
+      - "traefik.http.services.filament-library.loadbalancer.server.port=8080"
+      - "traefik.docker.network=proxy"
+      - "com.centurylinklabs.watchtower.enable=false"
+
     # Only needed if something you point at runs on the Docker host itself;
     # reaching another machine on the LAN (the Windows print PC) works without
     # it. Harmless to leave in place.
     extra_hosts:
       - "host.docker.internal:host-gateway"
+
+networks:
+  proxy:
+    external: true

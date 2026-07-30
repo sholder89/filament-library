@@ -1,6 +1,7 @@
 node_modules/
 data/
 .env
+docker-compose.override.yml
 *.db
 *.db-wal
 *.db-shm
