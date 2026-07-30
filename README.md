@@ -19,11 +19,14 @@ through — used-up spools stay in the library as a record instead of vanishing.
 - **Filter and search** — by state, brand, and type, plus free-text search across
   brand, colour, location and notes. Sort by newest, brand, type, colour, or
   most recently opened.
-- **Pre-filled catalogue** — 40 brands (Sunlu, Bambu Lab, Creality, Overture,
-  Prusament…) and 24 material types (PLA, PLA+, PETG, ABS, ASA, TPU, PA-CF…).
-  Picking a type fills in its typical nozzle and bed temperatures and flags
-  whether it wants an enclosure or drying. Anything you type yourself is
-  remembered and offered next time.
+- **Pre-filled catalogue** — pick from 40 brands (Sunlu, Bambu Lab, Creality,
+  Overture, Prusament…) and 24 material types grouped by family (PLA, PETG, ABS,
+  TPU, Nylon…), or choose *Something else* to type your own. Brands and types
+  you've already used float to the top of the list next time. Picking a type
+  fills in its typical nozzle and bed temperatures and flags whether it wants an
+  enclosure or drying.
+- **Add a batch at once** — bought five of the same spool? Set the quantity and
+  each one gets its own record, so you can open and use them up individually.
 - **QR labels** — print a QR sticker for a spool through your Voice Label
   Printer. Scanning it opens that spool's page.
 - **Works offline** — the app shell and your last-loaded inventory are cached,
@@ -77,7 +80,7 @@ Everything is optional — the app runs with an empty `.env`.
 | `LABEL_RELAY_URL` | — | Voice Label Printer relay server |
 | `LABEL_TOKEN` | — | Must match the relay's `LABEL_TOKEN` |
 | `LABEL_SIZE` | `2x1` | Label size — `2x1`, `4x2`, `4x6`, `3x2`, `2x0.5`, `1.1x3.5`, `1.1x2.4` |
-| `LABEL_QR_SHOW_TEXT` | `0` | Print a caption under the QR. See the note below. |
+| `LABEL_QR_SHOW_TEXT` | `1` | Print the brand/type/colour beside the QR |
 | `LABEL_NAME_LABEL` | `0` | Also print a second plain-text label with the spool description |
 | `LABEL_MODE` | `auto` | `relay`, `direct`, or `auto` |
 | `LABEL_CLIENT_URL` | — | Bypass the relay and talk to the Windows client directly |
@@ -104,11 +107,9 @@ won't come out as a QR code.
 > client. Without it, labels print in whatever style the printer is currently
 > set to.
 
-**On `LABEL_QR_SHOW_TEXT`:** the QR preset builds its caption from the QR data
-itself, so turning this on just repeats the URL under the code. It's off by
-default for a clean code-only sticker. If you want readable text on the spool,
-use `LABEL_NAME_LABEL=1` instead — that prints a second label reading
-"Sunlu PLA+ Galaxy Black".
+Labels print the QR alongside the spool's brand, type and colour, so a sticker
+is readable without scanning it. Set `LABEL_QR_SHOW_TEXT=0` for a bare code, or
+`LABEL_NAME_LABEL=1` to also print a second text-only label.
 
 Each spool's page also shows its QR on screen, so you can scan or screenshot one
 without printing anything.

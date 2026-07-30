@@ -96,14 +96,110 @@ for (const dialog of [el.detail, el.editor]) {
 
 async function loadCatalog() {
   state.catalog = await api('/api/catalog');
-  fillDatalist('brandList', state.catalog.brands);
-  fillDatalist('materialList', state.catalog.materials.map((m) => m.name));
   fillDatalist('colorList', state.catalog.colors.map((c) => c.name));
   fillDatalist('locationList', state.catalog.locations);
   fillDatalist('weightList', state.catalog.spool_weights.map(String));
   fillSelect(el.brandFilter, state.catalog.owned_brands, 'All brands');
   fillSelect(el.materialFilter, [...new Set(state.filaments.map((f) => f.material))].sort(), 'All types');
   renderSwatches();
+}
+
+// ── Brand / type pickers ─────────────────────────────────────────────────────
+
+const CUSTOM = '__custom__';
+
+/**
+ * A <select> of known values paired with a text input for anything new.
+ *
+ * The select owns `required` so an unmade choice complains on a control the
+ * browser can focus; the text input only becomes required once "Something
+ * else" is picked. A hidden required field fails validation silently, which is
+ * exactly the trap this avoids.
+ */
+function buildPicker({ select, input, groups, value, placeholder, onPick }) {
+  const seen = new Set();
+  let html = `<option value="" disabled${value ? '' : ' selected'}>${esc(placeholder)}</option>`;
+
+  for (const [label, items] of groups) {
+    const fresh = items.filter((i) => i && !seen.has(i.toLowerCase()));
+    if (!fresh.length) continue;
+    html += `<optgroup label="${esc(label)}">`;
+    for (const item of fresh) {
+      seen.add(item.toLowerCase());
+      html += `<option value="${esc(item)}">${esc(item)}</option>`;
+    }
+    html += '</optgroup>';
+  }
+
+  // An existing spool may use a name no longer in the catalogue — keep it
+  // selectable so editing doesn't silently rewrite it.
+  if (value && !seen.has(value.toLowerCase())) {
+    html += `<optgroup label="Current"><option value="${esc(value)}">${esc(value)}</option></optgroup>`;
+    seen.add(value.toLowerCase());
+  }
+
+  html += `<option value="${CUSTOM}">＋ Something else…</option>`;
+
+  select.innerHTML = html;
+  select.value = value || '';
+  input.value = value || '';
+  input.hidden = true;
+  input.required = false;
+
+  if (!select.dataset.wired) {
+    select.dataset.wired = '1';
+    select.addEventListener('change', () => {
+      if (select.value === CUSTOM) {
+        input.hidden = false;
+        input.required = true;
+        input.value = '';
+        input.focus();
+      } else {
+        input.hidden = true;
+        input.required = false;
+        input.value = select.value;
+      }
+      onPick?.(input.value);
+      syncPreview();
+    });
+    input.addEventListener('input', () => {
+      onPick?.(input.value);
+      syncPreview();
+    });
+  }
+}
+
+function refreshBrandPicker(value = '') {
+  const owned = state.catalog.owned_brands ?? [];
+  const rest = (state.catalog.brands ?? []).filter(
+    (b) => !owned.some((o) => o.toLowerCase() === b.toLowerCase()),
+  );
+  buildPicker({
+    select: $('#f_brand_pick'),
+    input: form.elements.brand,
+    groups: [['Brands you own', owned], ['Common brands', rest]],
+    value,
+    placeholder: 'Choose a brand…',
+  });
+}
+
+function refreshMaterialPicker(value = '') {
+  const materials = state.catalog.materials ?? [];
+  const owned = [...new Set(state.filaments.map((f) => f.material))].filter(Boolean).sort();
+  const byFamily = new Map();
+  for (const m of materials) {
+    if (owned.some((o) => o.toLowerCase() === m.name.toLowerCase())) continue;
+    if (!byFamily.has(m.family)) byFamily.set(m.family, []);
+    byFamily.get(m.family).push(m.name);
+  }
+  buildPicker({
+    select: $('#f_material_pick'),
+    input: form.elements.material,
+    groups: [['Types you use', owned], ...byFamily.entries()],
+    value,
+    placeholder: 'Choose a type…',
+    onPick: applyMaterialDefaults,
+  });
 }
 
 function fillDatalist(id, values) {
@@ -367,8 +463,9 @@ function openEditor(filament = null) {
 
   form.reset();
   const f = filament ?? {};
-  setField('brand', f.brand);
-  setField('material', f.material);
+  refreshBrandPicker(f.brand ?? '');
+  refreshMaterialPicker(f.material ?? '');
+  $('#materialHint').textContent = '';
   setField('color_name', f.color_name);
   setField('color_hex', f.color_hex || '#808080');
   setField('status', f.status || 'new');
@@ -380,8 +477,8 @@ function openEditor(filament = null) {
   setField('bed_temp', f.bed_temp ?? '');
   setField('location', f.location);
   setField('notes', f.notes);
-  setField('quantity', 1);
   setField('purchased_at', f.purchased_at ? f.purchased_at.slice(0, 10) : '');
+  clampQuantity(1);
 
   syncColorText();
   syncRemaining();
@@ -463,14 +560,14 @@ $('#f_color_hex_text').addEventListener('input', (e) => {
 form.elements.color_hex.addEventListener('input', () => { syncColorText(); syncPreview(); });
 form.elements.status.addEventListener('change', () => { syncRemaining(); syncPreview(); });
 form.elements.remaining_pct.addEventListener('input', () => { syncRemaining(); syncPreview(); });
-for (const name of ['brand', 'material', 'color_name']) {
-  form.elements[name].addEventListener('input', syncPreview);
-}
+// Brand and material update the preview through their pickers.
+form.elements.color_name.addEventListener('input', syncPreview);
 
 /** Picking a known material pre-fills its typical temps and flags drying/enclosure. */
-form.elements.material.addEventListener('change', () => {
-  const value = form.elements.material.value.trim().toLowerCase();
-  const match = state.catalog.materials.find((m) => m.name.toLowerCase() === value);
+function applyMaterialDefaults(value) {
+  const match = state.catalog.materials.find(
+    (m) => m.name.toLowerCase() === String(value).trim().toLowerCase(),
+  );
   const hint = $('#materialHint');
   if (!match) { hint.textContent = ''; return; }
 
@@ -482,7 +579,33 @@ form.elements.material.addEventListener('change', () => {
     match.enclosure ? 'prefers an enclosure' : '',
     match.dry ? 'keep it dry' : '',
   ].filter(Boolean).join(' · ');
+}
+
+// ── Quantity stepper ─────────────────────────────────────────────────────────
+
+const quantityInput = form.elements.quantity;
+
+function clampQuantity(next) {
+  const min = Number(quantityInput.min) || 1;
+  const max = Number(quantityInput.max) || 20;
+  const value = Math.min(max, Math.max(min, Number(next) || min));
+  quantityInput.value = value;
+  for (const btn of document.querySelectorAll('.stepper button')) {
+    const step = Number(btn.dataset.step);
+    btn.disabled = (step < 0 && value <= min) || (step > 0 && value >= max);
+  }
+  return value;
+}
+
+document.querySelector('.stepper').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-step]');
+  if (btn) clampQuantity(Number(quantityInput.value) + Number(btn.dataset.step));
 });
+quantityInput.addEventListener('input', () => {
+  // Let the field be briefly empty while typing rather than fighting the user.
+  if (quantityInput.value !== '') clampQuantity(quantityInput.value);
+});
+quantityInput.addEventListener('blur', () => clampQuantity(quantityInput.value));
 
 /**
  * A field the browser can't focus (one inside the collapsed "More details"
@@ -492,7 +615,12 @@ form.elements.material.addEventListener('change', () => {
 form.addEventListener('invalid', (e) => {
   const details = e.target.closest('details');
   if (details && !details.open) details.open = true;
-  el.editorError.textContent = `${e.target.previousElementSibling?.textContent || 'A field'}: ${e.target.validationMessage}`;
+  // A hidden control can't be focused, so the browser would reject the submit
+  // with nothing on screen to explain why.
+  if (e.target.hidden) e.target.hidden = false;
+
+  const label = e.target.closest('.field')?.querySelector('label')?.textContent?.trim();
+  el.editorError.textContent = `${label || 'A field'}: ${e.target.validationMessage}`;
   el.editorError.hidden = false;
 }, true);
 

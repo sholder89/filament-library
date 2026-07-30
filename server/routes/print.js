@@ -27,7 +27,9 @@ const TOKEN      = process.env.LABEL_TOKEN || '';
 // Safe to default now that the size travels with the job instead of being
 // written to the printer's saved settings.
 const SIZE       = process.env.LABEL_SIZE || '2x1';
-const SHOW_TEXT  = process.env.LABEL_QR_SHOW_TEXT === '1';
+// On by default: the label prints the spool description beside the code, so a
+// sticker is readable without scanning it. Set to 0 for a bare QR.
+const SHOW_TEXT  = process.env.LABEL_QR_SHOW_TEXT !== '0';
 const NAME_LABEL = process.env.LABEL_NAME_LABEL === '1';
 const MODE_PREF  = (process.env.LABEL_MODE || 'auto').toLowerCase();
 
@@ -52,6 +54,13 @@ export function baseUrl(req) {
 
 export const filamentUrl = (req, id) => `${baseUrl(req)}/f/${id}`;
 
+/**
+ * Text printed on the label beside the QR code.
+ *
+ * Space-separated on purpose: the label renderer auto-wraps on whitespace, so a
+ * punctuation separator like "·" would be treated as a word and take a whole
+ * line to itself on a 2x1 sticker.
+ */
 export const describe = (f) =>
   [f.brand, f.material, f.color_name].filter(Boolean).join(' ');
 
@@ -73,11 +82,11 @@ async function request(url, { method = 'GET', body, headers = {} } = {}) {
 
 const relayHeaders = () => ({ 'X-Token': TOKEN });
 
-/** Queues one label on the relay, with its style attached to the job. */
-const queueLabel = (text, style) =>
+/** Queues one label on the relay, with its style and caption attached. */
+const queueLabel = (text, style, caption) =>
   request(`${RELAY_URL}/webhook`, {
     method: 'POST',
-    body: { value1: text, style },
+    body: { value1: text, style, ...(caption ? { caption } : {}) },
     headers: relayHeaders(),
   });
 
@@ -133,6 +142,8 @@ router.post('/:id', async (req, res, next) => {
   // The relay accepts 10 jobs a minute; keep copies well inside that.
   const copies = Math.min(mode === 'relay' ? 5 : 10, Math.max(1, parseInt(body.copies, 10) || 1));
 
+  // The QR encodes the URL; the caption is what a human reads off the shelf.
+  const caption = describe(filament);
   const qrStyle = { style_preset: 'qr_code', qr_show_text: showText ? 'true' : 'false', icons: 'false', size };
   const textStyle = { style_preset: 'none', icons: 'false', size };
 
@@ -140,24 +151,24 @@ router.post('/:id', async (req, res, next) => {
     if (mode === 'direct') {
       await request(`${CLIENT_URL}/print`, {
         method: 'POST',
-        body: { text: url, style_preset: 'qr_code', qr_show_text: showText, icons: false, size, copies },
+        body: { text: url, style_preset: 'qr_code', qr_show_text: showText, caption, icons: false, size, copies },
       });
       if (nameLabel) {
         await request(`${CLIENT_URL}/print`, {
           method: 'POST',
-          body: { text: describe(filament), style_preset: 'none', icons: false, size, copies },
+          body: { text: caption, style_preset: 'none', icons: false, size, copies },
         });
       }
     } else {
       // Each job carries its own style, so ordering no longer matters and the
       // printer's saved settings are never touched.
-      for (let i = 0; i < copies; i++) await queueLabel(url, qrStyle);
+      for (let i = 0; i < copies; i++) await queueLabel(url, qrStyle, caption);
       if (nameLabel) {
-        for (let i = 0; i < copies; i++) await queueLabel(describe(filament), textStyle);
+        for (let i = 0; i < copies; i++) await queueLabel(caption, textStyle);
       }
     }
 
-    res.json({ ok: true, mode, url, size, copies });
+    res.json({ ok: true, mode, url, caption, size, copies });
   } catch (err) {
     if (err.name === 'TimeoutError' || err.name === 'AbortError') {
       return res.status(504).json({

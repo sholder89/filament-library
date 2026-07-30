@@ -1,6 +1,6 @@
 /* Filament Library service worker — app shell offline, inventory read-only offline. */
 
-const VERSION = 'v1';
+const VERSION = 'v2';
 const SHELL = `shell-${VERSION}`;
 const DATA = `data-${VERSION}`;
 
@@ -67,17 +67,21 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Static assets: serve cached immediately, refresh in the background.
+  // Static assets: network first, falling back to cache when offline.
+  //
+  // Deliberately not stale-while-revalidate. That serves the previous copy and
+  // only refreshes the cache afterwards, so every deploy would land one page
+  // load late — you'd get the old JS against the new API. Freshness matters
+  // more here than shaving milliseconds off a LAN request.
   event.respondWith(
-    caches.match(request, { cacheName: SHELL }).then((hit) => {
-      const network = fetch(request).then((res) => {
+    fetch(request)
+      .then((res) => {
         if (res.ok) {
           const copy = res.clone();
           caches.open(SHELL).then((cache) => cache.put(request, copy));
         }
         return res;
-      });
-      return hit || network;
-    }),
+      })
+      .catch(() => caches.match(request, { cacheName: SHELL })),
   );
 });

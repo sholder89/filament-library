@@ -94,16 +94,19 @@
       </div>
     </div>
 
+    <!-- Picker + free-text pair: the select carries `required` so an empty
+         choice complains on a control the browser can actually focus, and the
+         text input only becomes required once "Something else" is picked. -->
     <div class="field">
-      <label for="f_brand">Brand</label>
-      <input id="f_brand" name="brand" list="brandList" required placeholder="Sunlu, Bambu Lab, Creality…" autocomplete="off" enterkeyhint="next">
-      <datalist id="brandList"></datalist>
+      <label for="f_brand_pick">Brand</label>
+      <select id="f_brand_pick" required></select>
+      <input id="f_brand" name="brand" placeholder="Enter a brand name" autocomplete="off" enterkeyhint="next" hidden>
     </div>
 
     <div class="field">
-      <label for="f_material">Type</label>
-      <input id="f_material" name="material" list="materialList" required placeholder="PLA, PETG, ABS, TPU…" autocomplete="off" enterkeyhint="next">
-      <datalist id="materialList"></datalist>
+      <label for="f_material_pick">Type</label>
+      <select id="f_material_pick" required></select>
+      <input id="f_material" name="material" placeholder="Enter a filament type" autocomplete="off" enterkeyhint="next" hidden>
       <p class="hint" id="materialHint"></p>
     </div>
 
@@ -135,6 +138,16 @@
                min="1" step="1" value="1000" list="weightList">
         <datalist id="weightList"></datalist>
       </div>
+    </div>
+
+    <div class="field" id="quantityField">
+      <label for="f_quantity">How many of these?</label>
+      <div class="stepper">
+        <button type="button" data-step="-1" aria-label="One fewer">−</button>
+        <input id="f_quantity" name="quantity" type="number" inputmode="numeric" min="1" max="20" step="1" value="1">
+        <button type="button" data-step="1" aria-label="One more">+</button>
+      </div>
+      <p class="hint">Adds a separate record per spool, so you can open and use them up one at a time.</p>
     </div>
 
     <div class="field" id="remainingField" hidden>
@@ -186,11 +199,6 @@
       <div class="field">
         <label for="f_notes">Notes</label>
         <textarea id="f_notes" name="notes" rows="3" placeholder="Prints great at 45mm/s…"></textarea>
-      </div>
-
-      <div class="field" id="quantityField">
-        <label for="f_quantity">How many identical spools?</label>
-        <input id="f_quantity" name="quantity" type="number" inputmode="numeric" min="1" max="20" value="1">
       </div>
     </details>
 

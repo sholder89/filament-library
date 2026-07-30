@@ -1,6 +1,12 @@
 /* ── Tokens ─────────────────────────────────────────────────────────────── */
 
 :root {
+  /* Tells the browser which scheme its own widgets should use — the caret,
+     text selection, native select popups, scrollbars and iOS form-control
+     rendering. Without it Safari draws light-mode controls (black text) over
+     the dark surfaces below. */
+  color-scheme: dark;
+
   --bg:        #0d0f13;
   --surface:   #161a21;
   --elevated:  #1d222b;
@@ -30,6 +36,8 @@
 }
 
 :root[data-theme="light"] {
+  color-scheme: light;
+
   --bg:        #f4f6fa;
   --surface:   #ffffff;
   --elevated:  #ffffff;
@@ -66,8 +74,17 @@ body {
   overflow-x: hidden;
 }
 
-button, input, select, textarea { font: inherit; color: inherit; }
+/* Colour is set explicitly rather than inherited: <dialog> resets colour to the
+   UA's CanvasText, which tracks the *system* scheme, so inheriting gave black
+   text on our dark sheets whenever the app theme and the OS disagreed. */
+button, input, select, textarea { font: inherit; color: var(--text); }
 h1, h2, h3 { margin: 0; font-weight: 650; letter-spacing: -.015em; }
+
+::placeholder { color: var(--muted); opacity: 1; }
+
+/* Safari on iOS greys out disabled/readonly text far more than we want. */
+input:disabled, select:disabled, textarea:disabled { -webkit-text-fill-color: var(--muted); opacity: 1; }
+input, textarea { -webkit-text-fill-color: var(--text); }
 
 /* ── Top bar ────────────────────────────────────────────────────────────── */
 
@@ -295,6 +312,9 @@ select {
   padding: 0;
   border: 0;
   background: transparent;
+  /* <dialog> defaults to CanvasText/Canvas from the UA sheet — pin both to the
+     app theme so sheet content never renders in the system colours. */
+  color: var(--text);
   max-width: none;
   max-height: none;
   width: 100%;
@@ -314,6 +334,7 @@ select {
   -webkit-overflow-scrolling: touch;
   padding: 8px 20px calc(24px + var(--safe-b));
   background: var(--surface);
+  color: var(--text);
   border: 1px solid var(--border);
   border-bottom: 0;
   border-radius: 24px 24px 0 0;
@@ -484,6 +505,34 @@ select {
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
 .hint { margin: 0; font-size: 12.5px; color: var(--muted); min-height: 1em; }
+
+/* Quantity stepper — big tap targets beat typing into a number field on a phone. */
+.stepper { display: grid; grid-template-columns: 56px 1fr 56px; gap: 8px; align-items: stretch; }
+.stepper button {
+  min-height: var(--tap);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--elevated);
+  color: var(--text);
+  font-size: 24px;
+  line-height: 1;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter .15s, border-color .15s, opacity .15s;
+}
+.stepper button:hover:not(:disabled) { border-color: var(--accent); }
+.stepper button:active:not(:disabled) { filter: brightness(1.25); }
+.stepper button:disabled { opacity: .35; cursor: not-allowed; }
+.stepper input {
+  text-align: center;
+  font-size: 19px;
+  font-weight: 650;
+  /* Spin buttons duplicate the +/- controls and shrink the tap area. */
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.stepper input::-webkit-outer-spin-button,
+.stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .form-error {
   margin: 0;
   padding: 11px 13px;
