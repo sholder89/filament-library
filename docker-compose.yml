@@ -13,6 +13,12 @@ services:
       - ./data:/data
 
     environment:
+      # User the app runs as. Must be able to write ./data — the entrypoint
+      # takes care of that for you. Set these to `id -u` / `id -g` if you want
+      # the database files owned by your own account on the host.
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+
       # Pin the URL the QR codes point at. Leave empty and the app uses whatever
       # host you browsed in on, which is usually what you want on a home LAN.
       APP_BASE_URL: ${APP_BASE_URL:-}

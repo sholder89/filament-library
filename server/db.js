@@ -5,9 +5,43 @@ import { dirname } from 'node:path';
 
 const DB_PATH = process.env.DB_PATH || '/data/filament.db';
 
-mkdirSync(dirname(DB_PATH), { recursive: true });
+/**
+ * SQLite reports a permission problem as a bare "unable to open database file"
+ * (errcode 14), which says nothing about how to fix it. Almost always it's the
+ * data directory being owned by someone this process isn't.
+ */
+function openDatabase() {
+  const dir = dirname(DB_PATH);
+  const whoami = typeof process.getuid === 'function'
+    ? `${process.getuid()}:${process.getgid()}`
+    : 'unknown';
 
-export const db = new DatabaseSync(DB_PATH);
+  try {
+    mkdirSync(dir, { recursive: true });
+    return new DatabaseSync(DB_PATH);
+  } catch (err) {
+    const permissionProblem =
+      err.code === 'EACCES' ||
+      err.code === 'EPERM' ||
+      err.errcode === 14 ||
+      /unable to open database file/i.test(err.message ?? '');
+
+    if (!permissionProblem) throw err;
+
+    throw new Error(
+      `Cannot open the database at ${DB_PATH}\n\n` +
+      `This process runs as uid:gid ${whoami} and can't write to ${dir}.\n` +
+      `That directory is a bind mount, so its owner comes from the host.\n\n` +
+      `Fix it on the host with either:\n` +
+      `  sudo chown -R 1000:1000 ./data\n` +
+      `or set PUID and PGID in .env to the user that owns ./data:\n` +
+      `  id -u && id -g\n`,
+      { cause: err },
+    );
+  }
+}
+
+export const db = openDatabase();
 
 db.exec('PRAGMA journal_mode = WAL');
 db.exec('PRAGMA foreign_keys = ON');

@@ -71,6 +71,7 @@ Everything is optional — the app runs with an empty `.env`.
 | Variable | Default | What it does |
 |---|---|---|
 | `HOST_PORT` | `8088` | Port on the server |
+| `PUID` / `PGID` | `1000` | User the app runs as. Set to your own `id -u` / `id -g` if you want the database files owned by your account. |
 | `TZ` | `UTC` | Timezone, so "opened today" matches your day |
 | `APP_BASE_URL` | *(auto)* | URL the QR codes point at. Auto-detects from how you reached the app, which is right on a home LAN. Set it if you're behind a reverse proxy. |
 | `LABEL_RELAY_URL` | — | Voice Label Printer relay server |
@@ -160,6 +161,38 @@ It includes used-up spools, which the default view hides.
 
 Status transitions keep their own timestamps straight: editing a note never
 rewrites the date you opened a spool.
+
+---
+
+## Troubleshooting
+
+**`unable to open database file` / container restart loop**
+
+The `./data` bind mount is owned by a user the app isn't. Docker creates that
+folder as `root` when it doesn't already exist, and the app runs unprivileged.
+
+The container fixes this itself on startup, so first make sure you're on a
+current image:
+
+```bash
+docker compose up -d --build
+```
+
+If it persists, the mount is on a filesystem where `chown` can't work (NFS, some
+SMB shares). Set ownership from the host instead:
+
+```bash
+sudo chown -R 1000:1000 ./data && docker compose restart
+```
+
+Or run the app as the user that already owns the folder — put `PUID` and `PGID`
+in `.env` set to your `id -u` and `id -g`.
+
+**Check what the container is actually doing**
+
+```bash
+docker compose logs -f
+```
 
 ---
 

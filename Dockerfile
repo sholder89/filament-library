@@ -7,6 +7,11 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 FROM node:24-alpine
+
+# su-exec lets the entrypoint fix up the data mount as root and then drop
+# privileges before the app starts.
+RUN apk add --no-cache su-exec
+
 ENV NODE_ENV=production \
     PORT=8080 \
     DB_PATH=/data/filament.db \
@@ -17,10 +22,10 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY package.json ./
 COPY server ./server
 COPY public ./public
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-# The DB lives on a volume; make it writable by the unprivileged runtime user.
 RUN mkdir -p /data && chown -R node:node /data /app
-USER node
 
 EXPOSE 8080
 VOLUME ["/data"]
@@ -28,4 +33,7 @@ VOLUME ["/data"]
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+process.env.PORT+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
+# Stays root only long enough for the entrypoint to chown the bind mount; the
+# app itself runs as PUID:PGID (1000:1000 by default, matching the node user).
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["node", "server/index.js"]
