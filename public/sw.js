@@ -1,6 +1,6 @@
 /* Filament Library service worker — app shell offline, inventory read-only offline. */
 
-const VERSION = 'v2';
+const VERSION = 'v3';
 const SHELL = `shell-${VERSION}`;
 const DATA = `data-${VERSION}`;
 
@@ -9,6 +9,7 @@ const SHELL_FILES = [
   '/styles.css',
   '/app.js',
   '/spool.js',
+  '/label.js',
   '/manifest.webmanifest',
   '/icons/icon-192.png',
   '/icons/icon-512.png',

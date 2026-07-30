@@ -1,4 +1,5 @@
 import { spoolSVG, escapeXML as esc, luminance } from './spool.js';
+import { labelPreviewHTML } from './label.js';
 
 // ── State ────────────────────────────────────────────────────────────────────
 
@@ -359,8 +360,15 @@ async function showDetail(id, push = false) {
     ${f.notes ? `<div class="notes-block">${esc(f.notes)}</div>` : ''}
 
     <div class="qr-block">
-      <img src="/api/print/qr/${encodeURIComponent(f.id)}.svg" alt="QR code linking to this spool" width="190" height="190">
-      <code>${esc(location.origin)}/f/${esc(f.id)}</code>
+      ${labelPreviewHTML(f, {
+        size: state.print.size || '2x1',
+        showText: state.print.show_text !== false,
+        qrSrc: `/api/print/qr/${encodeURIComponent(f.id)}.svg`,
+      })}
+      <span class="qr-caption">${printable
+        ? `This is roughly what prints — ${esc(state.print.size || '2x1')}″ label`
+        : 'Scan this to open the spool on your phone'}</span>
+      <code>${esc(state.print.base_url || location.origin)}/f/${esc(f.id)}</code>
     </div>
 
     <button class="btn danger wide" data-act="delete">Delete this record permanently</button>
@@ -449,6 +457,30 @@ el.detail.addEventListener('cancel', (e) => {
 
 const form = el.editorForm;
 
+/**
+ * Which submit button was pressed. Read on submit rather than passed through
+ * FormData so the distinction survives Enter-to-submit, which reports no
+ * submitter at all and should behave like a plain save.
+ */
+let submitIntent = 'save';
+$('#saveBtn').addEventListener('click', () => { submitIntent = 'save'; });
+$('#savePrintBtn').addEventListener('click', () => { submitIntent = 'print'; });
+
+/** Queues one label per spool. Sequential — the relay accepts 10 jobs a minute. */
+async function printLabelsFor(ids) {
+  let sent = 0;
+  let firstError = null;
+  for (const id of ids) {
+    try {
+      await api(`/api/print/${encodeURIComponent(id)}`, { method: 'POST', body: {} });
+      sent++;
+    } catch (err) {
+      firstError ??= err.message;
+    }
+  }
+  return { sent, firstError };
+}
+
 function setField(name, value) {
   const input = form.elements[name];
   if (input) input.value = value ?? '';
@@ -460,6 +492,10 @@ function openEditor(filament = null) {
   el.saveBtn.textContent = filament ? 'Save changes' : 'Add to library';
   el.editorError.hidden = true;
   $('#quantityField').hidden = Boolean(filament);
+  // Printing straight from the form only makes sense for new spools — an
+  // existing one can be printed from its own page.
+  $('#savePrintBtn').hidden = Boolean(filament) || state.print.mode === 'off';
+  submitIntent = 'save';
 
   form.reset();
   const f = filament ?? {};
@@ -628,6 +664,7 @@ form.addEventListener('submit', async (e) => {
   e.preventDefault();
   el.editorError.hidden = true;
   el.saveBtn.disabled = true;
+  $('#savePrintBtn').disabled = true;
 
   const data = Object.fromEntries(new FormData(form).entries());
   // A hidden range still submits, so pin the value the status implies.
@@ -643,16 +680,30 @@ form.addEventListener('submit', async (e) => {
       toast('Spool updated');
     } else {
       const created = await api('/api/filaments', { method: 'POST', body: data });
-      const count = Array.isArray(created) ? created.length : 1;
+      const list = Array.isArray(created) ? created : [created];
+      const added = list.length === 1 ? 'Spool added' : `${list.length} spools added`;
       closeSheet(el.editor);
       await refresh();
-      toast(count === 1 ? 'Spool added' : `${count} spools added`);
+
+      if (submitIntent !== 'print') {
+        toast(added);
+      } else {
+        // Each spool gets its own QR, so a batch gets a label each.
+        toast(`${added} — sending ${list.length === 1 ? 'label' : 'labels'}…`);
+        const { sent, firstError } = await printLabelsFor(list.map((f) => f.id));
+        if (firstError) {
+          toast(`${added}, but ${list.length - sent} of ${list.length} labels failed: ${firstError}`, true);
+        } else {
+          toast(`${added} · ${sent === 1 ? 'label sent' : `${sent} labels sent`}`);
+        }
+      }
     }
   } catch (err) {
     el.editorError.textContent = err.message;
     el.editorError.hidden = false;
   } finally {
     el.saveBtn.disabled = false;
+    $('#savePrintBtn').disabled = false;
   }
 });
 

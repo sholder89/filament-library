@@ -28,7 +28,10 @@ through — used-up spools stay in the library as a record instead of vanishing.
 - **Add a batch at once** — bought five of the same spool? Set the quantity and
   each one gets its own record, so you can open and use them up individually.
 - **QR labels** — print a QR sticker for a spool through your Voice Label
-  Printer. Scanning it opens that spool's page.
+  Printer. Scanning it opens that spool's page. Each spool's page shows a
+  preview of the sticker before you print it, and the add form has an **Add to
+  library and print QR** button that does both in one go — one label per spool
+  when you're adding a batch.
 - **Works offline** — the app shell and your last-loaded inventory are cached,
   so it opens in the workshop even when the WiFi doesn't.
 
@@ -122,8 +125,14 @@ curl -s http://<server-ip>:8088/api/print/status
 
 `show_text: false` there means no text will be printed beside the QR.
 
-Each spool's page also shows its QR on screen, so you can scan or screenshot one
-without printing anything.
+Each spool's page shows a preview of the sticker — QR placement, the bold brand
+line and the type/colour beneath — laid out from the same rules the printer
+uses, so you can see what you'll get before committing a label. It's an
+approximation: text is auto-sized by estimate rather than measured, so treat it
+as a guide to whether a long name fits, not a pixel-exact proof.
+
+The preview doubles as an on-screen QR you can scan or screenshot without
+printing anything.
 
 ### Direct mode
 
