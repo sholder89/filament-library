@@ -57,12 +57,20 @@ export const filamentUrl = (req, id) => `${baseUrl(req)}/f/${id}`;
 /**
  * Text printed on the label beside the QR code.
  *
- * Space-separated on purpose: the label renderer auto-wraps on whitespace, so a
- * punctuation separator like "·" would be treated as a word and take a whole
- * line to itself on a 2x1 sticker.
+ * Two deliberate lines — brand on top, type and colour below:
+ *
+ *     Bambu Lab
+ *     PLA - Yellow
+ *
+ * The renderer honours these breaks and sets the first line bold. Left to split
+ * a single line itself it would stack every word ("Bambu / Lab / PLA / Yellow").
+ * Hyphen rather than "·" because a lone bullet counts as a word if the caption
+ * ever does get auto-wrapped.
  */
-export const describe = (f) =>
-  [f.brand, f.material, f.color_name].filter(Boolean).join(' ');
+export function describe(f) {
+  const detail = [f.material, f.color_name].filter(Boolean).join(' - ');
+  return [f.brand, detail].filter(Boolean).join('\n');
+}
 
 async function request(url, { method = 'GET', body, headers = {} } = {}) {
   const res = await fetch(url, {
