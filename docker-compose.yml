@@ -40,9 +40,14 @@ services:
 
       # Style and size travel with each job, so filament labels never change
       # the printer's saved settings.
-      LABEL_SIZE: ${LABEL_SIZE:-2x1}
-      LABEL_QR_SHOW_TEXT: ${LABEL_QR_SHOW_TEXT:-0}
-      LABEL_NAME_LABEL: ${LABEL_NAME_LABEL:-0}
+      #
+      # These pass through with no default on purpose. Compose substitutes an
+      # empty string when the variable is unset, and the app treats empty as
+      # "use my default" — so the default lives in one place (the code) instead
+      # of being silently overridden here.
+      LABEL_SIZE: ${LABEL_SIZE:-}
+      LABEL_QR_SHOW_TEXT: ${LABEL_QR_SHOW_TEXT:-}
+      LABEL_NAME_LABEL: ${LABEL_NAME_LABEL:-}
 
       # Optional escape hatch: talk straight to the Windows client instead.
       LABEL_MODE: ${LABEL_MODE:-auto}

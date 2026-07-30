@@ -111,6 +111,17 @@ Labels print the QR alongside the spool's brand, type and colour, so a sticker
 is readable without scanning it. Set `LABEL_QR_SHOW_TEXT=0` for a bare code, or
 `LABEL_NAME_LABEL=1` to also print a second text-only label.
 
+Defaults live in the code, and `docker-compose.yml` passes these through empty
+rather than repeating them — an uncommented line in your `.env` always wins, so
+check there first if a setting isn't behaving. To see what the app actually
+resolved:
+
+```bash
+curl -s http://<server-ip>:8088/api/print/status
+```
+
+`show_text: false` there means no text will be printed beside the QR.
+
 Each spool's page also shows its QR on screen, so you can scan or screenshot one
 without printing anything.
 
