@@ -1,0 +1,41 @@
+services:
+  filament-library:
+    build: .
+    image: filament-library:latest
+    container_name: filament-library
+    restart: unless-stopped
+
+    ports:
+      - "${HOST_PORT:-8088}:8080"
+
+    volumes:
+      # The SQLite database. Back this folder up and you've backed up everything.
+      - ./data:/data
+
+    environment:
+      # Pin the URL the QR codes point at. Leave empty and the app uses whatever
+      # host you browsed in on, which is usually what you want on a home LAN.
+      APP_BASE_URL: ${APP_BASE_URL:-}
+
+      # Voice Label Printer — prints go through the relay server, the same path
+      # Alexa and Siri use. The Windows client picks the job up on its next poll.
+      LABEL_RELAY_URL: ${LABEL_RELAY_URL:-}
+      LABEL_TOKEN: ${LABEL_TOKEN:-}
+
+      # Style and size travel with each job, so filament labels never change
+      # the printer's saved settings.
+      LABEL_SIZE: ${LABEL_SIZE:-2x1}
+      LABEL_QR_SHOW_TEXT: ${LABEL_QR_SHOW_TEXT:-0}
+      LABEL_NAME_LABEL: ${LABEL_NAME_LABEL:-0}
+
+      # Optional escape hatch: talk straight to the Windows client instead.
+      LABEL_MODE: ${LABEL_MODE:-auto}
+      LABEL_CLIENT_URL: ${LABEL_CLIENT_URL:-}
+
+      TZ: ${TZ:-UTC}
+
+    # Only needed if something you point at runs on the Docker host itself;
+    # reaching another machine on the LAN (the Windows print PC) works without
+    # it. Harmless to leave in place.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

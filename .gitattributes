@@ -1,0 +1,7 @@
+# This project is edited on Windows but runs in a Linux container. Normalise to
+# LF everywhere so a CRLF never reaches the image — it breaks shell scripts and
+# can confuse the Dockerfile parser.
+* text=auto eol=lf
+
+*.png binary
+*.ico binary
