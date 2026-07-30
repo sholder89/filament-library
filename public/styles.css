@@ -219,9 +219,11 @@ select {
   cursor: pointer;
 }
 
-/* Opens the multi-select sheet. Styled to sit alongside the sort <select>. */
+.filter-wrap { position: relative; flex: 1 1 140px; min-width: 0; display: flex; }
+
+/* Opens the multi-select popover. Styled to sit alongside the sort <select>. */
 .filter-btn {
-  flex: 1 1 140px;
+  flex: 1 1 auto;
   min-width: 0;
   min-height: var(--tap);
   display: flex;
@@ -240,7 +242,73 @@ select {
 .filter-btn.on { border-color: var(--accent); color: var(--accent); }
 .filter-btn.on svg { color: var(--accent); }
 
-/* ── Option list (multi-select sheet) ────────────────────────────────────── */
+/* ── Filter popover ──────────────────────────────────────────────────────── */
+
+/* Narrow screens get a bottom sheet; desktop gets a dropdown anchored under the
+   button (see the min-width rule below). Position is fixed here so the sheet
+   ignores the .filter-wrap it's parented to. */
+.picker-pop {
+  position: fixed;
+  z-index: 45;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  gap: 12px;
+  padding: 8px 16px calc(16px + var(--safe-b));
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  border-radius: 20px 20px 0 0;
+  box-shadow: var(--shadow);
+  /* Its own keyframe on purpose: `rise` also translates X by -50% for the
+     centred sheets, which would throw a full-width sheet off to the left. */
+  animation: slide-up .2s cubic-bezier(.2, .9, .3, 1);
+}
+.picker-pop[hidden] { display: none; }
+
+@keyframes slide-up { from { transform: translateY(18px); opacity: 0; } }
+
+.picker-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 44;
+  background: rgba(0, 0, 0, .5);
+}
+.picker-scrim[hidden] { display: none; }
+
+.picker-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.picker-head h2 { font-size: 17px; }
+.picker-actions { display: flex; gap: 10px; }
+.picker-actions .btn { flex: 1; }
+
+@media (min-width: 720px) {
+  .picker-pop {
+    position: absolute;
+    top: calc(100% + 8px);
+    bottom: auto;
+    left: 0;
+    right: auto;
+    width: 300px;
+    max-width: min(300px, calc(100vw - 32px));
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    animation: dropdown .14s ease-out;
+  }
+  /* Flipped when the dropdown would otherwise run off the right edge. */
+  .picker-pop.align-right { left: auto; right: 0; }
+  .picker-scrim { display: none; }
+  .picker-head .icon-btn { display: none; }
+}
+
+@keyframes dropdown { from { opacity: 0; transform: translateY(-6px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .picker-pop { animation: none; }
+}
+
+/* ── Option list (multi-select popover) ──────────────────────────────────── */
 
 .option-list {
   display: grid;
@@ -335,6 +403,32 @@ select {
 .badge.new    { color: var(--new);    border-color: color-mix(in srgb, var(--new) 40%, transparent); }
 .badge.opened { color: var(--opened); border-color: color-mix(in srgb, var(--opened) 40%, transparent); }
 .badge.empty  { color: var(--empty); }
+
+/* ── Glitter sparkles ────────────────────────────────────────────────────── */
+
+/* Ten fixed points twinkling out of phase. Kept to opacity/transform so it
+   stays on the compositor even with a gridful of spools on screen. */
+.sparkle {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: twinkle 2.6s ease-in-out infinite;
+  opacity: .4;
+}
+
+/* Frame zero is deliberately visible rather than fully transparent: if
+   animations are ever frozen or unsupported, glitter still reads as glitter
+   instead of vanishing entirely. */
+@keyframes twinkle {
+  0%, 100% { opacity: .35; transform: scale(.55); }
+  8%       { opacity: .95; transform: scale(1.15); }
+  22%      { opacity: .3;  transform: scale(.7); }
+  34%      { opacity: .85; transform: scale(1); }
+  55%      { opacity: .2;  transform: scale(.5); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sparkle { animation: none; opacity: .75; transform: none; }
+}
 
 /* ── Stacked duplicates ──────────────────────────────────────────────────── */
 

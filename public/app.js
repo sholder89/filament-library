@@ -9,7 +9,7 @@ const state = {
   catalog: { brands: [], materials: [], colors: [], locations: [] },
   print: { mode: 'off' },
   editingId: null,
-  filters: { status: 'active', brand: [], material: [], q: '', sort: 'newest' },
+  filters: { status: 'active', brand: [], material: [], finish: [], q: '', sort: 'newest' },
   // Group keys the user has fanned open; everything else stays stacked.
   expandedGroups: new Set(),
 };
@@ -80,7 +80,8 @@ function ago(iso) {
   return `${Math.round(days / 365.25)} years ago`;
 }
 
-const SHEETS = [el.detail, el.editor, el.picker, el.scanner];
+// The filter popover isn't a <dialog> — it's dismissed by closePicker instead.
+const SHEETS = [el.detail, el.editor, el.scanner];
 
 /** Locks background scrolling while a sheet is up — iOS ignores <dialog>'s own lock. */
 function openSheet(dialog) {
@@ -103,7 +104,7 @@ function closeSheet(dialog) {
 }
 
 function releaseScrollLock() {
-  if (!SHEETS.some((d) => d.open)) document.body.style.overflow = '';
+  if (!SHEETS.some((d) => d.open) && !pickerKind) document.body.style.overflow = '';
 }
 
 for (const dialog of SHEETS) {
@@ -121,8 +122,18 @@ async function loadCatalog() {
   fillDatalist('colorList', state.catalog.colors.map((c) => c.name));
   fillDatalist('locationList', state.catalog.locations);
   fillDatalist('weightList', state.catalog.spool_weights.map(String));
+  fillFinishSelect();
   syncFilterButtons();
   renderSwatches();
+}
+
+function fillFinishSelect() {
+  const select = form.elements.finish;
+  const current = select.value;
+  select.innerHTML = '<option value="">Standard — no special finish</option>'
+    + (state.catalog.finishes ?? []).map((f) =>
+      `<option value="${esc(f.name)}">${esc(f.name)}</option>`).join('');
+  select.value = current;
 }
 
 // ── Brand / type pickers ─────────────────────────────────────────────────────
@@ -234,9 +245,10 @@ function fillDatalist(id, values) {
  * no point offering to filter by a brand you don't own. Counts are computed
  * across the whole library so a filtered-out option still shows what it holds.
  */
-const filterOptions = {
-  brand: () => tally('brand'),
-  material: () => tally('material'),
+const FILTER_KINDS = {
+  brand:    { btn: 'brandFilterBtn',    noun: 'brands',   title: 'Filter by brand' },
+  material: { btn: 'materialFilterBtn', noun: 'types',    title: 'Filter by type' },
+  finish:   { btn: 'finishFilterBtn',   noun: 'finishes', title: 'Filter by finish' },
 };
 
 function tally(field) {
@@ -250,16 +262,18 @@ function tally(field) {
     .map(([value, count]) => ({ value, count }));
 }
 
+const filterBtn = (kind) => document.getElementById(FILTER_KINDS[kind].btn);
+
 function filterLabel(kind, selected) {
-  const noun = kind === 'brand' ? 'brands' : 'types';
+  const { noun } = FILTER_KINDS[kind];
   if (!selected.length) return `All ${noun}`;
   if (selected.length === 1) return selected[0];
   return `${selected.length} ${noun}`;
 }
 
 function syncFilterButtons() {
-  for (const kind of ['brand', 'material']) {
-    const btn = kind === 'brand' ? el.brandFilterBtn : el.materialFilterBtn;
+  for (const kind of Object.keys(FILTER_KINDS)) {
+    const btn = filterBtn(kind);
     const selected = state.filters[kind];
     btn.querySelector('span').textContent = filterLabel(kind, selected);
     btn.classList.toggle('on', selected.length > 0);
@@ -268,15 +282,49 @@ function syncFilterButtons() {
 
 let pickerKind = null;
 
+/**
+ * Anchored dropdown on desktop, bottom sheet on narrow screens.
+ *
+ * The popover is physically moved into the active filter's wrapper so the
+ * desktop positioning is just `position: absolute` against it — no coordinate
+ * maths to keep in sync with scrolling or resizing.
+ */
 function openPicker(kind) {
+  if (pickerKind === kind) return closePicker();
+  closePicker();
+
   pickerKind = kind;
-  $('#pickerTitle').textContent = kind === 'brand' ? 'Filter by brand' : 'Filter by type';
+  $('#pickerTitle').textContent = FILTER_KINDS[kind].title;
   renderPickerOptions();
-  openSheet(el.picker);
+
+  const btn = filterBtn(kind);
+  btn.closest('.filter-wrap').appendChild(el.picker);
+  el.picker.hidden = false;
+  el.picker.classList.remove('align-right');
+  btn.setAttribute('aria-expanded', 'true');
+
+  const wide = matchMedia('(min-width: 720px)').matches;
+  $('#pickerScrim').hidden = wide;
+  if (!wide) document.body.style.overflow = 'hidden';
+
+  // Flip the dropdown when it would spill past the right edge.
+  if (wide) {
+    const box = el.picker.getBoundingClientRect();
+    if (box.right > innerWidth - 8) el.picker.classList.add('align-right');
+  }
+}
+
+function closePicker() {
+  if (!pickerKind) return;
+  filterBtn(pickerKind).setAttribute('aria-expanded', 'false');
+  pickerKind = null;
+  el.picker.hidden = true;
+  $('#pickerScrim').hidden = true;
+  releaseScrollLock();
 }
 
 function renderPickerOptions() {
-  const options = filterOptions[pickerKind]();
+  const options = tally(pickerKind);
   const selected = state.filters[pickerKind];
   const hint = $('#pickerHint');
 
@@ -320,11 +368,25 @@ $('#pickerClear').addEventListener('click', () => {
 });
 
 el.picker.addEventListener('click', (e) => {
-  if (e.target.closest('[data-close]')) closeSheet(el.picker);
+  if (e.target.closest('[data-close]')) closePicker();
 });
-el.picker.addEventListener('cancel', (e) => { e.preventDefault(); closeSheet(el.picker); });
-el.brandFilterBtn.addEventListener('click', () => openPicker('brand'));
-el.materialFilterBtn.addEventListener('click', () => openPicker('material'));
+$('#pickerScrim').addEventListener('click', closePicker);
+
+for (const kind of Object.keys(FILTER_KINDS)) {
+  filterBtn(kind).addEventListener('click', () => openPicker(kind));
+}
+
+// Click-anywhere-else dismissal. The filter buttons handle their own toggling,
+// so they're excluded rather than double-handled.
+document.addEventListener('click', (e) => {
+  if (!pickerKind) return;
+  if (e.target.closest('#picker') || e.target.closest('.filter-btn')) return;
+  closePicker();
+});
+
+addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && pickerKind) closePicker();
+});
 
 async function loadStats() {
   const s = await api('/api/filaments/stats');
@@ -341,18 +403,19 @@ const statCard = (cls, value, label) =>
 
 async function loadFilaments() {
   const p = new URLSearchParams();
-  const { status, brand, material, q, sort } = state.filters;
+  const { status, brand, material, finish, q, sort } = state.filters;
   if (status !== 'active') p.set('status', status);
   // The API takes these comma-separated and matches any of them.
   if (brand.length) p.set('brand', brand.join(','));
   if (material.length) p.set('material', material.join(','));
+  if (finish.length) p.set('finish', finish.join(','));
   if (q) p.set('q', q);
   p.set('sort', sort);
 
   state.filaments = await api(`/api/filaments?${p}`);
   renderGrid();
 
-  const active = brand.length || material.length || q || status !== 'active';
+  const active = brand.length || material.length || finish.length || q || status !== 'active';
   el.clearFilters.hidden = !active;
 }
 
@@ -412,7 +475,7 @@ const cardHTML = (f) => `
     <div class="card-spool">${spoolSVG(f)}</div>
     <span class="card-brand">${esc(f.brand)}</span>
     <span class="card-title">${esc(f.material)}</span>
-    <span class="card-color">${esc(f.color_name || '—')}</span>
+    <span class="card-color">${esc([f.color_name || '—', f.finish].filter(Boolean).join(' · '))}</span>
   </button>`;
 
 function renderGroup(group) {
@@ -504,6 +567,7 @@ async function showDetail(id, push = false) {
         <div class="detail-sub">${esc(f.color_name || 'No color set')}</div>
         <div class="chips">
           <span class="chip">${esc(STATUS_LABEL[f.status])}</span>
+          ${f.finish ? `<span class="chip">${esc(f.finish)}</span>` : ''}
           ${f.status !== 'empty' ? `<span class="chip" id="remainingChip">${f.remaining_pct}% left · ~${remainingG} g</span>` : ''}
           <span class="chip">${esc(f.diameter)} mm</span>
           ${f.location ? `<span class="chip">${esc(f.location)}</span>` : ''}
@@ -516,9 +580,12 @@ async function showDetail(id, push = false) {
       <button class="btn" data-act="edit">
         <svg viewBox="0 0 24 24"><path d="M4 20h4L20 8l-4-4L4 16z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
         Edit</button>
-      <button class="btn" data-act="print" ${printable ? '' : 'disabled title="Set LABEL_CLIENT_URL to enable printing"'}>
+      <button class="btn" data-act="print" ${printable ? '' : 'disabled title="Set LABEL_RELAY_URL to enable printing"'}>
         <svg viewBox="0 0 24 24"><path d="M7 9V3h10v6M7 19H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2m-10 0v3h10v-6H7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
         Print QR</button>
+      <button class="btn span2" data-act="duplicate">
+        <svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        Add another sealed one</button>
       ${f.status === 'opened' ? `<button class="btn ghost span2" data-act="unopen">Actually, it's still sealed</button>` : ''}
     </div>
 
@@ -540,6 +607,7 @@ async function showDetail(id, push = false) {
     <dl class="spec-list">
       ${spec('Brand', f.brand)}
       ${spec('Type', f.material)}
+      ${spec('Finish', f.finish)}
       ${spec('Spool', `${f.spool_weight_g} g`)}
       ${spec('Nozzle', f.nozzle_temp ? `${f.nozzle_temp} °C` : '')}
       ${spec('Bed', f.bed_temp ? `${f.bed_temp} °C` : '')}
@@ -608,6 +676,24 @@ el.detail.addEventListener('click', async (e) => {
     try {
       await api(`/api/print/${encodeURIComponent(id)}`, { method: 'POST', body: {} });
       toast('QR label sent to the printer');
+    } catch (err) {
+      toast(err.message, true);
+    } finally {
+      btn.disabled = false;
+    }
+    return;
+  }
+
+  if (act === 'duplicate') {
+    btn.disabled = true;
+    try {
+      const copy = await api(`/api/filaments/${encodeURIComponent(id)}/duplicate`, {
+        method: 'POST', body: {},
+      });
+      await refresh();
+      // Jump to the new spool so it can be labelled straight away.
+      await showDetail(copy.id, true);
+      toast('Added another sealed spool');
     } catch (err) {
       toast(err.message, true);
     } finally {
@@ -754,6 +840,9 @@ function openEditor(filament = null) {
   refreshBrandPicker(f.brand ?? '');
   refreshMaterialPicker(f.material ?? '');
   $('#materialHint').textContent = '';
+  fillFinishSelect();
+  setField('finish', f.finish ?? '');
+  syncFinishHint();
   setField('color_name', f.color_name);
   setField('color_hex', f.color_hex || '#808080');
   setField('status', f.status || 'new');
@@ -790,6 +879,7 @@ function currentDraft() {
     material: form.elements.material.value.trim(),
     color_name: form.elements.color_name.value.trim(),
     color_hex: form.elements.color_hex.value,
+    finish: form.elements.finish.value,
     status: form.elements.status.value,
     remaining_pct: editorRemaining,
   };
@@ -799,7 +889,7 @@ function syncPreview() {
   const d = currentDraft();
   $('#editorPreview').innerHTML = spoolSVG(d, { title: false });
   $('#previewName').textContent = [d.brand, d.material].filter(Boolean).join(' ') || 'New spool';
-  $('#previewSub').textContent = [d.color_name, STATUS_LABEL[d.status]].filter(Boolean).join(' · ');
+  $('#previewSub').textContent = [d.color_name, d.finish, STATUS_LABEL[d.status]].filter(Boolean).join(' · ');
 }
 
 function syncColorText() {
@@ -851,6 +941,13 @@ form.elements.status.addEventListener('change', () => {
 });
 // Brand and material update the preview through their pickers.
 form.elements.color_name.addEventListener('input', syncPreview);
+
+function syncFinishHint() {
+  const match = (state.catalog.finishes ?? []).find((f) => f.name === form.elements.finish.value);
+  $('#finishHint').textContent = match?.blurb ?? '';
+}
+
+form.elements.finish.addEventListener('change', () => { syncFinishHint(); syncPreview(); });
 
 /** Picking a known material pre-fills its typical temps and flags drying/enclosure. */
 function applyMaterialDefaults(value) {
@@ -982,7 +1079,7 @@ el.search.addEventListener('input', () => {
 el.sortBy.addEventListener('change', () => { state.filters.sort = el.sortBy.value; loadFilaments(); });
 
 el.clearFilters.addEventListener('click', () => {
-  state.filters = { status: 'active', brand: [], material: [], q: '', sort: el.sortBy.value };
+  state.filters = { status: 'active', brand: [], material: [], finish: [], q: '', sort: el.sortBy.value };
   el.search.value = '';
   syncFilterButtons();
   for (const b of el.statusFilter.children) b.classList.toggle('on', b.dataset.status === 'active');

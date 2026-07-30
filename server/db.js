@@ -50,7 +50,7 @@ db.exec('PRAGMA foreign_keys = ON');
  * Schema is versioned through PRAGMA user_version so upgrades are additive and
  * never lose a spool record. Bump SCHEMA_VERSION and add a migration below.
  */
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 function migrate() {
   const current = db.prepare('PRAGMA user_version').get().user_version;
@@ -87,7 +87,12 @@ function migrate() {
     db.exec(`PRAGMA user_version = 1`);
   }
 
-  // Future migrations: if (current < 2) { ... db.exec('PRAGMA user_version = 2') }
+  if (current < 2) {
+    // Finish/effect (silk, glitter, matte, wood…). Empty means a plain spool.
+    db.exec(`ALTER TABLE filaments ADD COLUMN finish TEXT NOT NULL DEFAULT ''`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_filaments_finish ON filaments (finish)`);
+    db.exec(`PRAGMA user_version = 2`);
+  }
 }
 
 migrate();

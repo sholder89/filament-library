@@ -51,14 +51,24 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="m16.5 16.5 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       <input type="search" id="search" placeholder="Search brand, color, notes…" autocomplete="off" enterkeyhint="search">
     </div>
-    <button type="button" class="filter-btn" id="brandFilterBtn" aria-haspopup="dialog">
-      <span id="brandFilterLabel">All brands</span>
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </button>
-    <button type="button" class="filter-btn" id="materialFilterBtn" aria-haspopup="dialog">
-      <span id="materialFilterLabel">All types</span>
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </button>
+    <div class="filter-wrap">
+      <button type="button" class="filter-btn" id="brandFilterBtn" aria-haspopup="true" aria-expanded="false">
+        <span id="brandFilterLabel">All brands</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+    <div class="filter-wrap">
+      <button type="button" class="filter-btn" id="materialFilterBtn" aria-haspopup="true" aria-expanded="false">
+        <span id="materialFilterLabel">All types</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+    <div class="filter-wrap">
+      <button type="button" class="filter-btn" id="finishFilterBtn" aria-haspopup="true" aria-expanded="false">
+        <span id="finishFilterLabel">All finishes</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
     <select id="sortBy" aria-label="Sort order">
       <option value="newest">Newest first</option>
       <option value="brand">Brand A–Z</option>
@@ -122,6 +132,14 @@
       <select id="f_material_pick" required></select>
       <input id="f_material" name="material" placeholder="Enter a filament type" autocomplete="off" enterkeyhint="next" hidden>
       <p class="hint" id="materialHint"></p>
+    </div>
+
+    <div class="field">
+      <label for="f_finish">Finish</label>
+      <select id="f_finish" name="finish">
+        <option value="">Standard — no special finish</option>
+      </select>
+      <p class="hint" id="finishHint"></p>
     </div>
 
     <div class="field">
@@ -225,23 +243,25 @@
   </form>
 </dialog>
 
-<!-- ── Multi-select filter picker (shared by brand and type) ─────────────── -->
-<dialog id="picker" class="sheet">
-  <div class="sheet-inner">
-    <div class="sheet-head">
-      <h2 id="pickerTitle">Filter</h2>
-      <button type="button" class="icon-btn" data-close aria-label="Close">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-      </button>
-    </div>
-    <p class="hint" id="pickerHint">Pick as many as you like.</p>
-    <div class="option-list" id="pickerOptions"></div>
-    <div class="sheet-actions">
-      <button type="button" class="btn ghost" id="pickerClear">Clear all</button>
-      <button type="button" class="btn primary" data-close>Done</button>
-    </div>
+<!-- ── Multi-select filter popover (shared by all three filters) ──────────
+     A dropdown anchored under its button on desktop; a bottom sheet on
+     narrow screens. It's moved into the active .filter-wrap when opened, so
+     the desktop anchoring falls out of normal positioning. -->
+<div class="picker-scrim" id="pickerScrim" hidden></div>
+<div class="picker-pop" id="picker" role="dialog" aria-label="Filter options" hidden>
+  <div class="picker-head">
+    <h2 id="pickerTitle">Filter</h2>
+    <button type="button" class="icon-btn" data-close aria-label="Close">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
   </div>
-</dialog>
+  <p class="hint" id="pickerHint">Pick as many as you like.</p>
+  <div class="option-list" id="pickerOptions"></div>
+  <div class="picker-actions">
+    <button type="button" class="btn ghost" id="pickerClear">Clear all</button>
+    <button type="button" class="btn primary" data-close>Done</button>
+  </div>
+</div>
 
 <!-- ── QR scanner ────────────────────────────────────────────────────────── -->
 <dialog id="scanner" class="sheet">

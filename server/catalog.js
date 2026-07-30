@@ -81,6 +81,28 @@ export const MATERIALS = [
   { name: 'PEEK',       nozzle: 400, bed: 130, family: 'Other', enclosure: true,  dry: true  },
 ];
 
+/**
+ * Special finishes. These are orthogonal to the material — you can have silk
+ * PLA or glitter PETG — so they're tracked separately rather than as more
+ * entries in MATERIALS.
+ *
+ * `effect` names the treatment the spool graphic applies; several finishes share
+ * one (glow and glitter both sparkle, for instance, but glow also halos).
+ */
+export const FINISHES = [
+  { name: 'Silk',          effect: 'silk',        blurb: 'High-gloss sheen' },
+  { name: 'Matte',         effect: 'matte',       blurb: 'Flat, no shine' },
+  { name: 'Glitter',       effect: 'glitter',     blurb: 'Sparkle flecks' },
+  { name: 'Translucent',   effect: 'translucent', blurb: 'Light passes through' },
+  { name: 'Marble',        effect: 'marble',      blurb: 'Swirled two-tone' },
+  { name: 'Wood',          effect: 'wood',        blurb: 'Wood-fill grain' },
+  { name: 'Glow in the dark', effect: 'glow',     blurb: 'Phosphorescent' },
+  { name: 'Carbon fiber',  effect: 'carbon',      blurb: 'CF-reinforced speckle' },
+  { name: 'Metallic',      effect: 'metallic',    blurb: 'Metal-flake shimmer' },
+  { name: 'Gradient',      effect: 'gradient',    blurb: 'Color shifts along the spool' },
+  { name: 'Dual color',    effect: 'dual',        blurb: 'Two-tone co-extrusion' },
+];
+
 /** Common spool colors — the picker offers these as swatches, plus a free hex input. */
 export const COLORS = [
   { name: 'Black',        hex: '#1A1A1A' },

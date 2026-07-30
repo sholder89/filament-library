@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db.js';
-import { BRANDS, MATERIALS, COLORS, SPOOL_WEIGHTS, DIAMETERS } from '../catalog.js';
+import { BRANDS, MATERIALS, COLORS, FINISHES, SPOOL_WEIGHTS, DIAMETERS } from '../catalog.js';
 
 export const router = Router();
 
@@ -33,6 +33,13 @@ router.get('/', (_req, res) => {
       ...extraMaterials.map((name) => ({ name, nozzle: null, bed: null, family: 'Other', enclosure: false, dry: false })),
     ],
     colors: COLORS,
+    finishes: [
+      ...FINISHES,
+      // Anything typed in before a finish was removed from the seed list.
+      ...used('finish')
+        .filter((f) => !FINISHES.some((s) => s.name.toLowerCase() === f.toLowerCase()))
+        .map((name) => ({ name, effect: '', blurb: '' })),
+    ],
     spool_weights: SPOOL_WEIGHTS,
     diameters: DIAMETERS,
     locations: used('location'),

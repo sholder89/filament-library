@@ -59,6 +59,7 @@ function readBody(body, { partial = false } = {}) {
   }
   if (want('color_name')) out.color_name = str(body.color_name);
   if (want('color_hex'))  out.color_hex  = hex(body.color_hex);
+  if (want('finish'))     out.finish     = str(body.finish);
   if (want('location'))   out.location   = str(body.location);
   if (want('notes'))      out.notes      = str(body.notes);
 
@@ -107,9 +108,9 @@ function reconcileLifecycle(row) {
 }
 
 const COLUMNS = [
-  'brand', 'material', 'color_name', 'color_hex', 'diameter', 'spool_weight_g',
-  'remaining_pct', 'status', 'location', 'notes', 'price', 'nozzle_temp',
-  'bed_temp', 'purchased_at', 'opened_at', 'finished_at',
+  'brand', 'material', 'color_name', 'color_hex', 'finish', 'diameter',
+  'spool_weight_g', 'remaining_pct', 'status', 'location', 'notes', 'price',
+  'nozzle_temp', 'bed_temp', 'purchased_at', 'opened_at', 'finished_at',
 ];
 
 const getStmt = db.prepare('SELECT * FROM filaments WHERE id = ?');
@@ -132,6 +133,7 @@ router.get('/', (req, res) => {
   multi(req.query.status, 'status');
   multi(req.query.brand, 'brand');
   multi(req.query.material, 'material');
+  multi(req.query.finish, 'finish');
 
   // Default view hides used-up spools; the record is still there behind
   // ?status=empty or ?include_empty=1.
@@ -141,9 +143,9 @@ router.get('/', (req, res) => {
 
   const q = str(req.query.q);
   if (q) {
-    where.push('(brand LIKE ? OR material LIKE ? OR color_name LIKE ? OR location LIKE ? OR notes LIKE ? OR id = ?)');
+    where.push('(brand LIKE ? OR material LIKE ? OR color_name LIKE ? OR finish LIKE ? OR location LIKE ? OR notes LIKE ? OR id = ?)');
     const like = `%${q}%`;
-    params.push(like, like, like, like, like, q.toUpperCase());
+    params.push(like, like, like, like, like, like, q.toUpperCase());
   }
 
   const order = SORTS[str(req.query.sort)] || SORTS.newest;
@@ -189,10 +191,10 @@ router.post('/', (req, res) => {
   const fields = readBody(body);
 
   const row = reconcileLifecycle({
-    color_name: '', color_hex: '#808080', diameter: 1.75, spool_weight_g: 1000,
-    remaining_pct: 100, status: 'new', location: '', notes: '', price: null,
-    nozzle_temp: null, bed_temp: null, purchased_at: null, opened_at: null,
-    finished_at: null,
+    color_name: '', color_hex: '#808080', finish: '', diameter: 1.75,
+    spool_weight_g: 1000, remaining_pct: 100, status: 'new', location: '',
+    notes: '', price: null, nozzle_temp: null, bed_temp: null,
+    purchased_at: null, opened_at: null, finished_at: null,
     ...fields,
   });
 
@@ -246,6 +248,48 @@ router.patch('/:id', (req, res) => {
   `).run(...COLUMNS.map((c) => row[c]), nowISO(), req.params.id);
 
   res.json(getFilament(req.params.id));
+});
+
+// ── Duplicate ────────────────────────────────────────────────────────────────
+
+/**
+ * Copies a spool's specs into fresh, sealed records — for when you buy another
+ * of something you already have.
+ *
+ * The copy is deliberately not a clone: it starts sealed and full, with the
+ * lifecycle dates and purchase details of the original left behind, since those
+ * belong to that physical spool and not to this one.
+ */
+router.post('/:id/duplicate', (req, res) => {
+  const source = getFilament(req.params.id);
+  if (!source) return res.status(404).json({ error: 'Filament not found.' });
+
+  const count = Math.min(20, Math.max(1, num(req.body?.quantity, { min: 1, max: 20, int: true }) ?? 1));
+  const now = nowISO();
+
+  const row = {
+    ...source,
+    status: 'new',
+    remaining_pct: 100,
+    opened_at: null,
+    finished_at: null,
+    purchased_at: null,
+    price: null,
+  };
+
+  const insert = db.prepare(`
+    INSERT INTO filaments (id, ${COLUMNS.join(', ')}, created_at, updated_at)
+    VALUES (?, ${COLUMNS.map(() => '?').join(', ')}, ?, ?)
+  `);
+
+  const created = [];
+  for (let i = 0; i < count; i++) {
+    const id = newId();
+    insert.run(id, ...COLUMNS.map((c) => row[c]), now, now);
+    created.push(getFilament(id));
+  }
+
+  res.status(201).json(created.length === 1 ? created[0] : created);
 });
 
 // ── Lifecycle shortcuts ──────────────────────────────────────────────────────

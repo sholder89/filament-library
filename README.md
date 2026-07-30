@@ -23,6 +23,11 @@ through — used-up spools stay in the library as a record instead of vanishing.
 - **Duplicates stack up** — identical spools collapse into a single card with a
   count. Hover to fan the stack out; click to spread it into individual cards
   and pick one.
+- **Special finishes** — silk, glitter, matte, translucent, marble, wood, glow,
+  carbon fiber, metallic, gradient and dual-color, each with its own treatment on
+  the spool graphic. Glitter really does sparkle.
+- **Buy another?** — *Add another sealed one* on a spool's page copies its specs
+  into a fresh, unopened record.
 - **Pre-filled catalog** — pick from 40 brands (Sunlu, Bambu Lab, Creality,
   Overture, Prusament…) and 24 material types grouped by family (PLA, PETG, ABS,
   TPU, Nylon…), or choose *Something else* to type your own. Brands and types
@@ -175,7 +180,7 @@ It includes used-up spools, which the default view hides.
 
 | Method | Path | |
 |---|---|---|
-| `GET` | `/api/filaments` | List. Filters: `status`, `brand`, `material`, `q`, `sort`, `include_empty`. `brand` and `material` accept comma-separated values and match any of them |
+| `GET` | `/api/filaments` | List. Filters: `status`, `brand`, `material`, `finish`, `q`, `sort`, `include_empty`. `brand`, `material` and `finish` accept comma-separated values and match any of them |
 | `POST` | `/api/filaments` | Create. `quantity` adds several identical spools at once |
 | `GET` | `/api/filaments/:id` | One spool |
 | `PATCH` | `/api/filaments/:id` | Update any subset of fields |
@@ -183,6 +188,7 @@ It includes used-up spools, which the default view hides.
 | `POST` | `/api/filaments/:id/open` | Mark opened (stamps `opened_at`) |
 | `POST` | `/api/filaments/:id/empty` | Mark used up (stamps `finished_at`, keeps the record) |
 | `POST` | `/api/filaments/:id/restore` | Put a used-up spool back |
+| `POST` | `/api/filaments/:id/duplicate` | Copy the specs into new sealed spools (`quantity` optional) |
 | `GET` | `/api/filaments/stats` | Counts and total weight on hand |
 | `GET` | `/api/catalog` | Brands, materials, colors — seed lists merged with your own |
 | `POST` | `/api/print/:id` | Print a QR label |
@@ -257,11 +263,20 @@ docker compose logs -f
 There's no authentication — this is built for a trusted home network, the same
 assumption the Voice Label Printer client makes. Don't port-forward it.
 
-Regenerate the app icons after changing the artwork in `tools/generate-icons.mjs`:
+### App icons
+
+Put your artwork in `tools/icon-src/` as `icon-dark.png` and `icon-light.png`
+(square, 1024×1024 ideal), then:
 
 ```bash
-node tools/generate-icons.mjs
+node tools/build-icons.mjs
 ```
+
+That writes every size into `public/icons/`. The dark version becomes the
+home-screen icon, because iOS pins one icon and can't switch it by theme.
+
+`tools/generate-icons.mjs` draws the original placeholder icon programmatically
+and is only needed if you have no artwork at all.
 
 ### Built with
 
