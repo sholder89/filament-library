@@ -1,6 +1,6 @@
 /* Filament Library service worker — app shell offline, inventory read-only offline. */
 
-const VERSION = 'v3';
+const VERSION = 'v4';
 const SHELL = `shell-${VERSION}`;
 const DATA = `data-${VERSION}`;
 
@@ -10,6 +10,9 @@ const SHELL_FILES = [
   '/app.js',
   '/spool.js',
   '/label.js',
+  // vendor/jsqr.js is deliberately not precached — it's ~250 KB and only needed
+  // if you actually open the scanner. It gets cached on first use.
+  '/scan.js',
   '/manifest.webmanifest',
   '/icons/icon-192.png',
   '/icons/icon-512.png',

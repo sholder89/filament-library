@@ -1,5 +1,6 @@
 import { spoolSVG, escapeXML as esc, luminance } from './spool.js';
 import { labelPreviewHTML } from './label.js';
+import { QrScanner, cameraBlockedReason, filamentIdFrom } from './scan.js';
 
 // ── State ────────────────────────────────────────────────────────────────────
 
@@ -8,7 +9,9 @@ const state = {
   catalog: { brands: [], materials: [], colors: [], locations: [] },
   print: { mode: 'off' },
   editingId: null,
-  filters: { status: 'active', brand: '', material: '', q: '', sort: 'newest' },
+  filters: { status: 'active', brand: [], material: [], q: '', sort: 'newest' },
+  // Group keys the user has fanned open; everything else stays stacked.
+  expandedGroups: new Set(),
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -17,10 +20,12 @@ const el = {
   grid: $('#grid'),
   statusFilter: $('#statusFilter'),
   search: $('#search'),
-  brandFilter: $('#brandFilter'),
-  materialFilter: $('#materialFilter'),
+  brandFilterBtn: $('#brandFilterBtn'),
+  materialFilterBtn: $('#materialFilterBtn'),
   sortBy: $('#sortBy'),
   clearFilters: $('#clearFilters'),
+  picker: $('#picker'),
+  scanner: $('#scanner'),
   detail: $('#detail'),
   detailBody: $('#detailBody'),
   editor: $('#editor'),
@@ -75,18 +80,34 @@ function ago(iso) {
   return `${Math.round(days / 365.25)} years ago`;
 }
 
+const SHEETS = [el.detail, el.editor, el.picker, el.scanner];
+
 /** Locks background scrolling while a sheet is up — iOS ignores <dialog>'s own lock. */
 function openSheet(dialog) {
   document.body.style.overflow = 'hidden';
   dialog.showModal();
 }
+
+/**
+ * Unlocking is done here rather than purely from the dialog's `close` event:
+ * that event doesn't fire in every engine, and a missed one leaves the page
+ * permanently unscrollable. The listener below stays as a backstop for closes
+ * that bypass this function.
+ */
 function closeSheet(dialog) {
+  // Single choke point, so the camera is always released no matter which
+  // affordance dismissed the sheet — button, backdrop tap or Esc.
+  if (dialog === el.scanner) stopScanner();
   dialog.close();
+  releaseScrollLock();
 }
-for (const dialog of [el.detail, el.editor]) {
-  dialog.addEventListener('close', () => {
-    if (!el.detail.open && !el.editor.open) document.body.style.overflow = '';
-  });
+
+function releaseScrollLock() {
+  if (!SHEETS.some((d) => d.open)) document.body.style.overflow = '';
+}
+
+for (const dialog of SHEETS) {
+  dialog.addEventListener('close', releaseScrollLock);
   // Tapping the backdrop dismisses.
   dialog.addEventListener('click', (e) => {
     if (e.target === dialog) closeSheet(dialog);
@@ -100,8 +121,7 @@ async function loadCatalog() {
   fillDatalist('colorList', state.catalog.colors.map((c) => c.name));
   fillDatalist('locationList', state.catalog.locations);
   fillDatalist('weightList', state.catalog.spool_weights.map(String));
-  fillSelect(el.brandFilter, state.catalog.owned_brands, 'All brands');
-  fillSelect(el.materialFilter, [...new Set(state.filaments.map((f) => f.material))].sort(), 'All types');
+  syncFilterButtons();
   renderSwatches();
 }
 
@@ -132,7 +152,7 @@ function buildPicker({ select, input, groups, value, placeholder, onPick }) {
     html += '</optgroup>';
   }
 
-  // An existing spool may use a name no longer in the catalogue — keep it
+  // An existing spool may use a name no longer in the catalog — keep it
   // selectable so editing doesn't silently rewrite it.
   if (value && !seen.has(value.toLowerCase())) {
     html += `<optgroup label="Current"><option value="${esc(value)}">${esc(value)}</option></optgroup>`;
@@ -207,12 +227,104 @@ function fillDatalist(id, values) {
   document.getElementById(id).innerHTML = values.map((v) => `<option value="${esc(v)}">`).join('');
 }
 
-function fillSelect(select, values, allLabel) {
-  const current = select.value;
-  select.innerHTML = `<option value="">${esc(allLabel)}</option>` +
-    values.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
-  if (values.includes(current)) select.value = current;
+// ── Multi-select filters ─────────────────────────────────────────────────────
+
+/**
+ * Options come from the inventory itself rather than the seed catalog — there's
+ * no point offering to filter by a brand you don't own. Counts are computed
+ * across the whole library so a filtered-out option still shows what it holds.
+ */
+const filterOptions = {
+  brand: () => tally('brand'),
+  material: () => tally('material'),
+};
+
+function tally(field) {
+  const counts = new Map();
+  for (const f of state.allFilaments ?? []) {
+    if (!f[field]) continue;
+    counts.set(f[field], (counts.get(f[field]) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([value, count]) => ({ value, count }));
 }
+
+function filterLabel(kind, selected) {
+  const noun = kind === 'brand' ? 'brands' : 'types';
+  if (!selected.length) return `All ${noun}`;
+  if (selected.length === 1) return selected[0];
+  return `${selected.length} ${noun}`;
+}
+
+function syncFilterButtons() {
+  for (const kind of ['brand', 'material']) {
+    const btn = kind === 'brand' ? el.brandFilterBtn : el.materialFilterBtn;
+    const selected = state.filters[kind];
+    btn.querySelector('span').textContent = filterLabel(kind, selected);
+    btn.classList.toggle('on', selected.length > 0);
+  }
+}
+
+let pickerKind = null;
+
+function openPicker(kind) {
+  pickerKind = kind;
+  $('#pickerTitle').textContent = kind === 'brand' ? 'Filter by brand' : 'Filter by type';
+  renderPickerOptions();
+  openSheet(el.picker);
+}
+
+function renderPickerOptions() {
+  const options = filterOptions[pickerKind]();
+  const selected = state.filters[pickerKind];
+  const hint = $('#pickerHint');
+
+  if (!options.length) {
+    hint.textContent = 'Nothing in the library to filter by yet.';
+    $('#pickerOptions').innerHTML = '';
+    return;
+  }
+  hint.textContent = selected.length
+    ? `${selected.length} selected — spools matching any of them are shown.`
+    : 'Pick as many as you like.';
+
+  $('#pickerOptions').innerHTML = options.map(({ value, count }) => `
+    <button type="button" class="option-row" data-value="${esc(value)}"
+            aria-pressed="${selected.includes(value)}">
+      <span class="tick"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 13 4 4L19 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      <span>${esc(value)}</span>
+      <span class="count">${count}</span>
+    </button>
+  `).join('');
+}
+
+$('#pickerOptions').addEventListener('click', (e) => {
+  const row = e.target.closest('.option-row');
+  if (!row || !pickerKind) return;
+  const value = row.dataset.value;
+  const selected = state.filters[pickerKind];
+  const at = selected.indexOf(value);
+  if (at === -1) selected.push(value); else selected.splice(at, 1);
+  renderPickerOptions();
+  syncFilterButtons();
+  loadFilaments();
+});
+
+$('#pickerClear').addEventListener('click', () => {
+  if (!pickerKind) return;
+  state.filters[pickerKind] = [];
+  renderPickerOptions();
+  syncFilterButtons();
+  loadFilaments();
+});
+
+el.picker.addEventListener('click', (e) => {
+  if (e.target.closest('[data-close]')) closeSheet(el.picker);
+});
+el.picker.addEventListener('cancel', (e) => { e.preventDefault(); closeSheet(el.picker); });
+el.brandFilterBtn.addEventListener('click', () => openPicker('brand'));
+el.materialFilterBtn.addEventListener('click', () => openPicker('material'));
 
 async function loadStats() {
   const s = await api('/api/filaments/stats');
@@ -231,21 +343,28 @@ async function loadFilaments() {
   const p = new URLSearchParams();
   const { status, brand, material, q, sort } = state.filters;
   if (status !== 'active') p.set('status', status);
-  if (brand) p.set('brand', brand);
-  if (material) p.set('material', material);
+  // The API takes these comma-separated and matches any of them.
+  if (brand.length) p.set('brand', brand.join(','));
+  if (material.length) p.set('material', material.join(','));
   if (q) p.set('q', q);
   p.set('sort', sort);
 
   state.filaments = await api(`/api/filaments?${p}`);
   renderGrid();
 
-  const active = brand || material || q || status !== 'active';
+  const active = brand.length || material.length || q || status !== 'active';
   el.clearFilters.hidden = !active;
+}
+
+/** Unfiltered copy, so the filter sheets can list and count every option. */
+async function loadAll() {
+  state.allFilaments = await api('/api/filaments?include_empty=1&sort=brand');
 }
 
 async function refresh() {
   await loadFilaments();
-  await Promise.all([loadStats(), loadCatalog()]);
+  await Promise.all([loadStats(), loadAll()]);
+  await loadCatalog();
 }
 
 // ── Grid ─────────────────────────────────────────────────────────────────────
@@ -264,18 +383,78 @@ function renderGrid() {
     return;
   }
 
-  el.grid.innerHTML = state.filaments.map((f) => `
-    <button class="card ${f.status === 'empty' ? 'is-empty' : ''}" data-id="${esc(f.id)}">
-      <span class="badge ${esc(f.status)}">${esc(STATUS_LABEL[f.status])}</span>
-      <div class="card-spool">${spoolSVG(f)}</div>
-      <span class="card-brand">${esc(f.brand)}</span>
-      <span class="card-title">${esc(f.material)}</span>
-      <span class="card-color">${esc(f.color_name || '—')}</span>
-    </button>
-  `).join('');
+  el.grid.innerHTML = groupFilaments(state.filaments).map(renderGroup).join('');
+}
+
+/**
+ * Collapses interchangeable spools into one entry. Anything that would make you
+ * pick one over another — a different color, or one already opened — keeps them
+ * apart, so a stack is always "any of these will do".
+ */
+function groupFilaments(filaments) {
+  const groups = new Map();
+  for (const f of filaments) {
+    // The key rides in a data- attribute, so it has to survive HTML parsing —
+    // a NUL separator gets rewritten to U+FFFD and would never match again.
+    // Percent-encoding keeps it ASCII and makes "|" safe as a separator, since
+    // encodeURIComponent escapes any "|" inside the values themselves.
+    const key = [f.brand, f.material, f.color_name, f.color_hex, f.status, f.spool_weight_g]
+      .map((v) => encodeURIComponent(String(v ?? '').toLowerCase())).join('|');
+    if (!groups.has(key)) groups.set(key, { key, items: [] });
+    groups.get(key).items.push(f);
+  }
+  return [...groups.values()];
+}
+
+const cardHTML = (f) => `
+  <button class="card ${f.status === 'empty' ? 'is-empty' : ''}" data-id="${esc(f.id)}">
+    <span class="badge ${esc(f.status)}">${esc(STATUS_LABEL[f.status])}</span>
+    <div class="card-spool">${spoolSVG(f)}</div>
+    <span class="card-brand">${esc(f.brand)}</span>
+    <span class="card-title">${esc(f.material)}</span>
+    <span class="card-color">${esc(f.color_name || '—')}</span>
+  </button>`;
+
+function renderGroup(group) {
+  const [first] = group.items;
+  const count = group.items.length;
+  if (count === 1) return cardHTML(first);
+
+  if (state.expandedGroups.has(group.key)) {
+    return `
+      <div class="group-header">
+        <span>${count} × ${esc([first.brand, first.material, first.color_name].filter(Boolean).join(' '))}</span>
+        <button type="button" data-collapse="${esc(group.key)}">Stack them back up</button>
+      </div>
+      ${group.items.map(cardHTML).join('')}`;
+  }
+
+  return `
+    <div class="stack" data-expand="${esc(group.key)}">
+      <span class="stack-layer l2"></span>
+      <span class="stack-layer l1"></span>
+      <span class="stack-count">×${count}</span>
+      ${cardHTML(first)}
+    </div>`;
 }
 
 el.grid.addEventListener('click', (e) => {
+  const collapse = e.target.closest('[data-collapse]');
+  if (collapse) {
+    state.expandedGroups.delete(collapse.dataset.collapse);
+    renderGrid();
+    return;
+  }
+
+  // A tap on a stack fans it out rather than opening a spool — which one you
+  // got would otherwise be arbitrary.
+  const stack = e.target.closest('[data-expand]');
+  if (stack) {
+    state.expandedGroups.add(stack.dataset.expand);
+    renderGrid();
+    return;
+  }
+
   const card = e.target.closest('.card');
   if (card) showDetail(card.dataset.id, true);
 });
@@ -320,12 +499,12 @@ async function showDetail(id, push = false) {
     </div>
 
     <div class="detail-hero">
-      ${spoolSVG(f)}
+      <div id="detailSpool">${spoolSVG(f)}</div>
       <div>
-        <div class="detail-sub">${esc(f.color_name || 'No colour set')}</div>
+        <div class="detail-sub">${esc(f.color_name || 'No color set')}</div>
         <div class="chips">
           <span class="chip">${esc(STATUS_LABEL[f.status])}</span>
-          ${f.status !== 'empty' ? `<span class="chip">${f.remaining_pct}% left · ~${remainingG} g</span>` : ''}
+          ${f.status !== 'empty' ? `<span class="chip" id="remainingChip">${f.remaining_pct}% left · ~${remainingG} g</span>` : ''}
           <span class="chip">${esc(f.diameter)} mm</span>
           ${f.location ? `<span class="chip">${esc(f.location)}</span>` : ''}
         </div>
@@ -342,6 +521,21 @@ async function showDetail(id, push = false) {
         Print QR</button>
       ${f.status === 'opened' ? `<button class="btn ghost span2" data-act="unopen">Actually, it's still sealed</button>` : ''}
     </div>
+
+    ${f.status === 'opened' ? `
+    <div class="remaining" data-weight="${f.spool_weight_g}">
+      <div class="remaining-head">
+        <b id="remainingValue">${f.remaining_pct}%</b>
+        <span id="remainingGrams">roughly ${remainingG} g left</span>
+      </div>
+      <input type="range" id="remainingRange" min="0" max="100" step="5"
+             value="${f.remaining_pct}" aria-label="How much filament is left">
+      <div class="remaining-quick">
+        ${[25, 50, 75, 100].map((v) => `
+          <button type="button" data-pct="${v}" class="${f.remaining_pct === v ? 'on' : ''}">${v}%</button>
+        `).join('')}
+      </div>
+    </div>` : ''}
 
     <dl class="spec-list">
       ${spec('Brand', f.brand)}
@@ -375,6 +569,7 @@ async function showDetail(id, push = false) {
   `;
 
   el.detailBody.dataset.id = f.id;
+  state.currentFilament = f;
   if (!el.detail.open) openSheet(el.detail);
   el.detailBody.scrollTop = 0;
 
@@ -384,6 +579,15 @@ async function showDetail(id, push = false) {
 }
 
 el.detail.addEventListener('click', async (e) => {
+  const quick = e.target.closest('.remaining-quick button');
+  if (quick) {
+    const pct = Number(quick.dataset.pct);
+    $('#remainingRange').value = pct;
+    paintRemaining(pct);
+    saveRemaining(pct);
+    return;
+  }
+
   const btn = e.target.closest('[data-act], [data-close]');
   if (!btn) return;
   const id = el.detailBody.dataset.id;
@@ -441,6 +645,54 @@ el.detail.addEventListener('click', async (e) => {
   } catch (err) {
     toast(err.message, true);
   }
+});
+
+// ── Remaining control ────────────────────────────────────────────────────────
+
+/** Repaints the readout, chip and spool graphic without touching the network. */
+function paintRemaining(pct) {
+  const block = el.detailBody.querySelector('.remaining');
+  if (!block) return;
+  const grams = Math.round(Number(block.dataset.weight) * pct / 100);
+
+  $('#remainingValue').textContent = `${pct}%`;
+  $('#remainingGrams').textContent = `roughly ${grams} g left`;
+  const chip = $('#remainingChip');
+  if (chip) chip.textContent = `${pct}% left · ~${grams} g`;
+
+  for (const b of block.querySelectorAll('.remaining-quick button')) {
+    b.classList.toggle('on', Number(b.dataset.pct) === pct);
+  }
+
+  const spool = $('#detailSpool');
+  if (spool && state.currentFilament) {
+    spool.innerHTML = spoolSVG({ ...state.currentFilament, remaining_pct: pct });
+  }
+}
+
+let remainingSaveTimer;
+function saveRemaining(pct) {
+  clearTimeout(remainingSaveTimer);
+  // Dragging fires continuously; only the value you settle on is worth a write.
+  remainingSaveTimer = setTimeout(async () => {
+    const id = el.detailBody.dataset.id;
+    try {
+      await api(`/api/filaments/${encodeURIComponent(id)}`, {
+        method: 'PATCH', body: { remaining_pct: pct },
+      });
+      await Promise.all([loadFilaments(), loadStats()]);
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }, 350);
+}
+
+el.detail.addEventListener('input', (e) => {
+  if (e.target.id === 'remainingRange') paintRemaining(Number(e.target.value));
+});
+
+el.detail.addEventListener('change', (e) => {
+  if (e.target.id === 'remainingRange') saveRemaining(Number(e.target.value));
 });
 
 function dismissDetail() {
@@ -506,7 +758,9 @@ function openEditor(filament = null) {
   setField('color_hex', f.color_hex || '#808080');
   setField('status', f.status || 'new');
   setField('spool_weight_g', f.spool_weight_g ?? 1000);
-  setField('remaining_pct', f.remaining_pct ?? 100);
+  // How much is left is adjusted on the spool's own page, not here — but the
+  // preview should still show the spool at its real fullness while editing.
+  editorRemaining = f.remaining_pct ?? 100;
   setField('diameter', f.diameter ?? 1.75);
   setField('price', f.price ?? '');
   setField('nozzle_temp', f.nozzle_temp ?? '');
@@ -517,7 +771,6 @@ function openEditor(filament = null) {
   clampQuantity(1);
 
   syncColorText();
-  syncRemaining();
   syncPreview();
   openSheet(el.editor);
   el.editor.querySelector('.sheet-inner').scrollTop = 0;
@@ -538,7 +791,7 @@ function currentDraft() {
     color_name: form.elements.color_name.value.trim(),
     color_hex: form.elements.color_hex.value,
     status: form.elements.status.value,
-    remaining_pct: Number(form.elements.remaining_pct.value),
+    remaining_pct: editorRemaining,
   };
 }
 
@@ -557,13 +810,8 @@ function syncColorText() {
   }
 }
 
-function syncRemaining() {
-  const status = form.elements.status.value;
-  $('#remainingField').hidden = status !== 'opened';
-  if (status === 'new') form.elements.remaining_pct.value = 100;
-  if (status === 'empty') form.elements.remaining_pct.value = 0;
-  $('#remainingOut').textContent = `${form.elements.remaining_pct.value}%`;
-}
+/** Fullness shown in the editor's preview spool. Edited on the detail page. */
+let editorRemaining = 100;
 
 function renderSwatches() {
   $('#swatches').innerHTML = state.catalog.colors.map((c) => `
@@ -594,8 +842,13 @@ $('#f_color_hex_text').addEventListener('input', (e) => {
 });
 
 form.elements.color_hex.addEventListener('input', () => { syncColorText(); syncPreview(); });
-form.elements.status.addEventListener('change', () => { syncRemaining(); syncPreview(); });
-form.elements.remaining_pct.addEventListener('input', () => { syncRemaining(); syncPreview(); });
+form.elements.status.addEventListener('change', () => {
+  // A sealed spool is full and a used-up one is empty, by definition.
+  const status = form.elements.status.value;
+  if (status === 'new') editorRemaining = 100;
+  if (status === 'empty') editorRemaining = 0;
+  syncPreview();
+});
 // Brand and material update the preview through their pickers.
 form.elements.color_name.addEventListener('input', syncPreview);
 
@@ -668,8 +921,8 @@ form.addEventListener('submit', async (e) => {
 
   const data = Object.fromEntries(new FormData(form).entries());
   // A hidden range still submits, so pin the value the status implies.
-  if (data.status === 'new') data.remaining_pct = 100;
-  if (data.status === 'empty') data.remaining_pct = 0;
+  // remaining_pct isn't in this form at all — the server derives it from the
+  // status on create, and leaves it alone on a partial update.
 
   try {
     if (state.editingId) {
@@ -726,18 +979,79 @@ el.search.addEventListener('input', () => {
   }, 220);
 });
 
-el.brandFilter.addEventListener('change', () => { state.filters.brand = el.brandFilter.value; loadFilaments(); });
-el.materialFilter.addEventListener('change', () => { state.filters.material = el.materialFilter.value; loadFilaments(); });
 el.sortBy.addEventListener('change', () => { state.filters.sort = el.sortBy.value; loadFilaments(); });
 
 el.clearFilters.addEventListener('click', () => {
-  state.filters = { status: 'active', brand: '', material: '', q: '', sort: el.sortBy.value };
+  state.filters = { status: 'active', brand: [], material: [], q: '', sort: el.sortBy.value };
   el.search.value = '';
-  el.brandFilter.value = '';
-  el.materialFilter.value = '';
+  syncFilterButtons();
   for (const b of el.statusFilter.children) b.classList.toggle('on', b.dataset.status === 'active');
   loadFilaments();
 });
+
+// ── QR scanning ──────────────────────────────────────────────────────────────
+
+let scanner = null;
+
+async function openScanner() {
+  const blocked = cameraBlockedReason();
+  $('#scanError').hidden = true;
+  $('#scanStatus').textContent = 'Point the camera at the QR code on a spool.';
+  openSheet(el.scanner);
+
+  if (blocked) {
+    $('#scanError').textContent = blocked;
+    $('#scanError').hidden = false;
+    return;
+  }
+
+  scanner = new QrScanner($('#scanVideo'), onScanned);
+  try {
+    await scanner.start();
+  } catch (err) {
+    const denied = err.name === 'NotAllowedError' || err.name === 'SecurityError';
+    $('#scanError').textContent = denied
+      ? 'Camera access was blocked. Allow it for this site in your browser settings, then try again.'
+      : `Could not start the camera (${err.name || 'unknown error'}).`;
+    $('#scanError').hidden = false;
+    stopScanner();
+  }
+}
+
+function stopScanner() {
+  scanner?.stop();
+  scanner = null;
+}
+
+async function onScanned(value) {
+  const id = filamentIdFrom(value);
+  if (!id) {
+    // Keep scanning — they may just have caught something else in frame.
+    $('#scanStatus').textContent = "That isn't a filament code. Still looking…";
+    scanner?.tick();
+    return;
+  }
+
+  try {
+    await api(`/api/filaments/${encodeURIComponent(id)}`);
+  } catch {
+    $('#scanStatus').textContent = `Scanned ${id}, but there's no such spool in the library. Still looking…`;
+    scanner?.tick();
+    return;
+  }
+
+  if (navigator.vibrate) navigator.vibrate(40);
+  stopScanner();
+  closeSheet(el.scanner);
+  showDetail(id, true);
+}
+
+$('#scanBtn').addEventListener('click', openScanner);
+el.scanner.addEventListener('click', (e) => {
+  if (e.target.closest('[data-close]')) closeSheet(el.scanner);
+});
+el.scanner.addEventListener('close', stopScanner);
+el.scanner.addEventListener('cancel', (e) => { e.preventDefault(); closeSheet(el.scanner); });
 
 // ── Theme ────────────────────────────────────────────────────────────────────
 
@@ -766,6 +1080,10 @@ addEventListener('popstate', routeFromPath);
 // ── Boot ─────────────────────────────────────────────────────────────────────
 
 (async function boot() {
+  // Shown unconditionally: if the camera turns out to be unavailable the
+  // scanner sheet explains why, which beats a button that silently isn't there.
+  $('#scanBtn').hidden = false;
+
   try {
     state.print = await api('/api/print/status');
   } catch { /* printing stays disabled */ }

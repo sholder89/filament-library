@@ -11,15 +11,19 @@ through — used-up spools stay in the library as a record instead of vanishing.
 
 ## What it does
 
-- **Spool cards** — every filament drawn as a spool graphic in its own colour.
+- **Spool cards** — every filament drawn as a spool graphic in its own color.
   The winding shrinks as the spool empties, so a nearly-gone roll looks like one.
 - **Three states** — *Sealed* → *Opened* → *Used up*, with the dates stamped
   automatically. Marking a spool used up keeps the record; only an explicit
   delete removes it.
-- **Filter and search** — by state, brand, and type, plus free-text search across
-  brand, colour, location and notes. Sort by newest, brand, type, colour, or
-  most recently opened.
-- **Pre-filled catalogue** — pick from 40 brands (Sunlu, Bambu Lab, Creality,
+- **Filter and search** — by state, and by any combination of brands and types
+  (Sunlu *or* Creality, in PLA *or* PETG). Plus free-text search across brand,
+  color, location and notes, and sorting by newest, brand, type, color or most
+  recently opened.
+- **Duplicates stack up** — identical spools collapse into a single card with a
+  count. Hover to fan the stack out; click to spread it into individual cards
+  and pick one.
+- **Pre-filled catalog** — pick from 40 brands (Sunlu, Bambu Lab, Creality,
   Overture, Prusament…) and 24 material types grouped by family (PLA, PETG, ABS,
   TPU, Nylon…), or choose *Something else* to type your own. Brands and types
   you've already used float to the top of the list next time. Picking a type
@@ -32,6 +36,11 @@ through — used-up spools stay in the library as a record instead of vanishing.
   preview of the sticker before you print it, and the add form has an **Add to
   library and print QR** button that does both in one go — one label per spool
   when you're adding a batch.
+- **Adjust what's left** — opened spools get a slider on their own page, with
+  25/50/75/100% shortcuts. The spool graphic empties as you drag.
+- **Scan to open** — the camera button next to *Add* scans a printed QR and
+  jumps straight to that spool. Needs an https connection (browsers block the
+  camera otherwise), which the reverse-proxy setup below gives you.
 - **Works offline** — the app shell and your last-loaded inventory are cached,
   so it opens in the workshop even when the WiFi doesn't.
 
@@ -83,7 +92,7 @@ Everything is optional — the app runs with an empty `.env`.
 | `LABEL_RELAY_URL` | — | Voice Label Printer relay server |
 | `LABEL_TOKEN` | — | Must match the relay's `LABEL_TOKEN` |
 | `LABEL_SIZE` | `2x1` | Label size — `2x1`, `4x2`, `4x6`, `3x2`, `2x0.5`, `1.1x3.5`, `1.1x2.4` |
-| `LABEL_QR_SHOW_TEXT` | `1` | Print the brand/type/colour beside the QR |
+| `LABEL_QR_SHOW_TEXT` | `1` | Print the brand/type/color beside the QR |
 | `LABEL_NAME_LABEL` | `0` | Also print a second plain-text label with the spool description |
 | `LABEL_MODE` | `auto` | `relay`, `direct`, or `auto` |
 | `LABEL_CLIENT_URL` | — | Bypass the relay and talk to the Windows client directly |
@@ -110,7 +119,7 @@ won't come out as a QR code.
 > client. Without it, labels print in whatever style the printer is currently
 > set to.
 
-Labels print the QR alongside the spool's brand, type and colour, so a sticker
+Labels print the QR alongside the spool's brand, type and color, so a sticker
 is readable without scanning it. Set `LABEL_QR_SHOW_TEXT=0` for a bare code, or
 `LABEL_NAME_LABEL=1` to also print a second text-only label.
 
@@ -126,7 +135,7 @@ curl -s http://<server-ip>:8088/api/print/status
 `show_text: false` there means no text will be printed beside the QR.
 
 Each spool's page shows a preview of the sticker — QR placement, the bold brand
-line and the type/colour beneath — laid out from the same rules the printer
+line and the type/color beneath — laid out from the same rules the printer
 uses, so you can see what you'll get before committing a label. It's an
 approximation: text is auto-sized by estimate rather than measured, so treat it
 as a guide to whether a long name fits, not a pixel-exact proof.
@@ -166,7 +175,7 @@ It includes used-up spools, which the default view hides.
 
 | Method | Path | |
 |---|---|---|
-| `GET` | `/api/filaments` | List. Filters: `status`, `brand`, `material`, `q`, `sort`, `include_empty` |
+| `GET` | `/api/filaments` | List. Filters: `status`, `brand`, `material`, `q`, `sort`, `include_empty`. `brand` and `material` accept comma-separated values and match any of them |
 | `POST` | `/api/filaments` | Create. `quantity` adds several identical spools at once |
 | `GET` | `/api/filaments/:id` | One spool |
 | `PATCH` | `/api/filaments/:id` | Update any subset of fields |
@@ -175,7 +184,7 @@ It includes used-up spools, which the default view hides.
 | `POST` | `/api/filaments/:id/empty` | Mark used up (stamps `finished_at`, keeps the record) |
 | `POST` | `/api/filaments/:id/restore` | Put a used-up spool back |
 | `GET` | `/api/filaments/stats` | Counts and total weight on hand |
-| `GET` | `/api/catalog` | Brands, materials, colours — seed lists merged with your own |
+| `GET` | `/api/catalog` | Brands, materials, colors — seed lists merged with your own |
 | `POST` | `/api/print/:id` | Print a QR label |
 | `GET` | `/api/print/qr/:id.svg` | QR code as SVG |
 | `GET` | `/api/export` | Full JSON dump |
@@ -259,3 +268,17 @@ node tools/generate-icons.mjs
 Node 24 and Express, with SQLite via Node's built-in `node:sqlite` — no native
 modules, so the image builds in seconds on any architecture. The frontend is
 vanilla ES modules with no build step: what's in `public/` is what runs.
+
+---
+
+## Third-party code
+
+`public/vendor/jsqr.js` is [jsQR](https://github.com/cozmo/jsQR) 1.4.0 by Cosmo
+Wolfe, Apache-2.0. It's vendored rather than loaded from a CDN because the app
+is offline-capable, and it's needed because Safari on iOS has no
+`BarcodeDetector`. It's fetched only when the scanner is first opened, not on
+page load. To update it:
+
+```bash
+npm install jsqr && cp node_modules/jsqr/dist/jsQR.js public/vendor/jsqr.js
+```

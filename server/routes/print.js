@@ -57,7 +57,7 @@ export const filamentUrl = (req, id) => `${baseUrl(req)}/f/${id}`;
 /**
  * Text printed on the label beside the QR code.
  *
- * Two deliberate lines — brand on top, type and colour below:
+ * Two deliberate lines — brand on top, type and color below:
  *
  *     Bambu Lab
  *     PLA - Yellow

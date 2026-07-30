@@ -44,7 +44,7 @@ function encodePNG(size, rgba) {
   ihdr.writeUInt32BE(size, 0);
   ihdr.writeUInt32BE(size, 4);
   ihdr[8] = 8;   // bit depth
-  ihdr[9] = 6;   // colour type: RGBA
+  ihdr[9] = 6;   // color type: RGBA
   // 10–12: compression, filter, interlace — all 0
 
   // One filter byte (0 = None) per scanline.
@@ -85,7 +85,7 @@ const mix = (a, b, t) => [
   a[2] + (b[2] - a[2]) * t,
 ];
 
-/** Colour of the spool at normalised radius u (1.0 = outer edge of the flange). */
+/** Color of the spool at normalized radius u (1.0 = outer edge of the flange). */
 function bandColor(u, angleShade) {
   if (u < 0.20) return BORE;
   if (u < 0.46) return mix(HUB, BORE, 0.25 * angleShade);

@@ -22,7 +22,7 @@ export function parseSize(size) {
   return Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0 ? [w, h] : [2, 1];
 }
 
-/** Caption the server will send: brand on top, type and colour beneath. */
+/** Caption the server will send: brand on top, type and color beneath. */
 export function captionLines(f) {
   const detail = [f.material, f.color_name].filter(Boolean).join(' - ');
   return [f.brand, detail].filter(Boolean);

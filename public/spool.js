@@ -1,8 +1,8 @@
 /**
  * Filament spool graphic.
  *
- * Front-on view: a fixed grey rim and hub, with the wound filament drawn as an
- * annulus in the spool's own colour. The wound outer radius tracks how much is
+ * Front-on view: a fixed gray rim and hub, with the wound filament drawn as an
+ * annulus in the spool's own color. The wound outer radius tracks how much is
  * left, so a nearly-empty spool visibly reads as one — the gap between the
  * winding and the rim is the missing filament.
  */
@@ -104,7 +104,7 @@ export function spoolSVG(filament, { title = true } = {}) {
   <circle cx="100" cy="100" r="${wound.toFixed(1)}" fill="none" stroke="${edge}" stroke-width="1.5" opacity=".85"/>
   ` : ''}
 
-  <!-- hub + centre bore -->
+  <!-- hub + center bore -->
   <circle cx="100" cy="100" r="${HUB}" fill="var(--spool-hub, #454d5c)"/>
   <circle cx="100" cy="100" r="${HUB}" fill="none" stroke="rgba(0,0,0,.35)" stroke-width="1.5"/>
   <circle cx="100" cy="100" r="15" fill="var(--spool-bore, #10141c)"/>

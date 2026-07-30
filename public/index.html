@@ -49,15 +49,21 @@
   <div class="filters">
     <div class="search">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="m16.5 16.5 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-      <input type="search" id="search" placeholder="Search brand, colour, notes…" autocomplete="off" enterkeyhint="search">
+      <input type="search" id="search" placeholder="Search brand, color, notes…" autocomplete="off" enterkeyhint="search">
     </div>
-    <select id="brandFilter" aria-label="Filter by brand"><option value="">All brands</option></select>
-    <select id="materialFilter" aria-label="Filter by material"><option value="">All types</option></select>
+    <button type="button" class="filter-btn" id="brandFilterBtn" aria-haspopup="dialog">
+      <span id="brandFilterLabel">All brands</span>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button type="button" class="filter-btn" id="materialFilterBtn" aria-haspopup="dialog">
+      <span id="materialFilterLabel">All types</span>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
     <select id="sortBy" aria-label="Sort order">
       <option value="newest">Newest first</option>
       <option value="brand">Brand A–Z</option>
       <option value="material">Type A–Z</option>
-      <option value="color">Colour A–Z</option>
+      <option value="color">Color A–Z</option>
       <option value="opened">Recently opened</option>
     </select>
     <button class="ghost-btn" id="clearFilters" hidden>Clear</button>
@@ -66,10 +72,18 @@
 
 <main id="grid" class="grid" aria-live="polite"></main>
 
-<button class="fab" id="addBtn" aria-label="Add filament">
-  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
-  <span>Add</span>
-</button>
+<div class="fab-stack">
+  <button class="fab fab-secondary" id="scanBtn" aria-label="Scan a spool's QR code" hidden>
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/>
+    </svg>
+  </button>
+  <button class="fab" id="addBtn" aria-label="Add filament">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+    <span>Add</span>
+  </button>
+</div>
 
 <!-- ── Detail sheet ──────────────────────────────────────────────────────── -->
 <dialog id="detail" class="sheet">
@@ -111,13 +125,13 @@
     </div>
 
     <div class="field">
-      <label for="f_color_name">Colour</label>
+      <label for="f_color_name">Color</label>
       <input id="f_color_name" name="color_name" list="colorList" placeholder="Black, Galaxy Blue…" autocomplete="off">
       <datalist id="colorList"></datalist>
       <div class="swatches" id="swatches"></div>
       <div class="hexrow">
-        <input type="color" id="f_color_hex" name="color_hex" value="#808080" aria-label="Exact colour">
-        <input type="text" id="f_color_hex_text" inputmode="text" spellcheck="false" aria-label="Colour hex code" maxlength="7">
+        <input type="color" id="f_color_hex" name="color_hex" value="#808080" aria-label="Exact color">
+        <input type="text" id="f_color_hex_text" inputmode="text" spellcheck="false" aria-label="Color hex code" maxlength="7">
       </div>
     </div>
 
@@ -148,11 +162,6 @@
         <button type="button" data-step="1" aria-label="One more">+</button>
       </div>
       <p class="hint">Adds a separate record per spool, so you can open and use them up one at a time.</p>
-    </div>
-
-    <div class="field" id="remainingField" hidden>
-      <label for="f_remaining_pct">Roughly how much is left — <output id="remainingOut">100%</output></label>
-      <input id="f_remaining_pct" name="remaining_pct" type="range" min="0" max="100" step="5" value="100">
     </div>
 
     <details class="more">
@@ -214,6 +223,45 @@
       Add to library and print QR
     </button>
   </form>
+</dialog>
+
+<!-- ── Multi-select filter picker (shared by brand and type) ─────────────── -->
+<dialog id="picker" class="sheet">
+  <div class="sheet-inner">
+    <div class="sheet-head">
+      <h2 id="pickerTitle">Filter</h2>
+      <button type="button" class="icon-btn" data-close aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <p class="hint" id="pickerHint">Pick as many as you like.</p>
+    <div class="option-list" id="pickerOptions"></div>
+    <div class="sheet-actions">
+      <button type="button" class="btn ghost" id="pickerClear">Clear all</button>
+      <button type="button" class="btn primary" data-close>Done</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- ── QR scanner ────────────────────────────────────────────────────────── -->
+<dialog id="scanner" class="sheet">
+  <div class="sheet-inner">
+    <div class="sheet-head">
+      <h2>Scan a spool</h2>
+      <button type="button" class="icon-btn" data-close aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="scan-stage">
+      <video id="scanVideo" playsinline muted></video>
+      <div class="scan-reticle" aria-hidden="true"></div>
+    </div>
+    <p class="hint" id="scanStatus">Point the camera at the QR code on a spool.</p>
+    <p class="form-error" id="scanError" hidden></p>
+    <div class="sheet-actions">
+      <button type="button" class="btn ghost wide" data-close>Cancel</button>
+    </div>
+  </div>
 </dialog>
 
 <div id="toast" class="toast" role="status" aria-live="polite"></div>

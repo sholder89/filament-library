@@ -1,5 +1,5 @@
 /**
- * Pre-filled reference data: brands, material types and common colours.
+ * Pre-filled reference data: brands, material types and common colors.
  *
  * This is seed/reference data only — the UI lets you type anything that isn't
  * in here, and whatever you type is remembered (see /api/catalog, which merges
@@ -81,12 +81,12 @@ export const MATERIALS = [
   { name: 'PEEK',       nozzle: 400, bed: 130, family: 'Other', enclosure: true,  dry: true  },
 ];
 
-/** Common spool colours — the picker offers these as swatches, plus a free hex input. */
+/** Common spool colors — the picker offers these as swatches, plus a free hex input. */
 export const COLORS = [
   { name: 'Black',        hex: '#1A1A1A' },
   { name: 'White',        hex: '#F5F5F5' },
-  { name: 'Grey',         hex: '#808080' },
-  { name: 'Light Grey',   hex: '#C0C0C0' },
+  { name: 'Gray',         hex: '#808080' },
+  { name: 'Light Gray',   hex: '#C0C0C0' },
   { name: 'Silver',       hex: '#B8BCC0' },
   { name: 'Red',          hex: '#D32029' },
   { name: 'Dark Red',     hex: '#8B1A1A' },

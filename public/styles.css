@@ -27,7 +27,7 @@
   --safe-b:    env(safe-area-inset-bottom, 0px);
 
   /* Spool graphic — the flange/hub stay neutral so the winding reads as the
-     filament's real colour in both themes. */
+     filament's real color in both themes. */
   --spool-rim-hi: #6d7684;
   --spool-rim-lo: #363d4b;
   --spool-void:   rgba(0, 0, 0, .34);
@@ -74,7 +74,7 @@ body {
   overflow-x: hidden;
 }
 
-/* Colour is set explicitly rather than inherited: <dialog> resets colour to the
+/* Color is set explicitly rather than inherited: <dialog> resets color to the
    UA's CanvasText, which tracks the *system* scheme, so inheriting gave black
    text on our dark sheets whenever the app theme and the OS disagreed. */
 button, input, select, textarea { font: inherit; color: var(--text); }
@@ -82,7 +82,7 @@ h1, h2, h3 { margin: 0; font-weight: 650; letter-spacing: -.015em; }
 
 ::placeholder { color: var(--muted); opacity: 1; }
 
-/* Safari on iOS greys out disabled/readonly text far more than we want. */
+/* Safari on iOS grays out disabled/readonly text far more than we want. */
 input:disabled, select:disabled, textarea:disabled { -webkit-text-fill-color: var(--muted); opacity: 1; }
 input, textarea { -webkit-text-fill-color: var(--text); }
 
@@ -219,6 +219,71 @@ select {
   cursor: pointer;
 }
 
+/* Opens the multi-select sheet. Styled to sit alongside the sort <select>. */
+.filter-btn {
+  flex: 1 1 140px;
+  min-width: 0;
+  min-height: var(--tap);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: left;
+}
+.filter-btn svg { width: 18px; height: 18px; flex: none; color: var(--muted); }
+.filter-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.filter-btn.on { border-color: var(--accent); color: var(--accent); }
+.filter-btn.on svg { color: var(--accent); }
+
+/* ── Option list (multi-select sheet) ────────────────────────────────────── */
+
+.option-list {
+  display: grid;
+  gap: 6px;
+  max-height: 46dvh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.option-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--tap);
+  padding: 0 14px;
+  border: 1px solid var(--border-sm);
+  border-radius: var(--radius-sm);
+  background: var(--elevated);
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 550;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+.option-row .tick {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border: 2px solid var(--border);
+  border-radius: 7px;
+  color: transparent;
+}
+.option-row .tick svg { width: 14px; height: 14px; }
+.option-row[aria-pressed="true"] { border-color: var(--accent); }
+.option-row[aria-pressed="true"] .tick {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.option-row .count { margin-left: auto; color: var(--muted); font-size: 13px; font-weight: 500; }
+
 /* ── Grid ───────────────────────────────────────────────────────────────── */
 
 .grid {
@@ -271,6 +336,68 @@ select {
 .badge.opened { color: var(--opened); border-color: color-mix(in srgb, var(--opened) 40%, transparent); }
 .badge.empty  { color: var(--empty); }
 
+/* ── Stacked duplicates ──────────────────────────────────────────────────── */
+
+/* Identical spools collapse into one card sitting on a paper stack. Hovering
+   fans the stack out; clicking expands the group into individual cards so a
+   particular spool can be opened (touch has no hover, so the tap does both). */
+.stack { position: relative; }
+
+.stack-layer {
+  position: absolute;
+  inset: 0;
+  background: var(--surface);
+  border: 1px solid var(--border-sm);
+  border-radius: var(--radius);
+  transform-origin: 50% 100%;
+  transition: transform .22s cubic-bezier(.2, .8, .3, 1);
+  pointer-events: none;
+}
+.stack .l1 { transform: translate(5px, 5px) rotate(1.5deg); }
+.stack .l2 { transform: translate(9px, 9px) rotate(3deg); }
+.stack:hover .l1 { transform: translate(13px, -7px) rotate(6deg); }
+.stack:hover .l2 { transform: translate(-11px, -5px) rotate(-6deg); }
+.stack .card { position: relative; }
+
+.stack-count {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  z-index: 2;
+  padding: 4px 9px;
+  font-size: 12px;
+  font-weight: 680;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  pointer-events: none;
+}
+
+.group-header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 -4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.group-header button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+.group-header button:hover { border-color: var(--accent); color: var(--text); }
+
+@media (prefers-reduced-motion: reduce) {
+  .stack-layer { transition: none; }
+}
+
 .empty-state {
   grid-column: 1 / -1;
   text-align: center;
@@ -282,11 +409,17 @@ select {
 
 /* ── FAB ────────────────────────────────────────────────────────────────── */
 
-.fab {
+.fab-stack {
   position: fixed;
   right: 18px;
   bottom: calc(18px + var(--safe-b));
   z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.fab {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -306,6 +439,43 @@ select {
 .fab:hover  { transform: translateY(-2px); }
 .fab:active { transform: scale(.96); }
 
+/* Camera button — icon only, so it stays clearly secondary to Add. */
+.fab-secondary {
+  width: 56px;
+  padding: 0;
+  justify-content: center;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+.fab-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── Scanner ─────────────────────────────────────────────────────────────── */
+
+.scan-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  max-height: 52dvh;
+  background: #000;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.scan-stage video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.scan-reticle {
+  position: absolute;
+  inset: 14%;
+  border-radius: 14px;
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .38);
+  border: 2px solid rgba(255, 255, 255, .85);
+}
+
 /* ── Sheets ─────────────────────────────────────────────────────────────── */
 
 .sheet {
@@ -313,7 +483,7 @@ select {
   border: 0;
   background: transparent;
   /* <dialog> defaults to CanvasText/Canvas from the UA sheet — pin both to the
-     app theme so sheet content never renders in the system colours. */
+     app theme so sheet content never renders in the system colors. */
   color: var(--text);
   max-width: none;
   max-height: none;
@@ -471,6 +641,39 @@ select {
 }
 .spec dt { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
 .spec dd { margin: 2px 0 0; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+
+/* ── Remaining control (detail sheet) ────────────────────────────────────── */
+
+.remaining {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  background: var(--elevated);
+  border: 1px solid var(--border-sm);
+  border-radius: var(--radius-sm);
+}
+.remaining-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.remaining-head b { font-size: 20px; letter-spacing: -.02em; }
+.remaining-head span { font-size: 13px; color: var(--muted); }
+.remaining input[type="range"] { width: 100%; height: 44px; }
+.remaining-quick { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; }
+.remaining-quick button {
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.remaining-quick button:hover { border-color: var(--accent); color: var(--text); }
+.remaining-quick button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 
 .notes-block {
   background: var(--elevated);
