@@ -8,6 +8,12 @@
  * jsQR is ~250 KB, so it's only fetched the first time the scanner is opened.
  */
 
+/** Fraction of the short side handed to the decoder — matches the reticle. */
+const CROP = 0.74;
+
+/** Ceiling on the decoded square. jsQR is pure JS; beyond this it gets slow. */
+const MAX_DECODE = 1024;
+
 let jsQRPromise = null;
 
 function loadJsQR() {
@@ -49,13 +55,43 @@ export class QrScanner {
   }
 
   async start() {
-    this.stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' } },
+    /*
+     * Resolution is the whole ballgame here.
+     *
+     * A label QR is ~50 characters, which is a 33x33 module code. At the
+     * closest a phone can still focus (~10-15cm on the wide lens) a 20mm code
+     * covers roughly 7% of the frame. On the 640x480 default that's ~47px —
+     * about 1.4 pixels per module, where decoders want 3+. Asking for a much
+     * larger frame is what makes it readable at a distance the lens can
+     * actually focus at.
+     */
+    const constraints = {
+      video: {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 2560 },
+        height: { ideal: 1440 },
+        // Ignored where unsupported rather than failing the whole request.
+        advanced: [{ focusMode: 'continuous' }],
+      },
       audio: false,
-    });
+    };
+
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+    } catch {
+      // Some cameras reject the size outright — fall back to whatever they'll give.
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+        audio: false,
+      });
+    }
+
     this.video.srcObject = this.stream;
     this.video.setAttribute('playsinline', '');
     await this.video.play();
+
+    [this.track] = this.stream.getVideoTracks();
+    this.capabilities = this.track?.getCapabilities?.() ?? {};
 
     if ('BarcodeDetector' in window) {
       try {
@@ -96,19 +132,50 @@ export class QrScanner {
 
   scanFallback() {
     const { video, canvas, ctx } = this;
-    // Downscale before decoding — jsQR is pure JS and full-resolution frames
-    // are far slower than they need to be.
-    const scale = Math.min(1, 480 / Math.max(video.videoWidth, video.videoHeight));
-    canvas.width = Math.round(video.videoWidth * scale);
-    canvas.height = Math.round(video.videoHeight * scale);
-    if (!canvas.width || !canvas.height) return null;
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    if (!vw || !vh) return null;
 
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    /*
+     * Crop to the reticle instead of shrinking the whole frame. Downscaling a
+     * full frame to fit jsQR's budget throws away exactly the detail the
+     * decoder needs; cropping spends that budget on the part of the image the
+     * code is actually in, keeping close to native pixels per module.
+     */
+    const side = Math.min(vw, vh) * CROP;
+    const sx = (vw - side) / 2;
+    const sy = (vh - side) / 2;
+    const target = Math.min(Math.round(side), MAX_DECODE);
+
+    canvas.width = target;
+    canvas.height = target;
+    ctx.drawImage(video, sx, sy, side, side, 0, 0, target, target);
+
+    const image = ctx.getImageData(0, 0, target, target);
+    // Alternate inversion attempts: light-on-dark labels cost nothing to catch
+    // if we only pay for it every other frame.
+    this.frame = (this.frame ?? 0) + 1;
     const hit = this.decode(image.data, image.width, image.height, {
-      inversionAttempts: 'dontInvert',
+      inversionAttempts: this.frame % 2 ? 'dontInvert' : 'onlyInvert',
     });
     return hit?.data ?? null;
+  }
+
+  /** Actual negotiated frame size, for the on-screen diagnostic. */
+  get resolution() {
+    return this.video.videoWidth ? `${this.video.videoWidth}×${this.video.videoHeight}` : 'unknown';
+  }
+
+  get zoomRange() {
+    const z = this.capabilities?.zoom;
+    return z && z.max > z.min ? z : null;
+  }
+
+  async setZoom(value) {
+    if (!this.zoomRange) return;
+    try {
+      await this.track.applyConstraints({ advanced: [{ zoom: Number(value) }] });
+    } catch { /* the camera refused; leave it where it was */ }
   }
 
   stop() {

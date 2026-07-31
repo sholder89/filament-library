@@ -562,6 +562,17 @@ select {
   object-fit: cover;
   display: block;
 }
+.scan-zoom {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: center;
+}
+.scan-zoom[hidden] { display: none; }
+.scan-zoom label { font-size: 13px; font-weight: 620; color: var(--muted); }
+.scan-zoom output { font-size: 14px; font-weight: 650; min-width: 42px; text-align: right; }
+.scan-zoom input[type="range"] { width: 100%; height: 44px; }
+
 .scan-reticle {
   position: absolute;
   inset: 14%;
@@ -663,6 +674,54 @@ select {
   background: linear-gradient(to top, var(--surface) 68%, transparent);
 }
 .sheet-actions .btn { flex: 1; }
+.sheet-actions .split-btn { flex: 2; }
+
+/* ── Split action button ─────────────────────────────────────────────────── */
+
+.split-btn { position: relative; display: flex; min-width: 0; }
+.split-btn > .btn { border-radius: var(--radius-sm) 0 0 var(--radius-sm); min-width: 0; }
+.split-btn > .split-toggle {
+  flex: 0 0 46px;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  border-left: 1px solid rgba(255, 255, 255, .28);
+  padding: 0;
+}
+.split-btn > .split-toggle svg { width: 20px; height: 20px; }
+
+.split-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 5;
+  min-width: 240px;
+  padding: 6px;
+  display: grid;
+  gap: 4px;
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+}
+.split-menu[hidden] { display: none; }
+.split-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 550;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+}
+.split-menu button:hover { background: var(--surface); }
+.split-tick { width: 16px; color: var(--accent); opacity: 0; font-weight: 700; }
+.split-menu button[aria-checked="true"] .split-tick { opacity: 1; }
 
 /* ── Buttons ────────────────────────────────────────────────────────────── */
 

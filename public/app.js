@@ -796,13 +796,61 @@ el.detail.addEventListener('cancel', (e) => {
 const form = el.editorForm;
 
 /**
- * Which submit button was pressed. Read on submit rather than passed through
- * FormData so the distinction survives Enter-to-submit, which reports no
- * submitter at all and should behave like a plain save.
+ * What the Add button does — plain save, or save and queue a label. Persisted,
+ * because whichever you did last is almost always what you want next.
  */
-let submitIntent = 'save';
-$('#saveBtn').addEventListener('click', () => { submitIntent = 'save'; });
-$('#savePrintBtn').addEventListener('click', () => { submitIntent = 'print'; });
+let saveMode = localStorage.getItem('saveMode') === 'print' ? 'print' : 'save';
+let submitIntent = saveMode;
+
+function syncSaveButton() {
+  const editing = Boolean(state.editingId);
+  const printable = state.print.mode !== 'off';
+  // Printing an edit doesn't make sense here — the spool's own page does that.
+  const showSplit = !editing && printable;
+
+  $('#saveModeBtn').hidden = !showSplit;
+  if (!showSplit) closeSaveMenu();
+
+  el.saveBtn.textContent = editing
+    ? 'Save changes'
+    : (showSplit && saveMode === 'print' ? 'Add and print QR' : 'Add to library');
+
+  for (const item of $('#saveMenu').querySelectorAll('button[data-mode]')) {
+    item.setAttribute('aria-checked', String(item.dataset.mode === saveMode));
+  }
+  submitIntent = showSplit ? saveMode : 'save';
+}
+
+function closeSaveMenu() {
+  $('#saveMenu').hidden = true;
+  $('#saveModeBtn').setAttribute('aria-expanded', 'false');
+}
+
+$('#saveModeBtn').addEventListener('click', () => {
+  const menu = $('#saveMenu');
+  menu.hidden = !menu.hidden;
+  $('#saveModeBtn').setAttribute('aria-expanded', String(!menu.hidden));
+});
+
+$('#saveMenu').addEventListener('click', (e) => {
+  const item = e.target.closest('button[data-mode]');
+  if (!item) return;
+  saveMode = item.dataset.mode;
+  localStorage.setItem('saveMode', saveMode);
+  closeSaveMenu();
+  syncSaveButton();
+  // Picking an action performs it — that's what a split button is for.
+  form.requestSubmit(el.saveBtn);
+});
+
+// Any tap outside the menu dismisses it.
+document.addEventListener('click', (e) => {
+  if ($('#saveMenu').hidden) return;
+  if (e.target.closest('#saveSplit')) return;
+  closeSaveMenu();
+});
+
+el.saveBtn.addEventListener('click', () => { submitIntent = state.editingId ? 'save' : saveMode; });
 
 /** Queues one label per spool. Sequential — the relay accepts 10 jobs a minute. */
 async function printLabelsFor(ids) {
@@ -827,13 +875,10 @@ function setField(name, value) {
 function openEditor(filament = null) {
   state.editingId = filament?.id ?? null;
   el.editorTitle.textContent = filament ? 'Edit spool' : 'Add filament';
-  el.saveBtn.textContent = filament ? 'Save changes' : 'Add to library';
   el.editorError.hidden = true;
   $('#quantityField').hidden = Boolean(filament);
-  // Printing straight from the form only makes sense for new spools — an
-  // existing one can be printed from its own page.
-  $('#savePrintBtn').hidden = Boolean(filament) || state.print.mode === 'off';
-  submitIntent = 'save';
+  closeSaveMenu();
+  syncSaveButton();
 
   form.reset();
   const f = filament ?? {};
@@ -858,6 +903,7 @@ function openEditor(filament = null) {
   setField('notes', f.notes);
   setField('purchased_at', f.purchased_at ? f.purchased_at.slice(0, 10) : '');
   clampQuantity(1);
+  syncEditorRemaining();
 
   syncColorText();
   syncPreview();
@@ -900,8 +946,39 @@ function syncColorText() {
   }
 }
 
-/** Fullness shown in the editor's preview spool. Edited on the detail page. */
+/** Fullness shown in the editor's preview spool. */
 let editorRemaining = 100;
+
+/**
+ * The slider is only offered while adding — an existing spool's level is
+ * adjusted on its own page, and having it in two places invites them to
+ * disagree.
+ */
+function syncEditorRemaining() {
+  const adding = !state.editingId;
+  const opened = form.elements.status.value === 'opened';
+  $('#remainingField').hidden = !(adding && opened);
+
+  form.elements.remaining_pct.value = editorRemaining;
+  $('#remainingOut').textContent = `${editorRemaining}%`;
+  for (const b of $('#editorRemainingQuick').querySelectorAll('button')) {
+    b.classList.toggle('on', Number(b.dataset.pct) === editorRemaining);
+  }
+}
+
+form.elements.remaining_pct.addEventListener('input', (e) => {
+  editorRemaining = Number(e.target.value);
+  syncEditorRemaining();
+  syncPreview();
+});
+
+$('#editorRemainingQuick').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-pct]');
+  if (!btn) return;
+  editorRemaining = Number(btn.dataset.pct);
+  syncEditorRemaining();
+  syncPreview();
+});
 
 function renderSwatches() {
   $('#swatches').innerHTML = state.catalog.colors.map((c) => `
@@ -937,6 +1014,7 @@ form.elements.status.addEventListener('change', () => {
   const status = form.elements.status.value;
   if (status === 'new') editorRemaining = 100;
   if (status === 'empty') editorRemaining = 0;
+  syncEditorRemaining();
   syncPreview();
 });
 // Brand and material update the preview through their pickers.
@@ -1014,12 +1092,13 @@ form.addEventListener('submit', async (e) => {
   e.preventDefault();
   el.editorError.hidden = true;
   el.saveBtn.disabled = true;
-  $('#savePrintBtn').disabled = true;
+  $('#saveModeBtn').disabled = true;
 
   const data = Object.fromEntries(new FormData(form).entries());
-  // A hidden range still submits, so pin the value the status implies.
-  // remaining_pct isn't in this form at all — the server derives it from the
-  // status on create, and leaves it alone on a partial update.
+  // Editing never sends a level — that belongs to the spool's own page, and a
+  // stale value from this form would silently overwrite it. On create the
+  // server reconciles it against the status anyway.
+  if (state.editingId) delete data.remaining_pct;
 
   try {
     if (state.editingId) {
@@ -1053,7 +1132,7 @@ form.addEventListener('submit', async (e) => {
     el.editorError.hidden = false;
   } finally {
     el.saveBtn.disabled = false;
-    $('#savePrintBtn').disabled = false;
+    $('#saveModeBtn').disabled = false;
   }
 });
 
@@ -1105,6 +1184,10 @@ async function openScanner() {
   scanner = new QrScanner($('#scanVideo'), onScanned);
   try {
     await scanner.start();
+    setupZoom();
+    // Surfaced because frame size is the difference between reading a label and
+    // not — worth being able to see what the camera actually gave us.
+    $('#scanDiag').textContent = `Camera ${scanner.resolution}`;
   } catch (err) {
     const denied = err.name === 'NotAllowedError' || err.name === 'SecurityError';
     $('#scanError').textContent = denied
@@ -1115,9 +1198,36 @@ async function openScanner() {
   }
 }
 
+/**
+ * Optical zoom, where the camera exposes it. This is the practical answer to a
+ * phone not being able to focus close enough: stand back far enough to be sharp
+ * and zoom in so the code still fills the frame.
+ */
+function setupZoom() {
+  const row = $('#scanZoom');
+  const range = $('#scanZoomRange');
+  const caps = scanner?.zoomRange;
+
+  row.hidden = !caps;
+  if (!caps) return;
+
+  range.min = caps.min;
+  range.max = Math.min(caps.max, caps.min * 6);
+  range.step = caps.step || 0.1;
+  range.value = caps.min;
+  $('#scanZoomOut').textContent = `${Number(caps.min).toFixed(1)}×`;
+}
+
+$('#scanZoomRange').addEventListener('input', (e) => {
+  $('#scanZoomOut').textContent = `${Number(e.target.value).toFixed(1)}×`;
+  scanner?.setZoom(e.target.value);
+});
+
 function stopScanner() {
   scanner?.stop();
   scanner = null;
+  $('#scanZoom').hidden = true;
+  $('#scanDiag').textContent = '';
 }
 
 async function onScanned(value) {

@@ -172,6 +172,19 @@
       </div>
     </div>
 
+    <!-- Only shown when adding an already-opened spool. Once it's in the
+         library, how much is left is adjusted on the spool's own page. -->
+    <div class="field" id="remainingField" hidden>
+      <label for="f_remaining_pct">How much is left — <output id="remainingOut">100%</output></label>
+      <input id="f_remaining_pct" name="remaining_pct" type="range" min="0" max="100" step="5" value="100">
+      <div class="remaining-quick" id="editorRemainingQuick">
+        <button type="button" data-pct="25">25%</button>
+        <button type="button" data-pct="50">50%</button>
+        <button type="button" data-pct="75">75%</button>
+        <button type="button" data-pct="100">100%</button>
+      </div>
+    </div>
+
     <div class="field" id="quantityField">
       <label for="f_quantity">How many of these?</label>
       <div class="stepper">
@@ -233,13 +246,25 @@
 
     <div class="sheet-actions">
       <button type="button" class="btn ghost" data-close>Cancel</button>
-      <button type="submit" class="btn primary" id="saveBtn">Save spool</button>
-    </div>
 
-    <button type="submit" class="btn wide" id="savePrintBtn" hidden>
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9V3h10v6M7 19H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2m-10 0v3h10v-6H7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
-      Add to library and print QR
-    </button>
+      <!-- Split button: the main half does whatever you chose last time, the
+           chevron lets you pick the other action (and remembers it). -->
+      <div class="split-btn" id="saveSplit">
+        <button type="submit" class="btn primary" id="saveBtn">Add to library</button>
+        <button type="button" class="btn primary split-toggle" id="saveModeBtn"
+                aria-haspopup="true" aria-expanded="false" aria-label="Choose what happens when you save">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="split-menu" id="saveMenu" role="menu" hidden>
+          <button type="button" role="menuitem" data-mode="save">
+            <span class="split-tick" aria-hidden="true">✓</span> Add to library
+          </button>
+          <button type="button" role="menuitem" data-mode="print">
+            <span class="split-tick" aria-hidden="true">✓</span> Add and print QR
+          </button>
+        </div>
+      </div>
+    </div>
   </form>
 </dialog>
 
@@ -276,7 +301,13 @@
       <video id="scanVideo" playsinline muted></video>
       <div class="scan-reticle" aria-hidden="true"></div>
     </div>
-    <p class="hint" id="scanStatus">Point the camera at the QR code on a spool.</p>
+    <div class="scan-zoom" id="scanZoom" hidden>
+      <label for="scanZoomRange">Zoom</label>
+      <input type="range" id="scanZoomRange" min="1" max="4" step="0.1" value="1">
+      <output id="scanZoomOut">1.0×</output>
+    </div>
+    <p class="hint" id="scanStatus">Hold the label about 15–20&nbsp;cm away and fill the box.</p>
+    <p class="hint" id="scanDiag"></p>
     <p class="form-error" id="scanError" hidden></p>
     <div class="sheet-actions">
       <button type="button" class="btn ghost wide" data-close>Cancel</button>
