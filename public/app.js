@@ -14,6 +14,7 @@ const state = {
   expandedGroups: new Set(),
   // Section headings the user has folded away in a grouped view.
   collapsedSections: new Set(),
+  view: 'medium',
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -258,6 +259,11 @@ function saveFilters() {
 }
 
 function loadSavedFilters() {
+  // Stored separately from the filters, so it has to be read before any of the
+  // early returns below.
+  const view = localStorage.getItem('view');
+  if (VIEWS.includes(view)) state.view = view;
+
   let saved;
   try {
     saved = JSON.parse(localStorage.getItem(FILTERS_KEY) || 'null');
@@ -300,7 +306,29 @@ function applyFiltersToUI() {
     b.classList.toggle('on', b.dataset.status === state.filters.status);
   }
   syncFilterButtons();
+  applyView();
 }
+
+// ── Card density ─────────────────────────────────────────────────────────────
+
+const VIEWS = ['small', 'medium', 'large', 'list'];
+
+function applyView() {
+  el.grid.className = `grid view-${state.view}`;
+  for (const b of $('#viewSwitch').children) {
+    b.classList.toggle('on', b.dataset.view === state.view);
+    b.setAttribute('aria-pressed', String(b.dataset.view === state.view));
+  }
+}
+
+$('#viewSwitch').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-view]');
+  if (!btn || btn.dataset.view === state.view) return;
+  state.view = btn.dataset.view;
+  try { localStorage.setItem('view', state.view); } catch { /* private mode */ }
+  applyView();
+  renderGrid();
+});
 
 // ── Multi-select filters ─────────────────────────────────────────────────────
 
@@ -644,14 +672,40 @@ function groupFilaments(filaments) {
   return [...groups.values()];
 }
 
-const cardHTML = (f) => `
+/**
+ * One markup shape for every view. Which parts are visible is decided in CSS by
+ * the class on the grid, so the grouping and stacking code below doesn't need to
+ * know or care which density is active.
+ */
+function cardHTML(f) {
+  const detail = [f.color_name || '—', f.finish].filter(Boolean).join(' · ');
+  const grams = Math.round(f.spool_weight_g * f.remaining_pct / 100);
+  const sub = [f.brand, f.color_name].filter(Boolean).join(' · ');
+
+  return `
   <button class="card ${f.status === 'empty' ? 'is-empty' : ''}" data-id="${esc(f.id)}">
     <span class="badge ${esc(f.status)}">${esc(STATUS_LABEL[f.status])}</span>
-    <div class="card-spool">${spoolSVG(f)}</div>
-    <span class="card-brand">${esc(f.brand)}</span>
-    <span class="card-title">${esc(f.material)}</span>
-    <span class="card-color">${esc([f.color_name || '—', f.finish].filter(Boolean).join(' · '))}</span>
+    <div class="card-spool">
+      ${spoolSVG(f)}
+      <span class="card-overlay">
+        <b>${esc(f.material)}</b>
+        <span>${esc(sub)}</span>
+      </span>
+    </div>
+    <div class="card-text">
+      <span class="card-brand">${esc(f.brand)}</span>
+      <span class="card-title">${esc(f.material)}</span>
+      <span class="card-color">${esc(detail)}</span>
+      <div class="card-extra">
+        ${f.status === 'empty'
+          ? `<span class="card-meta">Used up ${esc(fmtDate(f.finished_at))}</span>`
+          : `<span class="card-bar"><i style="width:${f.remaining_pct}%"></i></span>
+             <span class="card-meta">${f.remaining_pct}% left · ${grams} g</span>`}
+        ${f.location ? `<span class="card-meta">${esc(f.location)}</span>` : ''}
+      </div>
+    </div>
   </button>`;
+}
 
 function renderGroup(group) {
   const [first] = group.items;

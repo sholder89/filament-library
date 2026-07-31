@@ -13,6 +13,10 @@ through — used-up spools stay in the library as a record instead of vanishing.
 
 - **Spool cards** — every filament drawn as a spool graphic in its own color.
   The winding shrinks as the spool empties, so a nearly-gone roll looks like one.
+- **Four densities** — *small* shows just the spool with its type on top and the
+  brand on hover, *medium* is the standard card, *large* puts a full read-out
+  beside the spool, and *list* is one compact row each. The choice is
+  remembered.
 - **Three states** — *Sealed* → *Opened* → *Used up*, with the dates stamped
   automatically. Marking a spool used up keeps the record; only an explicit
   delete removes it.
