@@ -63,8 +63,22 @@
 
 html, body {
   margin: 0;
+  max-width: 100%;
   background: var(--bg);
   color: var(--text);
+}
+
+/*
+ * Stops the sideways drag on iOS.
+ *
+ * `clip` rather than `hidden`: hidden on <html> turns it into a scroll
+ * container, which breaks the sticky top bar. `clip` contains the overflow
+ * without that side effect. Browsers too old for `clip` fall back to `hidden`
+ * on <body> alone, which is where this started.
+ */
+html {
+  overflow-x: clip;
+  overscroll-behavior-x: none;
 }
 
 body {
@@ -72,6 +86,10 @@ body {
   -webkit-font-smoothing: antialiased;
   padding-bottom: calc(96px + var(--safe-b));
   overflow-x: hidden;
+  overflow-x: clip;
+  /* Vertical panning and pinch-zoom stay; horizontal panning is what made the
+     whole page feel unanchored. */
+  touch-action: pan-y pinch-zoom;
 }
 
 /* Color is set explicitly rather than inherited: <dialog> resets color to the
@@ -186,6 +204,7 @@ input, textarea { -webkit-text-fill-color: var(--text); }
 
 input, select, textarea {
   min-height: var(--tap);
+  min-width: 0;
   padding: 11px 13px;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -315,6 +334,7 @@ select {
   gap: 6px;
   max-height: 46dvh;
   overflow-y: auto;
+  overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
 .option-row {
@@ -674,7 +694,20 @@ select {
 .grid.view-list .card-color { grid-column: 2; grid-row: 1 / span 2; font-size: 13px; }
 .grid.view-list .card-extra { display: none; }
 .grid.view-list .badge { position: static; flex: none; }
-.grid.view-list .stack-layer { border-radius: var(--radius-sm); }
+
+/* A fanned paper stack behind a 64px row just reads as misalignment, so the
+   layers are dropped here and the count carries the meaning on its own. */
+.grid.view-list .stack-layer { display: none; }
+.grid.view-list .stack-count {
+  left: auto;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 3px 8px;
+  font-size: 11.5px;
+}
+/* Room for the count so it never lands on the status badge. */
+.grid.view-list .stack .card { padding-right: 56px; }
 
 @media (min-width: 760px) {
   /* Room for the remaining bar and location once the row is wide enough. */
@@ -845,6 +878,10 @@ select {
   width: min(560px, 100%);
   max-height: 92dvh;
   overflow-y: auto;
+  overflow-x: clip;
+  /* Scrolling past the end of a sheet shouldn't start dragging the page behind
+     it — that's most of what made the add form feel loose. */
+  overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   padding: 8px 20px calc(24px + var(--safe-b));
   background: var(--surface);
@@ -1134,9 +1171,17 @@ select {
 
 /* ── Form bits ──────────────────────────────────────────────────────────── */
 
-.field { display: grid; gap: 6px; min-width: 0; }
+/*
+ * minmax(0, 1fr) rather than 1fr in both places.
+ *
+ * A bare `1fr` track can't shrink below its content's min-content width, and an
+ * <input> reports a wide one from its default size attribute. That pushed the
+ * right-hand column of every two-column row about 28px past the sheet, where
+ * overflow:hidden quietly clipped it.
+ */
+.field { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; min-width: 0; }
 .field > label { font-size: 13px; font-weight: 620; color: var(--muted); }
-.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.field-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 
 .hint { margin: 0; font-size: 12.5px; color: var(--muted); min-height: 1em; }
 
