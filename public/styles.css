@@ -537,7 +537,10 @@ select {
 .stack .l2 { transform: translate(9px, 9px) rotate(3deg); }
 .stack:hover .l1 { transform: translate(13px, -7px) rotate(6deg); }
 .stack:hover .l2 { transform: translate(-11px, -5px) rotate(-6deg); }
-.stack .card { position: relative; }
+/* A <button> shrink-wraps its content. A card that's a direct grid item gets
+   stretched by the grid, but one nested inside .stack has a block parent
+   instead and would sit narrower than the layers behind it. */
+.stack .card { position: relative; width: 100%; }
 
 .stack-count {
   position: absolute;
