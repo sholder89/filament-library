@@ -33,6 +33,12 @@
   --spool-void:   rgba(0, 0, 0, .34);
   --spool-hub:    #454d5c;
   --spool-bore:   #0e121a;
+
+  /* Ambient background (public/bg.js). Line color is the app's own accent, so
+     the effect reads as part of the theme rather than a bolt-on; opacity is
+     lower on light because ink is more visible against a pale page. */
+  --bgfx-color:   #5b8cff;
+  --bgfx-opacity: .22;
 }
 
 :root[data-theme="light"] {
@@ -57,6 +63,9 @@
   --spool-void:   rgba(19, 23, 32, .12);
   --spool-hub:    #aab3c1;
   --spool-bore:   #e9edf3;
+
+  --bgfx-color:   #2f6bef;
+  --bgfx-opacity: .13;
 }
 
 * { box-sizing: border-box; }
@@ -64,7 +73,6 @@
 html, body {
   margin: 0;
   max-width: 100%;
-  background: var(--bg);
   color: var(--text);
 }
 
@@ -77,8 +85,34 @@ html, body {
  * on <body> alone, which is where this started.
  */
 html {
+  /* Deliberately not on `body` too: a background painted on `body` is an
+     ordinary in-flow box and paints *above* a negative z-index descendant
+     (see #bgFx below), which would hide the effect entirely. The root
+     element's own background is special-cased to paint at the very bottom of
+     everything, negative z-index included, so it has to live here. */
+  background: var(--bg);
   overflow-x: clip;
   overscroll-behavior-x: none;
+}
+
+/* Ambient background effect (public/bg.js). Sits behind all normal content via
+   negative z-index — safe only because `body` has no background of its own,
+   see the note above — and never intercepts input. */
+#bgFx {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: var(--bgfx-opacity, .22);
+  transition: opacity .5s ease;
+}
+#bgFx canvas { display: block; }
+
+/* bg.js also checks this before ever loading three.js/vanta, so this rule is
+   belt-and-suspenders for the moment between CSS applying and JS running. */
+@media (prefers-reduced-motion: reduce) {
+  #bgFx { display: none; }
 }
 
 body {

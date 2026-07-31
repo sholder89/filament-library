@@ -68,6 +68,10 @@ through — used-up spools stay in the library as a record instead of vanishing.
   otherwise), which the reverse-proxy setup below gives you.
 - **Works offline** — the app shell and your last-loaded inventory are cached,
   so it opens in the workshop even when the WiFi doesn't.
+- **Ambient background** — a faint, slowly-drifting line pattern behind
+  everything, tinted to the app's accent color and dimmed further in light mode.
+  Off entirely if you have reduced motion set, and paused whenever the tab isn't
+  visible.
 
 ---
 
@@ -357,3 +361,24 @@ page load. To update it:
 ```bash
 npm install jsqr && cp node_modules/jsqr/dist/jsQR.js public/vendor/jsqr.js
 ```
+
+---
+
+## Ambient background
+
+A decorative touch: a faint Vanta.js "trunk" pattern drifts behind the app,
+coloured from the theme's own accent (`--bgfx-color` / `--bgfx-opacity` in
+`public/styles.css`) so it reads as part of the design rather than a bolt-on.
+
+It's loaded lazily — after the page finishes loading and goes idle — and skips
+itself entirely if you have `prefers-reduced-motion` set or the connection has
+data-saver on, since the two vendored files together are about 800&nbsp;KB.
+Nothing about the app depends on it: every failure path (script load error,
+init error, missing browser feature) falls back silently to the plain themed
+background.
+
+Renders through **p5.js**, not WebGL/three.js — despite most Vanta effects
+being three.js-based, the trunk effect specifically is a p5 sketch. `p5.min.js`
+and `vanta.trunk.min.js` are vendored in `public/vendor/` for the same offline
+reason as `jsqr.js`; see the header comment in each for the exact pinned
+versions and how to regenerate them.

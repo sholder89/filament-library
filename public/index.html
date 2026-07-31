@@ -31,6 +31,13 @@
 </head>
 <body>
 
+<!-- Ambient background effect. Fixed behind everything via z-index:-1 in CSS,
+     with pointer-events:none so it can never intercept scroll or taps. Left
+     empty here — public/bg.js fills it in only if WebGL is available and the
+     visitor hasn't asked for reduced motion; otherwise the plain theme
+     background (already set on <html>) just shows through undecorated. -->
+<div id="bgFx" aria-hidden="true"></div>
+
 <header class="topbar">
   <div class="brand">
     <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
@@ -376,5 +383,6 @@
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script type="module" src="/app.js"></script>
+<script type="module" src="/bg.js"></script>
 </body>
 </html>
