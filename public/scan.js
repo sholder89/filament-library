@@ -93,6 +93,22 @@ export class QrScanner {
     [this.track] = this.stream.getVideoTracks();
     this.capabilities = this.track?.getCapabilities?.() ?? {};
 
+    /*
+     * Phone cameras autofocus on their own; the constraint is only here for the
+     * browsers that expose the control, and is applied after the stream is live
+     * because some accept it via applyConstraints but not in the initial
+     * request. Failures are ignored — it's a hint, not a requirement.
+     */
+    try {
+      if (this.capabilities.focusMode?.includes('continuous')) {
+        await this.track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+      }
+    } catch { /* camera kept its own focus behaviour */ }
+
+    // Start at 1x. Left alone, a multi-lens phone can open on a zoomed lens
+    // whose minimum focus distance is much further out.
+    await this.setZoom(this.defaultZoom);
+
     if ('BarcodeDetector' in window) {
       try {
         const formats = await window.BarcodeDetector.getSupportedFormats();
@@ -171,8 +187,15 @@ export class QrScanner {
     return z && z.max > z.min ? z : null;
   }
 
+  /** 1x where the camera supports it, otherwise the widest it will go. */
+  get defaultZoom() {
+    const z = this.zoomRange;
+    if (!z) return null;
+    return Math.min(Math.max(1, z.min), z.max);
+  }
+
   async setZoom(value) {
-    if (!this.zoomRange) return;
+    if (!this.zoomRange || value == null) return;
     try {
       await this.track.applyConstraints({ advanced: [{ zoom: Number(value) }] });
     } catch { /* the camera refused; leave it where it was */ }

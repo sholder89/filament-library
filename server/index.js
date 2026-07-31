@@ -38,6 +38,17 @@ if (TRUST_PROXY) {
 
 app.use(express.json({ limit: '256kb' }));
 
+/**
+ * Inventory responses carry no validators, so a browser is free to reuse them
+ * heuristically — which shows up as a phone opening the app and displaying data
+ * that changed on another device. The service worker keeps its own copy for
+ * offline use; Cache Storage is unaffected by this header.
+ */
+app.use('/api', (_req, res, next) => {
+  res.set('Cache-Control', 'no-store, must-revalidate');
+  next();
+});
+
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, print_mode: printMode(), version: 1 });
 });

@@ -424,11 +424,40 @@ async function loadAll() {
   state.allFilaments = await api('/api/filaments?include_empty=1&sort=brand');
 }
 
+let lastRefreshAt = 0;
+
 async function refresh() {
   await loadFilaments();
   await Promise.all([loadStats(), loadAll()]);
   await loadCatalog();
+  lastRefreshAt = Date.now();
 }
+
+/**
+ * Re-reads the library when the app comes back to the foreground.
+ *
+ * An installed PWA isn't reloaded when you switch back to it — iOS resumes the
+ * same page, so without this it keeps showing whatever was in memory when you
+ * left, and edits made on another device never appear.
+ */
+async function refreshOnResume({ force = false } = {}) {
+  if (!force && Date.now() - lastRefreshAt < 1500) return;
+  try {
+    await refresh();
+    // Keep an open spool page in step too, unless something there is being
+    // edited right now — re-rendering would yank the control out from under it.
+    const openId = el.detail.open && el.detailBody.dataset.id;
+    const busy = document.activeElement?.closest?.('#detail .remaining');
+    if (openId && !busy) await showDetail(openId);
+  } catch { /* offline: keep showing the last known state */ }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') refreshOnResume();
+});
+addEventListener('pageshow', (e) => { if (e.persisted) refreshOnResume({ force: true }); });
+addEventListener('online', () => refreshOnResume({ force: true }));
+addEventListener('focus', () => refreshOnResume());
 
 // ── Grid ─────────────────────────────────────────────────────────────────────
 
@@ -802,6 +831,9 @@ const form = el.editorForm;
 let saveMode = localStorage.getItem('saveMode') === 'print' ? 'print' : 'save';
 let submitIntent = saveMode;
 
+const ICON_PLUS = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
+const ICON_PRINT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9V3h10v6M7 19H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2m-10 0v3h10v-6H7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
+
 function syncSaveButton() {
   const editing = Boolean(state.editingId);
   const printable = state.print.mode !== 'off';
@@ -811,9 +843,17 @@ function syncSaveButton() {
   $('#saveModeBtn').hidden = !showSplit;
   if (!showSplit) closeSaveMenu();
 
-  el.saveBtn.textContent = editing
-    ? 'Save changes'
-    : (showSplit && saveMode === 'print' ? 'Add and print QR' : 'Add to library');
+  // Short labels: the full wording lives in the menu, where there's room. On a
+  // phone "Add and print QR" wrapped onto a second line inside the button.
+  if (editing) {
+    el.saveBtn.innerHTML = '<span>Save changes</span>';
+  } else if (showSplit && saveMode === 'print') {
+    // One icon, not two — a plus and a printer together crowded the label into
+    // an ellipsis on a phone. The menu carries both icons for disambiguation.
+    el.saveBtn.innerHTML = `${ICON_PRINT}<span>Add &amp; print</span>`;
+  } else {
+    el.saveBtn.innerHTML = `${ICON_PLUS}<span>Add to library</span>`;
+  }
 
   for (const item of $('#saveMenu').querySelectorAll('button[data-mode]')) {
     item.setAttribute('aria-checked', String(item.dataset.mode === saveMode));
@@ -1211,11 +1251,12 @@ function setupZoom() {
   row.hidden = !caps;
   if (!caps) return;
 
+  const start = scanner.defaultZoom;
   range.min = caps.min;
-  range.max = Math.min(caps.max, caps.min * 6);
+  range.max = Math.min(caps.max, Math.max(start * 6, caps.min * 6));
   range.step = caps.step || 0.1;
-  range.value = caps.min;
-  $('#scanZoomOut').textContent = `${Number(caps.min).toFixed(1)}×`;
+  range.value = start;
+  $('#scanZoomOut').textContent = `${Number(start).toFixed(1)}×`;
 }
 
 $('#scanZoomRange').addEventListener('input', (e) => {

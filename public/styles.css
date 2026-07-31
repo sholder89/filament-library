@@ -570,6 +570,7 @@ select {
 }
 .scan-zoom[hidden] { display: none; }
 .scan-zoom label { font-size: 13px; font-weight: 620; color: var(--muted); }
+.muted-note { font-weight: 500; opacity: .75; }
 .scan-zoom output { font-size: 14px; font-weight: 650; min-width: 42px; text-align: right; }
 .scan-zoom input[type="range"] { width: 100%; height: 44px; }
 
@@ -674,12 +675,26 @@ select {
   background: linear-gradient(to top, var(--surface) 68%, transparent);
 }
 .sheet-actions .btn { flex: 1; }
-.sheet-actions .split-btn { flex: 2; }
+/* Cancel only needs its own width; the rest goes to the action that has a
+   longer label and two controls in it. */
+.sheet-actions > .btn.ghost { flex: 0 1 auto; min-width: 92px; }
+.sheet-actions .split-btn { flex: 1 1 auto; }
 
 /* ── Split action button ─────────────────────────────────────────────────── */
 
 .split-btn { position: relative; display: flex; min-width: 0; }
-.split-btn > .btn { border-radius: var(--radius-sm) 0 0 var(--radius-sm); min-width: 0; }
+.split-btn > .btn {
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  min-width: 0;
+  /* Slightly tighter than a normal button so the label stays on one line in a
+     narrow sheet; it clips rather than wrapping if it still doesn't fit. */
+  font-size: 14.5px;
+  padding: 0 12px;
+  gap: 6px;
+  white-space: nowrap;
+}
+.split-btn > .btn span { overflow: hidden; text-overflow: ellipsis; }
+.split-btn > .btn svg { width: 17px; height: 17px; }
 .split-btn > .split-toggle {
   flex: 0 0 46px;
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
@@ -720,7 +735,9 @@ select {
   width: 100%;
 }
 .split-menu button:hover { background: var(--surface); }
-.split-tick { width: 16px; color: var(--accent); opacity: 0; font-weight: 700; }
+.split-menu button svg { width: 18px; height: 18px; flex: none; color: var(--muted); }
+.split-menu button[aria-checked="true"] svg { color: var(--accent); }
+.split-tick { width: 16px; color: var(--accent); opacity: 0; font-weight: 700; flex: none; }
 .split-menu button[aria-checked="true"] .split-tick { opacity: 1; }
 
 /* ── Buttons ────────────────────────────────────────────────────────────── */
