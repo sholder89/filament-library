@@ -22,10 +22,9 @@ export function parseSize(size) {
   return Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0 ? [w, h] : [2, 1];
 }
 
-/** Caption the server will send: brand on top, type and color beneath. */
+/** Caption the server will send — one field per line, brand first and bold. */
 export function captionLines(f) {
-  const detail = [f.material, f.color_name].filter(Boolean).join(' - ');
-  return [f.brand, detail].filter(Boolean);
+  return [f.brand, f.material, f.color_name].filter(Boolean);
 }
 
 export function labelPreviewHTML(filament, { size = '2x1', showText = true, qrSrc = '' } = {}) {
@@ -60,11 +59,14 @@ export function labelPreviewHTML(filament, { size = '2x1', showText = true, qrSr
 
   let textHTML = '';
   if (textBox && lines.length) {
-    // Estimate a size that fits: bounded by the width the longest line needs
-    // and by the height available per line.
-    const longest = Math.max(...lines.map((l) => l.length), 1);
-    const byWidth = textBox.width / (longest * 0.52);
-    const byHeight = (textBox.height / lines.length) * 0.72;
+    // Estimate a size that fits, bounded by the width the widest line needs and
+    // the height available per line. The first line is bold, so its characters
+    // are measured wider — underestimating that was letting long brand names
+    // spill past the edge of the preview.
+    const widest = Math.max(...lines.map((l, i) => l.length * (i === 0 ? 0.62 : 0.53)), 1);
+    const byWidth = textBox.width / widest;
+    // Lines stack at 1.12em (see .lp-text line-height), plus a little slack.
+    const byHeight = (textBox.height / lines.length) / 1.25;
     const fontIn = Math.max(0.05, Math.min(byWidth, byHeight));
 
     const rows = lines

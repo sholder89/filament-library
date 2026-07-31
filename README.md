@@ -16,10 +16,12 @@ through — used-up spools stay in the library as a record instead of vanishing.
 - **Three states** — *Sealed* → *Opened* → *Used up*, with the dates stamped
   automatically. Marking a spool used up keeps the record; only an explicit
   delete removes it.
-- **Filter and search** — by state, and by any combination of brands and types
-  (Sunlu *or* Creality, in PLA *or* PETG). Plus free-text search across brand,
-  color, location and notes, and sorting by newest, brand, type, color or most
-  recently opened.
+- **Filter and search** — by state, and by any combination of brands, types and
+  finishes (Sunlu *or* Creality, in PLA *or* PETG). Plus free-text search across
+  brand, color, location and notes.
+- **Grouped views** — sorting by brand, type or color also groups the library
+  under collapsible headings with a count on each, so you can fold away the
+  PLA and see what PETG you have. Date orders stay flat.
 - **Duplicates stack up** — identical spools collapse into a single card with a
   count. Hover to fan the stack out; click to spread it into individual cards
   and pick one.
@@ -125,8 +127,8 @@ won't come out as a QR code.
 > client. Without it, labels print in whatever style the printer is currently
 > set to.
 
-Labels print the QR alongside the spool's brand, type and color, so a sticker
-is readable without scanning it. Set `LABEL_QR_SHOW_TEXT=0` for a bare code, or
+Labels print the QR alongside the spool's brand, type and color — one per line,
+with the brand in bold — so a sticker is readable without scanning it. Set `LABEL_QR_SHOW_TEXT=0` for a bare code, or
 `LABEL_NAME_LABEL=1` to also print a second text-only label.
 
 Defaults live in the code, and `docker-compose.yml` passes these through empty

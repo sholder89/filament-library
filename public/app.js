@@ -12,6 +12,8 @@ const state = {
   filters: { status: 'active', brand: [], material: [], finish: [], q: '', sort: 'newest' },
   // Group keys the user has fanned open; everything else stays stacked.
   expandedGroups: new Set(),
+  // Section headings the user has folded away in a grouped view.
+  collapsedSections: new Set(),
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -475,7 +477,47 @@ function renderGrid() {
     return;
   }
 
-  el.grid.innerHTML = groupFilaments(state.filaments).map(renderGroup).join('');
+  const field = SECTION_FIELD[state.filters.sort];
+  if (!field) {
+    el.grid.innerHTML = groupFilaments(state.filaments).map(renderGroup).join('');
+    return;
+  }
+  el.grid.innerHTML = sectionsOf(state.filaments, field).map((s) => renderSection(s, field)).join('');
+}
+
+/**
+ * Sorting by an attribute also groups by it — scrolling a flat A–Z list past
+ * forty spools to see what PETG you own isn't much use. Date orders stay flat,
+ * since a heading per timestamp would be noise.
+ */
+const SECTION_FIELD = { brand: 'brand', material: 'material', color: 'color_name' };
+
+function sectionsOf(filaments, field) {
+  // The server already ordered by this field, so first-seen order is correct.
+  const byLabel = new Map();
+  for (const f of filaments) {
+    const label = String(f[field] ?? '').trim() || 'Not set';
+    if (!byLabel.has(label)) byLabel.set(label, { label, items: [], hex: f.color_hex });
+    byLabel.get(label).items.push(f);
+  }
+  return [...byLabel.values()];
+}
+
+function renderSection(section, field) {
+  const collapsed = state.collapsedSections.has(section.label);
+  const swatch = field === 'color_name'
+    ? `<span class="section-swatch" style="background:${esc(section.hex || '#808080')}"></span>`
+    : '';
+
+  return `
+    <button class="section-head${collapsed ? ' is-collapsed' : ''}"
+            data-section="${esc(section.label)}" aria-expanded="${!collapsed}">
+      <svg class="section-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      ${swatch}
+      <span class="section-name">${esc(section.label)}</span>
+      <span class="section-count">${section.items.length}</span>
+    </button>
+    ${collapsed ? '' : groupFilaments(section.items).map(renderGroup).join('')}`;
 }
 
 /**
@@ -531,6 +573,15 @@ function renderGroup(group) {
 }
 
 el.grid.addEventListener('click', (e) => {
+  const section = e.target.closest('[data-section]');
+  if (section) {
+    const label = section.dataset.section;
+    if (state.collapsedSections.has(label)) state.collapsedSections.delete(label);
+    else state.collapsedSections.add(label);
+    renderGrid();
+    return;
+  }
+
   const collapse = e.target.closest('[data-collapse]');
   if (collapse) {
     state.expandedGroups.delete(collapse.dataset.collapse);
@@ -1195,7 +1246,12 @@ el.search.addEventListener('input', () => {
   }, 220);
 });
 
-el.sortBy.addEventListener('change', () => { state.filters.sort = el.sortBy.value; loadFilaments(); });
+el.sortBy.addEventListener('change', () => {
+  state.filters.sort = el.sortBy.value;
+  // Headings from the previous grouping mean nothing under the new one.
+  state.collapsedSections.clear();
+  loadFilaments();
+});
 
 el.clearFilters.addEventListener('click', () => {
   state.filters = { status: 'active', brand: [], material: [], finish: [], q: '', sort: el.sortBy.value };

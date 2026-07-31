@@ -55,21 +55,17 @@ export function baseUrl(req) {
 export const filamentUrl = (req, id) => `${baseUrl(req)}/f/${id}`;
 
 /**
- * Text printed on the label beside the QR code.
- *
- * Two deliberate lines — brand on top, type and color below:
+ * Text printed on the label beside the QR code — one field per line:
  *
  *     Bambu Lab
- *     PLA - Yellow
+ *     PLA
+ *     Yellow
  *
  * The renderer honours these breaks and sets the first line bold. Left to split
  * a single line itself it would stack every word ("Bambu / Lab / PLA / Yellow").
- * Hyphen rather than "·" because a lone bullet counts as a word if the caption
- * ever does get auto-wrapped.
  */
 export function describe(f) {
-  const detail = [f.material, f.color_name].filter(Boolean).join(' - ');
-  return [f.brand, detail].filter(Boolean).join('\n');
+  return [f.brand, f.material, f.color_name].filter(Boolean).join('\n');
 }
 
 async function request(url, { method = 'GET', body, headers = {} } = {}) {
