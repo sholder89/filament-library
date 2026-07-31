@@ -35,11 +35,43 @@ export function luminance(hex) {
 }
 
 /**
- * Extra artwork layered over the wound filament, keyed by finish.
+ * Extra artwork for a finish, layered around the wound filament.
  *
- * Each returns SVG that's drawn inside the winding mask, so effects never spill
- * onto the flange or the hub. `defs` is for anything that has to live in <defs>.
+ * Each effect may return any of:
+ *
+ *   defs         markup for <defs>
+ *   under        inside the winding mask, beneath the colour fill
+ *   body         inside the winding mask, above the winding lines
+ *   outer        outside the mask entirely — for glows that spill past the rim
+ *   fillOpacity  opacity of the colour fill itself, so a finish can be see-through
+ *
+ * Everything except `outer` is clipped to the winding, so effects never bleed
+ * onto the flange or the hub.
  */
+
+/**
+ * Sparkle positions on a golden-angle spiral.
+ *
+ * Even coverage without a random number generator, which matters because the
+ * graphic re-renders constantly — random points would make a spool shimmer
+ * differently every time the grid repainted.
+ */
+function sparkles(count, inner, outer) {
+  const GOLDEN = 2.399963229728653;
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    const r = inner + (outer - inner) * Math.sqrt((i + 0.5) / count);
+    const a = i * GOLDEN;
+    out.push({
+      x: (100 + r * Math.cos(a)).toFixed(1),
+      y: (100 + r * Math.sin(a)).toFixed(1),
+      size: (0.9 + (i % 4) * 0.55).toFixed(2),
+      delay: ((i * 0.29) % 2.6).toFixed(2),
+    });
+  }
+  return out;
+}
+
 const EFFECTS = {
   silk: ({ id }) => ({
     defs: `<linearGradient id="${id}sk" x1="0" y1="0" x2="1" y2="1">
@@ -51,15 +83,27 @@ const EFFECTS = {
     body: `<circle cx="100" cy="100" r="90" fill="url(#${id}sk)"/>`,
   }),
 
+  /** Brushed banding plus a highlight that sweeps across, so it reads as metal. */
   metallic: ({ id }) => ({
-    defs: `<linearGradient id="${id}mt" x1="0" y1="0" x2="1" y2="0.6">
-             <stop offset="0%"   stop-color="#fff" stop-opacity=".05"/>
-             <stop offset="30%"  stop-color="#fff" stop-opacity=".5"/>
-             <stop offset="45%"  stop-color="#000" stop-opacity=".25"/>
-             <stop offset="65%"  stop-color="#fff" stop-opacity=".42"/>
-             <stop offset="100%" stop-color="#000" stop-opacity=".2"/>
-           </linearGradient>`,
-    body: `<circle cx="100" cy="100" r="90" fill="url(#${id}mt)"/>`,
+    defs: `
+      <linearGradient id="${id}mt" x1="0" y1="0" x2="1" y2="0.6">
+        <stop offset="0%"   stop-color="#fff" stop-opacity=".05"/>
+        <stop offset="26%"  stop-color="#fff" stop-opacity=".55"/>
+        <stop offset="42%"  stop-color="#000" stop-opacity=".28"/>
+        <stop offset="60%"  stop-color="#fff" stop-opacity=".45"/>
+        <stop offset="78%"  stop-color="#000" stop-opacity=".22"/>
+        <stop offset="100%" stop-color="#fff" stop-opacity=".35"/>
+      </linearGradient>
+      <linearGradient id="${id}sh" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%"   stop-color="#fff" stop-opacity="0"/>
+        <stop offset="45%"  stop-color="#fff" stop-opacity=".75"/>
+        <stop offset="55%"  stop-color="#fff" stop-opacity=".75"/>
+        <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+      </linearGradient>`,
+    body: `
+      <circle cx="100" cy="100" r="90" fill="url(#${id}mt)"/>
+      <g class="sheen"><rect x="-70" y="-40" width="52" height="280"
+         fill="url(#${id}sh)" transform="rotate(18 100 100)"/></g>`,
   }),
 
   matte: () => ({
@@ -67,18 +111,34 @@ const EFFECTS = {
     body: `<circle cx="100" cy="100" r="90" fill="#000" opacity=".07"/>`,
   }),
 
+  /**
+   * Translucency is the hard one to signal, because "slightly see-through" reads
+   * as "slightly wrong colour" at card size. So it's shown the way image editors
+   * show transparency: a checker grid behind the filament, visible through it,
+   * plus a glass highlight over the top. Unmistakable at a glance.
+   */
   translucent: ({ id }) => ({
-    defs: `<radialGradient id="${id}tl" cx="50%" cy="50%" r="50%">
-             <stop offset="0%"   stop-color="#fff" stop-opacity=".55"/>
-             <stop offset="70%"  stop-color="#fff" stop-opacity=".12"/>
-             <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
-           </radialGradient>`,
-    body: `<circle cx="100" cy="100" r="90" fill="url(#${id}tl)"/>`,
+    defs: `
+      <pattern id="${id}ck" width="12" height="12" patternUnits="userSpaceOnUse">
+        <rect width="12" height="12" fill="#ffffff"/>
+        <rect width="6" height="6" fill="#c3ccd9"/>
+        <rect x="6" y="6" width="6" height="6" fill="#c3ccd9"/>
+      </pattern>
+      <linearGradient id="${id}gl" x1="0.1" y1="0" x2="0.7" y2="1">
+        <stop offset="0%"   stop-color="#fff" stop-opacity=".85"/>
+        <stop offset="34%"  stop-color="#fff" stop-opacity=".12"/>
+        <stop offset="70%"  stop-color="#fff" stop-opacity="0"/>
+        <stop offset="100%" stop-color="#fff" stop-opacity=".35"/>
+      </linearGradient>`,
+    under: `<circle cx="100" cy="100" r="90" fill="url(#${id}ck)"/>`,
+    fillOpacity: 0.52,
+    body: `
+      <circle cx="100" cy="100" r="90" fill="url(#${id}gl)"/>
+      <path d="M62 46a72 72 0 0 0-16 34" fill="none" stroke="#fff"
+            stroke-opacity=".75" stroke-width="7" stroke-linecap="round"/>`,
   }),
 
   wood: ({ deep, light }) => ({
-    // Irregular broken rings read as grain without needing a bitmap texture.
-    // Pale wood tones need dark grain; dark ones need light.
     body: [39, 46, 53, 60, 67, 74, 81].map((r, i) => `
       <circle cx="100" cy="100" r="${r}" fill="none"
               stroke="${light > 0.55 ? deep : '#e8d6b8'}"
@@ -107,45 +167,67 @@ const EFFECTS = {
            </g>`,
   }),
 
-  gradient: ({ id, color }) => ({
-    // A real colour shift across the spool, not just a tint at the edges.
-    defs: `<linearGradient id="${id}gr" x1="0" y1="0" x2="1" y2="1">
-             <stop offset="0%"   stop-color="${shade(color, 0.6)}"  stop-opacity=".95"/>
-             <stop offset="35%"  stop-color="${shade(color, 0.2)}"  stop-opacity=".5"/>
-             <stop offset="65%"  stop-color="${shade(color, -0.25)}" stop-opacity=".5"/>
-             <stop offset="100%" stop-color="${shade(color, -0.55)}" stop-opacity=".95"/>
-           </linearGradient>`,
-    body: `<circle cx="100" cy="100" r="90" fill="url(#${id}gr)"/>`,
-  }),
+  /** Blends every colour on the spool across the winding. */
+  gradient: ({ id, colors, color }) => {
+    const stops = (colors.length > 1 ? colors : [shade(color, 0.55), color, shade(color, -0.5)]);
+    return {
+      defs: `<linearGradient id="${id}gr" x1="0" y1="0" x2="1" y2="1">
+               ${stops.map((c, i) => `<stop offset="${(i / (stops.length - 1)).toFixed(3)}" stop-color="${c}"/>`).join('')}
+             </linearGradient>`,
+      body: `<circle cx="100" cy="100" r="90" fill="url(#${id}gr)" opacity="${colors.length > 1 ? 1 : 0.9}"/>`,
+    };
+  },
 
-  dual: ({ color }) => ({
-    // Half the winding in a contrasting tone, split down the middle.
-    body: `<path d="M100 6 A94 94 0 0 1 100 194 Z" fill="${shade(color, -0.45)}" opacity=".92"/>`,
-  }),
+  /** Hard split into wedges, one per colour. */
+  dual: ({ colors, color }) => {
+    const tones = colors.length > 1 ? colors : [color, shade(color, -0.45)];
+    const step = 360 / tones.length;
+    return {
+      body: tones.slice(1).map((c, i) => {
+        const from = -90 + step * (i + 1);
+        const to = from + step;
+        const rad = (d) => (d * Math.PI) / 180;
+        const x1 = 100 + 95 * Math.cos(rad(from));
+        const y1 = 100 + 95 * Math.sin(rad(from));
+        const x2 = 100 + 95 * Math.cos(rad(to));
+        const y2 = 100 + 95 * Math.sin(rad(to));
+        const large = step > 180 ? 1 : 0;
+        return `<path d="M100 100 L${x1.toFixed(1)} ${y1.toFixed(1)} A95 95 0 ${large} 1 ${x2.toFixed(1)} ${y2.toFixed(1)} Z" fill="${c}"/>`;
+      }).join(''),
+    };
+  },
 
+  /** A halo that spills past the rim and breathes, the way it looks in the dark. */
   glow: ({ id }) => ({
-    defs: `<radialGradient id="${id}gw" cx="50%" cy="50%" r="50%">
-             <stop offset="55%"  stop-color="#d9ff9e" stop-opacity="0"/>
-             <stop offset="100%" stop-color="#d9ff9e" stop-opacity=".75"/>
-           </radialGradient>`,
-    body: `<circle cx="100" cy="100" r="90" fill="url(#${id}gw)"/>`,
+    defs: `
+      <radialGradient id="${id}gh" cx="50%" cy="50%" r="50%">
+        <stop offset="0%"   stop-color="#c6ff7a" stop-opacity=".9"/>
+        <stop offset="80%"  stop-color="#b4fa63" stop-opacity=".85"/>
+        <stop offset="88%"  stop-color="#a8f55c" stop-opacity=".5"/>
+        <stop offset="100%" stop-color="#8de23c" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="${id}gi" cx="50%" cy="50%" r="50%">
+        <stop offset="50%"  stop-color="#dcff9e" stop-opacity="0"/>
+        <stop offset="100%" stop-color="#dcff9e" stop-opacity=".8"/>
+      </radialGradient>`,
+    // Sits in the margin the viewBox leaves outside the flange; drawn before
+    // the rim so only the part beyond the spool is visible.
+    outer: `<circle class="glow-halo" cx="100" cy="100" r="114" fill="url(#${id}gh)"/>`,
+    body: `<circle cx="100" cy="100" r="90" fill="url(#${id}gi)"/>`,
   }),
 
-  glitter: ({ id }) => ({
-    // Positions are fixed rather than random so a spool doesn't reshuffle its
-    // sparkles on every re-render.
-    body: SPARKLES.map(([x, y, r, delay]) => `
-      <circle class="sparkle" cx="${x}" cy="${y}" r="${r}" fill="#fff"
-              style="animation-delay:${delay}s"/>`).join('')
-      + `<circle cx="100" cy="100" r="90" fill="#fff" opacity=".06"/>`,
+  /** Dense flecks, twinkling out of phase. */
+  glitter: ({ id, wound, hub }) => ({
+    defs: `<radialGradient id="${id}gs" cx="50%" cy="50%" r="50%">
+             <stop offset="0%" stop-color="#fff" stop-opacity="1"/>
+             <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+           </radialGradient>`,
+    body: `<circle cx="100" cy="100" r="90" fill="#fff" opacity=".07"/>`
+      + sparkles(34, hub + 3, wound - 2).map((s) => `
+        <circle class="sparkle" cx="${s.x}" cy="${s.y}" r="${s.size}"
+                fill="#fff" style="animation-delay:${s.delay}s"/>`).join(''),
   }),
 };
-
-const SPARKLES = [
-  [72, 62, 2.4, 0], [128, 74, 1.8, 0.7], [60, 118, 2.1, 1.4], [138, 126, 2.6, 0.35],
-  [100, 48, 1.9, 1.05], [86, 148, 2.2, 1.75], [124, 152, 1.7, 0.9], [48, 88, 2.3, 1.55],
-  [152, 100, 2.0, 0.5], [100, 158, 1.8, 1.2],
-];
 
 /**
  * Rainbow and other multi-color filaments can't be described by one hex, so
@@ -210,8 +292,14 @@ export function spoolSVG(filament, { title = true } = {}) {
     }
   }
 
+  // Every tone on the spool, for the finishes that blend or split colors.
+  const colors = [filament.color_hex, filament.color_hex2, filament.color_hex3]
+    .filter((c) => /^#[0-9a-fA-F]{6}$/.test(String(c ?? '')));
+
   const effectKey = hasFilament ? effectFor(filament.finish) : '';
-  const effect = EFFECTS[effectKey]?.({ id, color, deep, light }) ?? {};
+  const effect = EFFECTS[effectKey]?.({
+    id, color, colors, deep, light, wound, hub: HUB,
+  }) ?? {};
 
   const label = title
     ? `<title>${escapeXML([filament.brand, filament.material, filament.color_name, filament.finish]
@@ -219,7 +307,7 @@ export function spoolSVG(filament, { title = true } = {}) {
     : '';
 
   return `
-<svg class="spool-wrap" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="${title ? 'false' : 'true'}" style="width:100%;height:auto;display:block">
+<svg class="spool-wrap" viewBox="-16 -16 232 232" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="${title ? 'false' : 'true'}" style="width:100%;height:auto;display:block">
   ${label}
   <defs>
     <radialGradient id="${id}f" cx="38%" cy="30%" r="78%">
@@ -251,13 +339,18 @@ export function spoolSVG(filament, { title = true } = {}) {
   <circle cx="100" cy="100" r="${RIM}" fill="none" stroke="url(#${id}r)" stroke-width="9"/>
   <circle cx="100" cy="100" r="${RIM - 4.5}" fill="none" stroke="rgba(0,0,0,.30)" stroke-width="1"/>
 
+  <!-- glow and anything else that reaches past the rim -->
+  ${effect.outer ?? ''}
+
   <!-- empty space behind the winding -->
   <circle cx="100" cy="100" r="${RIM - 9}" fill="var(--spool-void, rgba(0,0,0,.30))"/>
 
   ${hasFilament ? `
   <!-- wound filament -->
   <g mask="url(#${id}m)">
-    <circle cx="100" cy="100" r="${wound.toFixed(1)}" fill="url(#${woundFill})"/>
+    ${effect.under ?? ''}
+    <circle cx="100" cy="100" r="${wound.toFixed(1)}" fill="url(#${woundFill})"${
+      effect.fillOpacity != null ? ` opacity="${effect.fillOpacity}"` : ''}/>
     ${windings}
     ${effect.body ?? ''}
     <circle cx="100" cy="100" r="${wound.toFixed(1)}" fill="url(#${id}g)"/>

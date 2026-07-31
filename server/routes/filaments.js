@@ -60,6 +60,10 @@ function readBody(body, { partial = false } = {}) {
   if (want('color_name')) out.color_name = str(body.color_name);
   if (want('color_hex'))  out.color_hex  = hex(body.color_hex);
   if (want('finish'))     out.finish     = str(body.finish);
+  // Extra tones are optional — blank rather than defaulted, so the spool
+  // graphic can tell "no second color" from "a second color that is grey".
+  if (want('color_hex2')) out.color_hex2 = hex(body.color_hex2, '');
+  if (want('color_hex3')) out.color_hex3 = hex(body.color_hex3, '');
   if (want('location'))   out.location   = str(body.location);
   if (want('notes'))      out.notes      = str(body.notes);
 
@@ -108,9 +112,10 @@ function reconcileLifecycle(row) {
 }
 
 const COLUMNS = [
-  'brand', 'material', 'color_name', 'color_hex', 'finish', 'diameter',
-  'spool_weight_g', 'remaining_pct', 'status', 'location', 'notes', 'price',
-  'nozzle_temp', 'bed_temp', 'purchased_at', 'opened_at', 'finished_at',
+  'brand', 'material', 'color_name', 'color_hex', 'color_hex2', 'color_hex3',
+  'finish', 'diameter', 'spool_weight_g', 'remaining_pct', 'status', 'location',
+  'notes', 'price', 'nozzle_temp', 'bed_temp', 'purchased_at', 'opened_at',
+  'finished_at',
 ];
 
 const getStmt = db.prepare('SELECT * FROM filaments WHERE id = ?');
@@ -191,7 +196,8 @@ router.post('/', (req, res) => {
   const fields = readBody(body);
 
   const row = reconcileLifecycle({
-    color_name: '', color_hex: '#808080', finish: '', diameter: 1.75,
+    color_name: '', color_hex: '#808080', color_hex2: '', color_hex3: '',
+    finish: '', diameter: 1.75,
     spool_weight_g: 1000, remaining_pct: 100, status: 'new', location: '',
     notes: '', price: null, nozzle_temp: null, bed_temp: null,
     purchased_at: null, opened_at: null, finished_at: null,

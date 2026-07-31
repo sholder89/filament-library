@@ -50,7 +50,7 @@ db.exec('PRAGMA foreign_keys = ON');
  * Schema is versioned through PRAGMA user_version so upgrades are additive and
  * never lose a spool record. Bump SCHEMA_VERSION and add a migration below.
  */
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 function migrate() {
   const current = db.prepare('PRAGMA user_version').get().user_version;
@@ -92,6 +92,14 @@ function migrate() {
     db.exec(`ALTER TABLE filaments ADD COLUMN finish TEXT NOT NULL DEFAULT ''`);
     db.exec(`CREATE INDEX IF NOT EXISTS idx_filaments_finish ON filaments (finish)`);
     db.exec(`PRAGMA user_version = 2`);
+  }
+
+  if (current < 3) {
+    // Extra colors for multi-tone stock — dual-color and gradient spools.
+    // Empty means "not set", so a plain spool is unaffected.
+    db.exec(`ALTER TABLE filaments ADD COLUMN color_hex2 TEXT NOT NULL DEFAULT ''`);
+    db.exec(`ALTER TABLE filaments ADD COLUMN color_hex3 TEXT NOT NULL DEFAULT ''`);
+    db.exec(`PRAGMA user_version = 3`);
   }
 }
 

@@ -1,4 +1,4 @@
-import { spoolSVG, escapeXML as esc, luminance, RAINBOW_CSS, isRainbow } from './spool.js';
+import { spoolSVG, escapeXML as esc, luminance, RAINBOW_CSS, isRainbow, effectFor } from './spool.js';
 import { labelPreviewHTML } from './label.js';
 import { QrScanner, cameraBlockedReason, filamentIdFrom } from './scan.js';
 
@@ -1082,7 +1082,10 @@ function openEditor(filament = null) {
   $('#materialHint').textContent = '';
   fillFinishSelect();
   setField('finish', f.finish ?? '');
+  setField('color_hex2', f.color_hex2 ?? '');
+  setField('color_hex3', f.color_hex3 ?? '');
   syncFinishHint();
+  syncExtraColors();
   setField('color_name', f.color_name);
   setField('color_hex', f.color_hex || '#808080');
   setField('status', f.status || 'new');
@@ -1120,6 +1123,8 @@ function currentDraft() {
     material: form.elements.material.value.trim(),
     color_name: form.elements.color_name.value.trim(),
     color_hex: form.elements.color_hex.value,
+    color_hex2: form.elements.color_hex2.value,
+    color_hex3: form.elements.color_hex3.value,
     finish: form.elements.finish.value,
     status: form.elements.status.value,
     remaining_pct: editorRemaining,
@@ -1271,7 +1276,73 @@ function syncFinishHint() {
   $('#finishHint').textContent = match?.blurb ?? '';
 }
 
-form.elements.finish.addEventListener('change', () => { syncFinishHint(); syncPreview(); });
+// ── Extra colors ─────────────────────────────────────────────────────────────
+
+/** Finishes that actually do something with more than one tone. */
+const MULTI_TONE = new Set(['gradient', 'dual']);
+
+function currentEffect() {
+  return effectFor(form.elements.finish.value);
+}
+
+function syncExtraColors() {
+  const effect = currentEffect();
+  const multi = MULTI_TONE.has(effect);
+  $('#extraColorsField').hidden = !multi;
+  if (!multi) return;
+
+  $('#extraColorsHint').textContent = effect === 'gradient'
+    ? 'The spool blends between these, in order.'
+    : 'The spool is split into a wedge per color.';
+
+  const slots = [2, 3];
+  $('#extraColors').innerHTML = slots.map((n) => {
+    const value = form.elements[`color_hex${n}`].value;
+    if (!value) {
+      // The third slot only appears once the second is in use.
+      if (n === 3 && !form.elements.color_hex2.value) return '';
+      return `<button type="button" class="extra-add" data-add="${n}">＋ ${n === 2 ? 'Second' : 'Third'} color</button>`;
+    }
+    return `
+      <span class="extra-color">
+        <input type="color" value="${esc(value)}" data-slot="${n}" aria-label="Extra color ${n - 1}">
+        <button type="button" data-remove="${n}" aria-label="Remove this color">✕</button>
+      </span>`;
+  }).join('');
+}
+
+$('#extraColors').addEventListener('click', (e) => {
+  const add = e.target.closest('[data-add]');
+  if (add) {
+    // Seeded from the base color so the first drag is an adjustment, not a
+    // jump from some arbitrary default.
+    form.elements[`color_hex${add.dataset.add}`].value = form.elements.color_hex.value;
+    syncExtraColors();
+    syncPreview();
+    return;
+  }
+  const remove = e.target.closest('[data-remove]');
+  if (remove) {
+    form.elements[`color_hex${remove.dataset.remove}`].value = '';
+    // Dropping the second tone drops the third with it — a gradient can't skip.
+    if (remove.dataset.remove === '2') form.elements.color_hex3.value = '';
+    syncExtraColors();
+    syncPreview();
+  }
+});
+
+$('#extraColors').addEventListener('input', (e) => {
+  const slot = e.target.dataset?.slot;
+  if (!slot) return;
+  form.elements[`color_hex${slot}`].value = e.target.value;
+  syncPreview();
+});
+
+form.elements.finish.addEventListener('change', () => {
+  syncFinishHint();
+  syncExtraColors();
+  syncPreview();
+});
 
 /** Picking a known material pre-fills its typical temps and flags drying/enclosure. */
 function applyMaterialDefaults(value) {

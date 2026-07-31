@@ -32,8 +32,12 @@ through — used-up spools stay in the library as a record instead of vanishing.
   and pick one.
 - **Special finishes** — silk, glitter, matte, translucent, marble, wood, glow,
   carbon fiber, metallic, gradient and dual-color, each with its own treatment on
-  the spool graphic. Glitter really does sparkle, and anything named *rainbow*
-  or *multicolor* is painted as a hue sweep instead of one flat color.
+  the spool graphic. **Translucent** shows a checker grid through the filament,
+  the way image editors show transparency, so see-through spools are obvious at a
+  glance. Glitter twinkles across 34 flecks, glow breathes a halo past the rim,
+  and metallic catches a highlight that sweeps across it. Gradient and dual-color
+  take up to three colors. Anything named *rainbow* or *multicolor* is painted as
+  a hue sweep.
 - **Color names that resolve** — 187 known names (the W3C set plus filament
   ones like Galaxy Black and Prusa Orange). Type a name and the swatch follows;
   pick a swatch and the name follows.

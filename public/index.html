@@ -167,6 +167,17 @@
       </div>
     </div>
 
+    <!-- Only shown for finishes that blend or split more than one tone. The
+         hidden inputs are the source of truth so a slot can genuinely be
+         empty — <input type="color"> has no "unset" value. -->
+    <div class="field" id="extraColorsField" hidden>
+      <label>Extra colors</label>
+      <div class="extra-colors" id="extraColors"></div>
+      <input type="hidden" name="color_hex2" id="f_color_hex2">
+      <input type="hidden" name="color_hex3" id="f_color_hex3">
+      <p class="hint" id="extraColorsHint"></p>
+    </div>
+
     <div class="field-row">
       <div class="field">
         <label for="f_status">Condition</label>
