@@ -44,8 +44,9 @@ through — used-up spools stay in the library as a record instead of vanishing.
 - **Adjust what's left** — opened spools get a slider on their own page, with
   25/50/75/100% shortcuts. The spool graphic empties as you drag.
 - **Scan to open** — the camera button next to *Add* scans a printed QR and
-  jumps straight to that spool. Needs an https connection (browsers block the
-  camera otherwise), which the reverse-proxy setup below gives you.
+  jumps straight to that spool, using the phone's ultra-wide lens so it can
+  focus at sticker range. Needs an https connection (browsers block the camera
+  otherwise), which the reverse-proxy setup below gives you.
 - **Works offline** — the app shell and your last-loaded inventory are cached,
   so it opens in the workshop even when the WiFi doesn't.
 
@@ -230,14 +231,20 @@ matching local record.
 
 **The scanner won't read a label**
 
-Hold it 15–20 cm away and fill the marked box — closer than about 10 cm and
-the phone's wide lens can't focus at all. If the camera reports a low
-resolution under the viewfinder, that's the limiting factor: a label QR is 33
-modules across, and reading it needs roughly 3 camera pixels per module.
+The scanner uses the **ultra-wide lens** where the phone has one, because it's
+the only rear lens that focuses close enough for a sticker-sized code — the main
+wide lens can't focus nearer than about 10 cm. This is exactly what the native
+camera app does when it silently drops into macro mode; `getUserMedia` never
+switches lenses on its own, so the app picks the lens explicitly.
 
-The camera opens at 1x, which is what you want — a zoomed lens on a multi-lens
-phone focuses no closer than about 20 cm. The zoom slider is there if a
-particular label needs it, but it shouldn't normally be touched.
+With macro on, hold the label a few centimetres away and fill the marked box.
+The **Macro lens** button switches back to the normal rear camera if you'd
+rather scan from further out, and tapping the viewfinder asks the lens to
+refocus if it's hunting.
+
+If it still won't read, check the resolution shown under **Camera options**. A
+label QR is 33 modules across and decoding wants roughly 3 camera pixels per
+module, so a low-resolution stream is the limiting factor.
 
 
 **`unable to open database file` / container restart loop**

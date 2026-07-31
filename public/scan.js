@@ -14,6 +14,29 @@ const CROP = 0.74;
 /** Ceiling on the decoded square. jsQR is pure JS; beyond this it gets slow. */
 const MAX_DECODE = 1024;
 
+/**
+ * Rear-facing lenses, tagged with whether each one is the ultra-wide.
+ *
+ * On iOS the labels read "Back Camera", "Back Ultra Wide Camera", "Back Dual
+ * Wide Camera" and so on — but only once camera permission has been granted, so
+ * this can't be called before the first getUserMedia.
+ */
+async function backLenses() {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return devices
+      .filter((d) => d.kind === 'videoinput' && /back|rear|environment/i.test(d.label))
+      .map((d) => ({
+        deviceId: d.deviceId,
+        label: d.label,
+        // The ultra-wide is the one that can focus close enough for macro.
+        macro: /ultra[\s-]?wide/i.test(d.label),
+      }));
+  } catch {
+    return [];
+  }
+}
+
 let jsQRPromise = null;
 
 function loadJsQR() {
@@ -54,60 +77,79 @@ export class QrScanner {
     this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
   }
 
-  async start() {
-    /*
-     * Resolution is the whole ballgame here.
-     *
-     * A label QR is ~50 characters, which is a 33x33 module code. At the
-     * closest a phone can still focus (~10-15cm on the wide lens) a 20mm code
-     * covers roughly 7% of the frame. On the 640x480 default that's ~47px —
-     * about 1.4 pixels per module, where decoders want 3+. Asking for a much
-     * larger frame is what makes it readable at a distance the lens can
-     * actually focus at.
-     */
-    const constraints = {
-      video: {
-        facingMode: { ideal: 'environment' },
-        width: { ideal: 2560 },
-        height: { ideal: 1440 },
-        // Ignored where unsupported rather than failing the whole request.
-        advanced: [{ focusMode: 'continuous' }],
-      },
-      audio: false,
+  /**
+   * Opens a camera and binds it to the <video>.
+   *
+   * Resolution matters as much as focus: a label QR is ~50 characters, which is
+   * a 33x33 module code, and decoding wants roughly 3 camera pixels per module.
+   * The default 640x480 doesn't come close, so a large frame is requested and
+   * only dropped if the camera refuses it outright.
+   */
+  async openCamera(select) {
+    const sized = {
+      ...select,
+      width: { ideal: 2560 },
+      height: { ideal: 1440 },
+      // Ignored where unsupported rather than failing the whole request.
+      advanced: [{ focusMode: 'continuous' }],
     };
 
+    let stream;
     try {
-      this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+      stream = await navigator.mediaDevices.getUserMedia({ video: sized, audio: false });
     } catch {
-      // Some cameras reject the size outright — fall back to whatever they'll give.
-      this.stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' } },
-        audio: false,
-      });
+      stream = await navigator.mediaDevices.getUserMedia({ video: select, audio: false });
     }
 
-    this.video.srcObject = this.stream;
+    this.releaseStream();
+    this.stream = stream;
+    this.video.srcObject = stream;
     this.video.setAttribute('playsinline', '');
     await this.video.play();
 
-    [this.track] = this.stream.getVideoTracks();
+    [this.track] = stream.getVideoTracks();
     this.capabilities = this.track?.getCapabilities?.() ?? {};
 
-    /*
-     * Phone cameras autofocus on their own; the constraint is only here for the
-     * browsers that expose the control, and is applied after the stream is live
-     * because some accept it via applyConstraints but not in the initial
-     * request. Failures are ignored — it's a hint, not a requirement.
-     */
+    // Phone cameras autofocus on their own; this is only for browsers that
+    // expose the control, and is applied after the stream is live because some
+    // accept it here but not in the initial request.
     try {
       if (this.capabilities.focusMode?.includes('continuous')) {
         await this.track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
       }
     } catch { /* camera kept its own focus behaviour */ }
 
-    // Start at 1x. Left alone, a multi-lens phone can open on a zoomed lens
-    // whose minimum focus distance is much further out.
     await this.setZoom(this.defaultZoom);
+  }
+
+  async start() {
+    // First open is also what unlocks device labels — enumerateDevices returns
+    // them blank until camera permission has been granted at least once.
+    await this.openCamera({ facingMode: { ideal: 'environment' } });
+
+    this.lenses = await backLenses();
+    this.macroLens = this.lenses.find((l) => l.macro) ?? null;
+
+    /*
+     * Switch to the ultra-wide if there is one.
+     *
+     * This is the whole trick. A phone's main wide lens can't focus closer than
+     * ~10cm, so a sticker-sized code is either blurry or too small to decode.
+     * The native camera app solves it by silently hopping to the ultra-wide,
+     * which focuses within a couple of centimetres — that's what "macro mode"
+     * is. getUserMedia never does that on its own, so we pick the lens
+     * ourselves.
+     */
+    if (this.macroLens) {
+      try {
+        await this.openCamera({ deviceId: { exact: this.macroLens.deviceId } });
+        this.usingMacro = true;
+      } catch {
+        // Fall back to the lens we already had open.
+        await this.openCamera({ facingMode: { ideal: 'environment' } });
+        this.usingMacro = false;
+      }
+    }
 
     if ('BarcodeDetector' in window) {
       try {
@@ -187,11 +229,16 @@ export class QrScanner {
     return z && z.max > z.min ? z : null;
   }
 
-  /** 1x where the camera supports it, otherwise the widest it will go. */
+  /**
+   * The widest the active lens will go.
+   *
+   * On the ultra-wide that's the fully-wide setting, which is where its close
+   * focus lives — zooming in on that lens pushes the minimum focus distance
+   * back out and undoes the point of using it.
+   */
   get defaultZoom() {
     const z = this.zoomRange;
-    if (!z) return null;
-    return Math.min(Math.max(1, z.min), z.max);
+    return z ? z.min : null;
   }
 
   async setZoom(value) {
@@ -201,11 +248,56 @@ export class QrScanner {
     } catch { /* the camera refused; leave it where it was */ }
   }
 
+  /** True when the ultra-wide (close-focusing) lens is the active one. */
+  get macroAvailable() {
+    return Boolean(this.macroLens);
+  }
+
+  /** Flips between the ultra-wide and the default rear lens. */
+  async setMacro(on) {
+    if (!this.macroLens) return;
+    const wasRunning = this.running;
+    this.running = false;
+    clearTimeout(this.timer);
+
+    try {
+      await this.openCamera(on
+        ? { deviceId: { exact: this.macroLens.deviceId } }
+        : { facingMode: { ideal: 'environment' } });
+      this.usingMacro = on;
+    } catch { /* keep whatever is already open */ }
+
+    if (wasRunning) { this.running = true; this.tick(); }
+  }
+
+  /**
+   * Nudges the camera to refocus. Re-applying a constraint is the only lever the
+   * web exposes — there's no explicit "focus now" — but it's usually enough to
+   * make a hunting lens settle.
+   */
+  async refocus() {
+    if (!this.track) return;
+    try {
+      if (this.capabilities.focusMode?.includes('continuous')) {
+        await this.track.applyConstraints({ advanced: [{ focusMode: 'manual' }] });
+        await this.track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+      } else if (this.zoomRange) {
+        const z = Number(this.track.getSettings?.().zoom) || this.defaultZoom;
+        await this.setZoom(Math.min(z + (this.zoomRange.step || 0.1), this.zoomRange.max));
+        await this.setZoom(z);
+      }
+    } catch { /* nothing more we can do from here */ }
+  }
+
+  releaseStream() {
+    for (const track of this.stream?.getTracks() ?? []) track.stop();
+    this.stream = null;
+  }
+
   stop() {
     this.running = false;
     clearTimeout(this.timer);
-    for (const track of this.stream?.getTracks() ?? []) track.stop();
-    this.stream = null;
+    this.releaseStream();
     this.video.srcObject = null;
   }
 }

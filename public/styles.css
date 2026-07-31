@@ -562,6 +562,43 @@ select {
   object-fit: cover;
   display: block;
 }
+/* Invisible hit area over the viewfinder — tapping asks the lens to refocus. */
+.scan-tap {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.scan-controls { display: flex; gap: 10px; }
+
+.scan-toggle {
+  flex: 1;
+  min-height: var(--tap);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 620;
+  cursor: pointer;
+}
+.scan-toggle svg { width: 19px; height: 19px; }
+.scan-toggle[hidden] { display: none; }
+.scan-toggle[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.scan-advanced > summary { min-height: 40px; font-size: 13px; }
+
 .scan-zoom {
   display: grid;
   grid-template-columns: auto 1fr auto;

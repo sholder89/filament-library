@@ -1225,6 +1225,7 @@ async function openScanner() {
   try {
     await scanner.start();
     setupZoom();
+    setupMacro();
     // Surfaced because frame size is the difference between reading a label and
     // not — worth being able to see what the camera actually gave us.
     $('#scanDiag').textContent = `Camera ${scanner.resolution}`;
@@ -1264,11 +1265,48 @@ $('#scanZoomRange').addEventListener('input', (e) => {
   scanner?.setZoom(e.target.value);
 });
 
+/**
+ * The ultra-wide is on by default where it exists — it's the only rear lens
+ * that focuses close enough for a sticker-sized code, and it's what the native
+ * camera app quietly switches to.
+ */
+function setupMacro() {
+  const btn = $('#scanMacroBtn');
+  btn.hidden = !scanner?.macroAvailable;
+  btn.setAttribute('aria-pressed', String(Boolean(scanner?.usingMacro)));
+  $('#scanStatus').textContent = scanner?.usingMacro
+    ? 'Hold the label a few centimetres away and fill the box.'
+    : 'Hold the label about 15–20 cm away and fill the box.';
+  $('#scanLens').textContent = scanner?.lenses?.length
+    ? `Lens: ${scanner.usingMacro ? scanner.macroLens.label : 'default rear camera'}`
+    : '';
+}
+
+$('#scanMacroBtn').addEventListener('click', async () => {
+  if (!scanner) return;
+  const btn = $('#scanMacroBtn');
+  btn.disabled = true;
+  await scanner.setMacro(!scanner.usingMacro);
+  setupZoom();
+  setupMacro();
+  $('#scanDiag').textContent = `Camera ${scanner.resolution}`;
+  btn.disabled = false;
+});
+
+$('#scanRefocus').addEventListener('click', async () => {
+  if (!scanner) return;
+  $('#scanStatus').textContent = 'Refocusing…';
+  await scanner.refocus();
+  setTimeout(setupMacro, 900);
+});
+
 function stopScanner() {
   scanner?.stop();
   scanner = null;
   $('#scanZoom').hidden = true;
+  $('#scanMacroBtn').hidden = true;
   $('#scanDiag').textContent = '';
+  $('#scanLens').textContent = '';
 }
 
 async function onScanned(value) {
