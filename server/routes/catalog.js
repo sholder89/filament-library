@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db.js';
-import { BRANDS, MATERIALS, COLORS, FINISHES, SPOOL_WEIGHTS, DIAMETERS } from '../catalog.js';
+import { BRANDS, MATERIALS, COLORS, COLOR_NAMES, FINISHES, SPOOL_WEIGHTS, DIAMETERS } from '../catalog.js';
 
 export const router = Router();
 
@@ -33,6 +33,8 @@ router.get('/', (_req, res) => {
       ...extraMaterials.map((name) => ({ name, nozzle: null, bed: null, family: 'Other', enclosure: false, dry: false })),
     ],
     colors: COLORS,
+    // Full name -> hex lookup: drives typeahead and the live swatch.
+    color_names: COLOR_NAMES,
     finishes: [
       ...FINISHES,
       // Anything typed in before a finish was removed from the seed list.

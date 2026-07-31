@@ -32,7 +32,11 @@ through — used-up spools stay in the library as a record instead of vanishing.
   and pick one.
 - **Special finishes** — silk, glitter, matte, translucent, marble, wood, glow,
   carbon fiber, metallic, gradient and dual-color, each with its own treatment on
-  the spool graphic. Glitter really does sparkle.
+  the spool graphic. Glitter really does sparkle, and anything named *rainbow*
+  or *multicolor* is painted as a hue sweep instead of one flat color.
+- **Color names that resolve** — 187 known names (the W3C set plus filament
+  ones like Galaxy Black and Prusa Orange). Type a name and the swatch follows;
+  pick a swatch and the name follows.
 - **Buy another?** — *Add another sealed one* on a spool's page copies its specs
   into a fresh, unopened record.
 - **Pre-filled catalog** — pick from 40 brands (Sunlu, Bambu Lab, Creality,

@@ -108,14 +108,29 @@ function padForMaskable(img, size, background) {
   return out;
 }
 
-/** Average colour of the four corners — the artwork's background. */
-function cornerColor(img) {
+/**
+ * The artwork's background color.
+ *
+ * Sampled at the midpoint of each edge rather than at the corners: this icon
+ * style has rounded corners with transparent pixels outside them, so corner
+ * samples read as fully transparent black and every flattened icon came out
+ * with black corners instead of the artwork's own colour.
+ */
+function backgroundColor(img, inset = 0.01) {
   const at = (x, y) => {
-    const i = (img.width * y + x) << 2;
-    return [img.data[i], img.data[i + 1], img.data[i + 2]];
+    const i = (img.width * Math.round(y) + Math.round(x)) << 2;
+    return [img.data[i], img.data[i + 1], img.data[i + 2], img.data[i + 3]];
   };
-  const pts = [at(4, 4), at(img.width - 5, 4), at(4, img.height - 5), at(img.width - 5, img.height - 5)];
-  return [0, 1, 2].map((c) => Math.round(pts.reduce((s, p) => s + p[c], 0) / pts.length));
+  const dx = img.width * inset;
+  const dy = img.height * inset;
+  const midX = img.width / 2;
+  const midY = img.height / 2;
+  const samples = [
+    at(midX, dy), at(midX, img.height - 1 - dy), at(dx, midY), at(img.width - 1 - dx, midY),
+  ].filter((p) => p[3] > 200);          // opaque samples only
+
+  if (!samples.length) return [255, 255, 255];
+  return [0, 1, 2].map((c) => Math.round(samples.reduce((s, p) => s + p[c], 0) / samples.length));
 }
 
 const write = (name, png) => {
@@ -141,21 +156,24 @@ if (missing.length) {
 
 for (const { key, file } of variants) {
   const src = PNG.sync.read(readFileSync(join(SRC_DIR, file)));
-  const bg = cornerColor(src);
+  const bg = backgroundColor(src);
   console.log(`${file} → ${src.width}×${src.height}, background rgb(${bg.join(',')})`);
 
   for (const size of [192, 512]) write(`icon-${key}-${size}.png`, flatten(resize(src, size), bg));
   write(`icon-${key}-180.png`, flatten(resize(src, 180), bg));       // apple-touch-icon
-  write(`icon-maskable-${key}-512.png`, padForMaskable(src, 512, bg));
+  // Maskable padding uses a colour sampled from inside the artwork, not the
+  // margin around it — launchers crop these to a circle, and padding in the
+  // margin colour shows up as a ring around the icon.
+  write(`icon-maskable-${key}-512.png`, padForMaskable(src, 512, backgroundColor(src, 0.22)));
 }
 
 // The dark-background artwork is the default: it's what iOS pins to the home
 // screen, which has no light/dark icon switching.
 const dark = PNG.sync.read(readFileSync(join(SRC_DIR, 'icon-dark.png')));
-const darkBg = cornerColor(dark);
+const darkBg = backgroundColor(dark);
 console.log('\ndefault (home screen) icons from icon-dark.png:');
 for (const size of [192, 512]) write(`icon-${size}.png`, flatten(resize(dark, size), darkBg));
 write('icon-180.png', flatten(resize(dark, 180), darkBg));
-write('icon-maskable-512.png', padForMaskable(dark, 512, darkBg));
+write('icon-maskable-512.png', padForMaskable(dark, 512, backgroundColor(dark, 0.22)));
 
 console.log('\nDone.');

@@ -1,4 +1,4 @@
-import { spoolSVG, escapeXML as esc, luminance } from './spool.js';
+import { spoolSVG, escapeXML as esc, luminance, RAINBOW_CSS, isRainbow } from './spool.js';
 import { labelPreviewHTML } from './label.js';
 import { QrScanner, cameraBlockedReason, filamentIdFrom } from './scan.js';
 
@@ -121,7 +121,8 @@ for (const dialog of SHEETS) {
 
 async function loadCatalog() {
   state.catalog = await api('/api/catalog');
-  fillDatalist('colorList', state.catalog.colors.map((c) => c.name));
+  // Every known name is offered for typeahead, not just the swatch shortlist.
+  fillDatalist('colorList', Object.keys(state.catalog.color_names ?? {}).sort());
   fillDatalist('locationList', state.catalog.locations);
   fillDatalist('weightList', state.catalog.spool_weights.map(String));
   fillFinishSelect();
@@ -608,7 +609,8 @@ function sectionsOf(filaments, spec) {
 function renderSection(section, spec) {
   const collapsed = state.collapsedSections.has(section.label);
   const swatch = spec.swatch
-    ? `<span class="section-swatch" style="background:${esc(section.hex || '#808080')}"></span>`
+    ? `<span class="section-swatch" style="background:${
+        isRainbow(section.label) ? RAINBOW_CSS : esc(section.hex || '#808080')}"></span>`
     : '';
 
   return `
@@ -1174,11 +1176,15 @@ $('#editorRemainingQuick').addEventListener('click', (e) => {
 });
 
 function renderSwatches() {
-  $('#swatches').innerHTML = state.catalog.colors.map((c) => `
-    <button type="button" class="swatch" data-hex="${esc(c.hex)}" data-name="${esc(c.name)}"
-            title="${esc(c.name)}" aria-label="${esc(c.name)}" aria-pressed="false"
-            style="background:${esc(c.hex)}${luminance(c.hex) > 0.8 ? ';border-color:var(--muted)' : ''}"></button>
-  `).join('');
+  $('#swatches').innerHTML = state.catalog.colors.map((c) => {
+    // Multi-color stock can't be shown as one flat chip.
+    const background = c.rainbow ? RAINBOW_CSS : esc(c.hex);
+    const pale = !c.rainbow && luminance(c.hex) > 0.8;
+    return `
+      <button type="button" class="swatch" data-hex="${esc(c.hex)}" data-name="${esc(c.name)}"
+              title="${esc(c.name)}" aria-label="${esc(c.name)}" aria-pressed="false"
+              style="background:${background}${pale ? ';border-color:var(--muted)' : ''}"></button>`;
+  }).join('');
   syncColorText();
 }
 
@@ -1186,8 +1192,55 @@ $('#swatches').addEventListener('click', (e) => {
   const sw = e.target.closest('.swatch');
   if (!sw) return;
   form.elements.color_hex.value = sw.dataset.hex;
-  if (!form.elements.color_name.value.trim()) form.elements.color_name.value = sw.dataset.name;
+  // Always renames. Leaving the old name behind after picking a new swatch was
+  // the bug — you'd end up with a spool labelled Red that renders blue.
+  form.elements.color_name.value = sw.dataset.name;
   syncColorText();
+  syncPreview();
+});
+
+// ── Color name lookup ────────────────────────────────────────────────────────
+
+/**
+ * Resolves a typed color name to a hex.
+ *
+ * Exact match first, then the longest known color word appearing inside the
+ * string, so "Galaxy Black" and "Matte Sky Blue" still land somewhere sensible.
+ * Word boundaries are required — otherwise "Redwood" would resolve as red.
+ */
+const normColor = (s) => String(s).toLowerCase().replace(/[\s_-]+/g, ' ').trim();
+
+function hexForColorName(input) {
+  const target = normColor(input ?? '');
+  if (!target) return null;
+
+  const names = Object.entries(state.catalog.color_names ?? {});
+
+  for (const [name, hex] of names) {
+    if (normColor(name) === target) return hex;
+  }
+
+  // Longest containing match wins, so "Dark Sea Green" beats "Green".
+  let bestLength = 0;
+  let bestHex = null;
+  for (const [name, hex] of names) {
+    const n = normColor(name);
+    if (n.length <= bestLength) continue;
+    if (new RegExp(`(^| )${n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}( |$)`).test(target)) {
+      bestLength = n.length;
+      bestHex = hex;
+    }
+  }
+  return bestHex;
+}
+
+/** Typing a recognised color name repaints the swatch as you go. */
+form.elements.color_name.addEventListener('input', () => {
+  const hex = hexForColorName(form.elements.color_name.value);
+  if (hex) {
+    form.elements.color_hex.value = hex;
+    syncColorText();
+  }
   syncPreview();
 });
 
@@ -1210,8 +1263,8 @@ form.elements.status.addEventListener('change', () => {
   syncEditorRemaining();
   syncPreview();
 });
-// Brand and material update the preview through their pickers.
-form.elements.color_name.addEventListener('input', syncPreview);
+// Brand and material update the preview through their pickers; the color name
+// field has its own listener that also resolves the swatch.
 
 function syncFinishHint() {
   const match = (state.catalog.finishes ?? []).find((f) => f.name === form.elements.finish.value);

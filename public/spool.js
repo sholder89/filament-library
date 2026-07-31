@@ -147,6 +147,23 @@ const SPARKLES = [
   [152, 100, 2.0, 0.5], [100, 158, 1.8, 1.2],
 ];
 
+/**
+ * Rainbow and other multi-color filaments can't be described by one hex, so
+ * they get their own winding fill rather than a flat color.
+ */
+export function isRainbow(colorName) {
+  return /\b(rainbow|multi[\s-]?colou?r|unicorn)\b/i.test(String(colorName ?? ''));
+}
+
+/** Hue sweep from the hub outward — the way real rainbow filament unwinds. */
+export const RAINBOW_STOPS = [
+  [0.00, '#e53935'], [0.16, '#fb8c00'], [0.32, '#fdd835'], [0.48, '#43a047'],
+  [0.64, '#1e88e5'], [0.80, '#5e35b1'], [1.00, '#e53935'],
+];
+
+export const RAINBOW_CSS =
+  `linear-gradient(135deg, ${RAINBOW_STOPS.map(([o, c]) => `${c} ${Math.round(o * 100)}%`).join(', ')})`;
+
 /** Effect keyword for a finish name, or '' when it's a plain spool. */
 export function effectFor(finish) {
   const key = String(finish || '').trim().toLowerCase();
@@ -177,10 +194,13 @@ export function spoolSVG(filament, { title = true } = {}) {
   const wound = HUB + (MAX - HUB) * (pct / 100);
   const hasFilament = pct > 0.5;
 
-  const light = luminance(color);
+  const rainbow = isRainbow(filament.color_name);
+  const light = rainbow ? 0.5 : luminance(color);
   // Pale spools need a visible edge; dark ones need a lifted highlight instead.
-  const edge = light > 0.72 ? shade(color, -0.28) : shade(color, 0.3);
-  const deep = shade(color, -0.4);
+  const edge = rainbow ? 'rgba(0,0,0,.35)' : (light > 0.72 ? shade(color, -0.28) : shade(color, 0.3));
+  const deep = rainbow ? 'rgba(0,0,0,.55)' : shade(color, -0.4);
+  // Multi-color stock is painted by a hue sweep rather than the single hex.
+  const woundFill = rainbow ? `${id}rb` : `${id}f`;
 
   // Concentric winding lines, denser toward the hub like real windings.
   let windings = '';
@@ -215,6 +235,10 @@ export function spoolSVG(filament, { title = true } = {}) {
       <stop offset="0%"   stop-color="#fff" stop-opacity=".26"/>
       <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
     </radialGradient>
+    ${rainbow ? `
+    <radialGradient id="${id}rb" cx="50%" cy="50%" r="50%">
+      ${RAINBOW_STOPS.map(([o, c]) => `<stop offset="${o}" stop-color="${c}"/>`).join('')}
+    </radialGradient>` : ''}
     <mask id="${id}m">
       <rect width="200" height="200" fill="#000"/>
       <circle cx="100" cy="100" r="${wound.toFixed(1)}" fill="#fff"/>
@@ -233,7 +257,7 @@ export function spoolSVG(filament, { title = true } = {}) {
   ${hasFilament ? `
   <!-- wound filament -->
   <g mask="url(#${id}m)">
-    <circle cx="100" cy="100" r="${wound.toFixed(1)}" fill="url(#${id}f)"/>
+    <circle cx="100" cy="100" r="${wound.toFixed(1)}" fill="url(#${woundFill})"/>
     ${windings}
     ${effect.body ?? ''}
     <circle cx="100" cy="100" r="${wound.toFixed(1)}" fill="url(#${id}g)"/>

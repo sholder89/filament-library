@@ -11,8 +11,14 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Filament">
+<!-- iOS pins one home-screen icon and can't switch it by theme, so the
+     dark-background artwork is the one that gets installed. The tab icon can
+     follow the theme in browsers that honour `media` here; the unqualified
+     link is the fallback for those that don't. -->
 <link rel="apple-touch-icon" href="/icons/icon-180.png">
 <link rel="icon" href="/icons/icon-192.png" sizes="192x192">
+<link rel="icon" href="/icons/icon-light-192.png" sizes="192x192" media="(prefers-color-scheme: light)">
+<link rel="icon" href="/icons/icon-dark-192.png" sizes="192x192" media="(prefers-color-scheme: dark)">
 <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
