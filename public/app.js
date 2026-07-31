@@ -240,6 +240,67 @@ function fillDatalist(id, values) {
   document.getElementById(id).innerHTML = values.map((v) => `<option value="${esc(v)}">`).join('');
 }
 
+// ── Remembering how you left the view ────────────────────────────────────────
+
+const FILTERS_KEY = 'filters';
+
+/**
+ * The search box is deliberately excluded — a query is a momentary action, and
+ * finding the library still filtered by something you typed days ago would look
+ * like data had gone missing.
+ */
+function saveFilters() {
+  const { status, brand, material, finish, sort } = state.filters;
+  try {
+    localStorage.setItem(FILTERS_KEY, JSON.stringify({ status, brand, material, finish, sort }));
+  } catch { /* private mode, or storage full — not worth failing over */ }
+}
+
+function loadSavedFilters() {
+  let saved;
+  try {
+    saved = JSON.parse(localStorage.getItem(FILTERS_KEY) || 'null');
+  } catch { return; }
+  if (!saved || typeof saved !== 'object') return;
+
+  const list = (v) => (Array.isArray(v) ? v.filter((x) => typeof x === 'string') : []);
+  if (['active', 'new', 'opened', 'empty'].includes(saved.status)) state.filters.status = saved.status;
+  if ([...el.sortBy.options].some((o) => o.value === saved.sort)) state.filters.sort = saved.sort;
+  state.filters.brand = list(saved.brand);
+  state.filters.material = list(saved.material);
+  state.filters.finish = list(saved.finish);
+}
+
+/**
+ * Drops selections for values the library no longer contains — otherwise
+ * deleting the last Sunlu spool leaves you staring at an empty grid with no
+ * obvious cause.
+ */
+function pruneFilters() {
+  const all = state.allFilaments ?? [];
+  if (!all.length) return;
+  let changed = false;
+
+  for (const [kind, field] of [['brand', 'brand'], ['material', 'material'], ['finish', 'finish']]) {
+    const present = new Set(all.map((f) => f[field]).filter(Boolean));
+    const kept = state.filters[kind].filter((v) => present.has(v));
+    if (kept.length !== state.filters[kind].length) {
+      state.filters[kind] = kept;
+      changed = true;
+    }
+  }
+  if (changed) { syncFilterButtons(); saveFilters(); }
+}
+
+/** Pushes restored filters back onto the controls that display them. */
+function applyFiltersToUI() {
+  el.sortBy.value = state.filters.sort;
+  for (const b of el.statusFilter.children) {
+    b.classList.toggle('on', b.dataset.status === state.filters.status);
+  }
+  syncFilterButtons();
+}
+
 // ── Multi-select filters ─────────────────────────────────────────────────────
 
 /**
@@ -358,6 +419,7 @@ $('#pickerOptions').addEventListener('click', (e) => {
   if (at === -1) selected.push(value); else selected.splice(at, 1);
   renderPickerOptions();
   syncFilterButtons();
+  saveFilters();
   loadFilaments();
 });
 
@@ -366,6 +428,7 @@ $('#pickerClear').addEventListener('click', () => {
   state.filters[pickerKind] = [];
   renderPickerOptions();
   syncFilterButtons();
+  saveFilters();
   loadFilaments();
 });
 
@@ -429,9 +492,12 @@ async function loadAll() {
 let lastRefreshAt = 0;
 
 async function refresh() {
+  // The unfiltered list comes first so stale selections can be dropped before
+  // they're used to query, rather than flashing an empty grid.
+  await loadAll();
+  pruneFilters();
   await loadFilaments();
-  await Promise.all([loadStats(), loadAll()]);
-  await loadCatalog();
+  await Promise.all([loadStats(), loadCatalog()]);
   lastRefreshAt = Date.now();
 }
 
@@ -477,12 +543,37 @@ function renderGrid() {
     return;
   }
 
-  const field = SECTION_FIELD[state.filters.sort];
-  if (!field) {
+  const spec = SECTIONS[state.filters.sort];
+  if (!spec) {
     el.grid.innerHTML = groupFilaments(state.filaments).map(renderGroup).join('');
     return;
   }
-  el.grid.innerHTML = sectionsOf(state.filaments, field).map((s) => renderSection(s, field)).join('');
+  el.grid.innerHTML = sectionsOf(state.filaments, spec).map((s) => renderSection(s, spec)).join('');
+}
+
+/**
+ * Base material for grouping: PLA+, PLA Silk and PLA-CF all belong under PLA,
+ * PETG HF under PETG, TPU 95A under TPU. The card still shows the exact
+ * variant — this only decides which heading it sits beneath.
+ *
+ * Longest-first so PETG wins over PET and PCTG over PC, and a boundary check so
+ * an unrelated name that merely starts with those letters isn't swallowed.
+ */
+const BASE_TYPES = ['NYLON', 'PEEK', 'PETG', 'PCTG', 'HIPS', 'PLA', 'ABS', 'ASA', 'TPU', 'TPE', 'PVA', 'PC', 'PP', 'PA'];
+const BASE_LABEL = { PA: 'Nylon', NYLON: 'Nylon' };
+
+export function baseMaterial(name) {
+  const raw = String(name ?? '').trim();
+  if (!raw) return 'Not set';
+  const upper = raw.toUpperCase();
+
+  for (const base of BASE_TYPES) {
+    if (!upper.startsWith(base)) continue;
+    const next = upper[base.length];
+    // Only a real boundary counts: "PLA+", "PLA-CF", "PLA Silk", "TPU 95A".
+    if (next === undefined || /[\s+\-(0-9]/.test(next)) return BASE_LABEL[base] ?? base;
+  }
+  return raw;
 }
 
 /**
@@ -490,22 +581,33 @@ function renderGrid() {
  * forty spools to see what PETG you own isn't much use. Date orders stay flat,
  * since a heading per timestamp would be noise.
  */
-const SECTION_FIELD = { brand: 'brand', material: 'material', color: 'color_name' };
+const SECTIONS = {
+  brand:    { label: (f) => f.brand?.trim() || 'Not set' },
+  material: { label: (f) => baseMaterial(f.material) },
+  color:    { label: (f) => f.color_name?.trim() || 'Not set', swatch: true },
+};
 
-function sectionsOf(filaments, field) {
-  // The server already ordered by this field, so first-seen order is correct.
+function sectionsOf(filaments, spec) {
   const byLabel = new Map();
   for (const f of filaments) {
-    const label = String(f[field] ?? '').trim() || 'Not set';
+    const label = spec.label(f);
     if (!byLabel.has(label)) byLabel.set(label, { label, items: [], hex: f.color_hex });
     byLabel.get(label).items.push(f);
   }
-  return [...byLabel.values()];
+
+  // Sorted rather than left in encounter order: variants of one base type can
+  // arrive far apart (PA-CF sorts nowhere near "Nylon (PA)") and merge into a
+  // heading that would otherwise sit in a surprising place.
+  return [...byLabel.values()].sort((a, b) => {
+    if (a.label === 'Not set') return 1;
+    if (b.label === 'Not set') return -1;
+    return a.label.localeCompare(b.label);
+  });
 }
 
-function renderSection(section, field) {
+function renderSection(section, spec) {
   const collapsed = state.collapsedSections.has(section.label);
-  const swatch = field === 'color_name'
+  const swatch = spec.swatch
     ? `<span class="section-swatch" style="background:${esc(section.hex || '#808080')}"></span>`
     : '';
 
@@ -1234,6 +1336,7 @@ el.statusFilter.addEventListener('click', (e) => {
   if (!btn) return;
   for (const b of el.statusFilter.children) b.classList.toggle('on', b === btn);
   state.filters.status = btn.dataset.status;
+  saveFilters();
   loadFilaments();
 });
 
@@ -1250,14 +1353,16 @@ el.sortBy.addEventListener('change', () => {
   state.filters.sort = el.sortBy.value;
   // Headings from the previous grouping mean nothing under the new one.
   state.collapsedSections.clear();
+  saveFilters();
   loadFilaments();
 });
 
 el.clearFilters.addEventListener('click', () => {
   state.filters = { status: 'active', brand: [], material: [], finish: [], q: '', sort: el.sortBy.value };
   el.search.value = '';
-  syncFilterButtons();
-  for (const b of el.statusFilter.children) b.classList.toggle('on', b.dataset.status === 'active');
+  state.collapsedSections.clear();
+  applyFiltersToUI();
+  saveFilters();
   loadFilaments();
 });
 
@@ -1425,6 +1530,9 @@ addEventListener('popstate', routeFromPath);
   // Shown unconditionally: if the camera turns out to be unavailable the
   // scanner sheet explains why, which beats a button that silently isn't there.
   $('#scanBtn').hidden = false;
+
+  loadSavedFilters();
+  applyFiltersToUI();
 
   try {
     state.print = await api('/api/print/status');

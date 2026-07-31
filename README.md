@@ -21,7 +21,12 @@ through — used-up spools stay in the library as a record instead of vanishing.
   brand, color, location and notes.
 - **Grouped views** — sorting by brand, type or color also groups the library
   under collapsible headings with a count on each, so you can fold away the
-  PLA and see what PETG you have. Date orders stay flat.
+  PLA and see what PETG you have. Type headings use the base material, so PLA+,
+  PLA Silk and PLA-CF all sit under **PLA** while the cards still show the exact
+  variant. Date orders stay flat.
+- **Remembers how you left it** — status, brand/type/finish filters and the sort
+  order are kept between visits. A search you typed isn't, since a stale query
+  would look like missing data.
 - **Duplicates stack up** — identical spools collapse into a single card with a
   count. Hover to fan the stack out; click to spread it into individual cards
   and pick one.
