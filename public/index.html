@@ -11,11 +11,19 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Filament">
-<!-- iOS pins one home-screen icon and can't switch it by theme, so the
-     dark-background artwork is the one that gets installed. The tab icon can
-     follow the theme in browsers that honour `media` here; the unqualified
-     link is the fallback for those that don't. -->
-<link rel="apple-touch-icon" href="/icons/icon-180.png">
+<!-- Home-screen icons. iOS pins one and can't switch it by theme, so the
+     dark artwork is what gets installed. These are opaque on purpose: iOS
+     composites any alpha against black, which shows up as a blacked-out icon.
+     The unsized link stays last as the catch-all — iOS reads these in order and
+     the final match wins when no size fits. -->
+<link rel="apple-touch-icon" sizes="120x120" href="/icons/apple-touch-icon-120.png">
+<link rel="apple-touch-icon" sizes="152x152" href="/icons/apple-touch-icon-152.png">
+<link rel="apple-touch-icon" sizes="167x167" href="/icons/apple-touch-icon-167.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon-180.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon-180.png">
+
+<!-- Tab icons keep their transparency so the rounded artwork sits on whatever
+     the browser's chrome is, rather than in a box. -->
 <link rel="icon" href="/icons/icon-192.png" sizes="192x192">
 <link rel="icon" href="/icons/icon-light-192.png" sizes="192x192" media="(prefers-color-scheme: light)">
 <link rel="icon" href="/icons/icon-dark-192.png" sizes="192x192" media="(prefers-color-scheme: dark)">

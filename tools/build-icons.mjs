@@ -116,21 +116,39 @@ function padForMaskable(img, size, background) {
  * samples read as fully transparent black and every flattened icon came out
  * with black corners instead of the artwork's own colour.
  */
-function backgroundColor(img, inset = 0.01) {
+/**
+ * A colour taken from inside the artwork, for the icons that must be opaque.
+ *
+ * Works inward from the edge until it finds solid pixels: this artwork is a
+ * rounded shape on full transparency, so anything sampled near the border is
+ * empty. Getting that wrong is what put white corners on every icon.
+ */
+function backgroundColor(img) {
   const at = (x, y) => {
     const i = (img.width * Math.round(y) + Math.round(x)) << 2;
     return [img.data[i], img.data[i + 1], img.data[i + 2], img.data[i + 3]];
   };
-  const dx = img.width * inset;
-  const dy = img.height * inset;
   const midX = img.width / 2;
   const midY = img.height / 2;
-  const samples = [
-    at(midX, dy), at(midX, img.height - 1 - dy), at(dx, midY), at(img.width - 1 - dx, midY),
-  ].filter((p) => p[3] > 200);          // opaque samples only
 
-  if (!samples.length) return [255, 255, 255];
-  return [0, 1, 2].map((c) => Math.round(samples.reduce((s, p) => s + p[c], 0) / samples.length));
+  for (const inset of [0.12, 0.2, 0.28, 0.36]) {
+    const dx = img.width * inset;
+    const dy = img.height * inset;
+    const samples = [
+      at(midX, dy), at(midX, img.height - 1 - dy), at(dx, midY), at(img.width - 1 - dx, midY),
+    ].filter((p) => p[3] > 240);
+    if (samples.length >= 2) {
+      return [0, 1, 2].map((c) => Math.round(samples.reduce((s, p) => s + p[c], 0) / samples.length));
+    }
+  }
+
+  // Nothing solid anywhere near the edges — average whatever is opaque.
+  let r = 0, g = 0, b = 0, n = 0;
+  for (let i = 0; i < img.data.length; i += 4) {
+    if (img.data[i + 3] < 240) continue;
+    r += img.data[i]; g += img.data[i + 1]; b += img.data[i + 2]; n++;
+  }
+  return n ? [r / n, g / n, b / n].map(Math.round) : [13, 15, 19];
 }
 
 const write = (name, png) => {
@@ -159,20 +177,33 @@ for (const { key, file } of variants) {
   const bg = backgroundColor(src);
   console.log(`${file} → ${src.width}×${src.height}, background rgb(${bg.join(',')})`);
 
-  for (const size of [192, 512]) write(`icon-${key}-${size}.png`, flatten(resize(src, size), bg));
-  write(`icon-${key}-180.png`, flatten(resize(src, 180), bg));       // apple-touch-icon
-  // Maskable padding uses a colour sampled from inside the artwork, not the
-  // margin around it — launchers crop these to a circle, and padding in the
-  // margin colour shows up as a ring around the icon.
-  write(`icon-maskable-${key}-512.png`, padForMaskable(src, 512, backgroundColor(src, 0.22)));
+  /*
+   * Transparency is kept where it helps and dropped only where the platform
+   * can't cope with it:
+   *
+   *   favicon / manifest  transparent, so the rounded artwork sits on the tab
+   *                       or launcher background instead of in a white box
+   *   apple-touch-icon    opaque — iOS composites alpha against black, which on
+   *                       this artwork reads as a blacked-out or missing icon
+   *   maskable            opaque and padded, since launchers crop it to a circle
+   */
+  for (const size of [192, 512]) write(`icon-${key}-${size}.png`, resize(src, size));
+  write(`icon-${key}-180.png`, flatten(resize(src, 180), bg));
+  write(`icon-maskable-${key}-512.png`, padForMaskable(src, 512, bg));
 }
 
 // The dark-background artwork is the default: it's what iOS pins to the home
 // screen, which has no light/dark icon switching.
 const dark = PNG.sync.read(readFileSync(join(SRC_DIR, 'icon-dark.png')));
 const darkBg = backgroundColor(dark);
-console.log('\ndefault (home screen) icons from icon-dark.png:');
-for (const size of [192, 512]) write(`icon-${size}.png`, flatten(resize(dark, size), darkBg));
+console.log(`\ndefault icons from icon-dark.png, opaque fill rgb(${darkBg.join(',')}):`);
+for (const size of [192, 512]) write(`icon-${size}.png`, resize(dark, size));
+
+// iOS picks the closest match by size and won't scale one up gracefully, so
+// give it every size it actually asks for — all opaque.
+for (const size of [120, 152, 167, 180]) {
+  write(`apple-touch-icon-${size}.png`, flatten(resize(dark, size), darkBg));
+}
 write('icon-180.png', flatten(resize(dark, 180), darkBg));
 write('icon-maskable-512.png', padForMaskable(dark, 512, backgroundColor(dark, 0.22)));
 

@@ -317,6 +317,16 @@ node tools/build-icons.mjs
 That writes every size into `public/icons/`. The dark version becomes the
 home-screen icon, because iOS pins one icon and can't switch it by theme.
 
+Transparency is handled per target: favicons and manifest icons keep it, so the
+rounded artwork sits on the browser or launcher background rather than in a
+box. The `apple-touch-icon` sizes are flattened onto a colour sampled from
+inside the artwork — iOS composites alpha against black, so a transparent icon
+shows up blacked-out or not at all.
+
+> **Not seeing a new icon on your iPhone?** iOS caches the home-screen icon from
+> the moment you added the page and never refetches it. Delete the icon, quit
+> Safari, then add it again.
+
 `tools/generate-icons.mjs` draws the original placeholder icon programmatically
 and is only needed if you have no artwork at all.
 
