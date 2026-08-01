@@ -603,6 +603,11 @@ addEventListener('focus', () => refreshOnResume());
 // ── Grid ─────────────────────────────────────────────────────────────────────
 
 function renderGrid() {
+  const spec = SECTIONS[state.filters.sort];
+  // Drives the section row spacing, so it has to be off for the flat sorts and
+  // for the empty state as well.
+  el.grid.classList.toggle('is-grouped', Boolean(spec) && state.filaments.length > 0);
+
   if (!state.filaments.length) {
     el.grid.innerHTML = `
       <div class="empty-state">
@@ -616,12 +621,12 @@ function renderGrid() {
     return;
   }
 
-  const spec = SECTIONS[state.filters.sort];
   if (!spec) {
     el.grid.innerHTML = groupFilaments(state.filaments).map(renderGroup).join('');
     return;
   }
   el.grid.innerHTML = sectionsOf(state.filaments, spec).map((s) => renderSection(s, spec)).join('');
+  syncSectionWidths();
 }
 
 /**
@@ -685,16 +690,62 @@ function renderSection(section, spec) {
         isRainbow(section.label) ? RAINBOW_CSS : esc(section.hex || '#808080')}"></span>`
     : '';
 
+  const groups = groupFilaments(section.items);
+  // How many card slots the body needs, which is what decides how wide this
+  // section wants to be. Stacked duplicates take one slot, not one per spool;
+  // a fanned-open stack takes one per spool plus its header row.
+  const slots = collapsed ? 1 : groups.reduce(
+    (n, g) => n + (g.items.length > 1 && state.expandedGroups.has(g.key) ? g.items.length + 1 : 1), 0,
+  );
+
   return `
-    <button class="section-head${collapsed ? ' is-collapsed' : ''}"
-            data-section="${esc(section.label)}" aria-expanded="${!collapsed}">
-      <svg class="section-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      ${swatch}
-      <span class="section-name">${esc(section.label)}</span>
-      <span class="section-count">${section.items.length}</span>
-    </button>
-    ${collapsed ? '' : groupFilaments(section.items).map(renderGroup).join('')}`;
+    <section class="section${collapsed ? ' is-collapsed' : ''}" data-slots="${slots}">
+      <button class="section-head" data-section="${esc(section.label)}"
+              aria-expanded="${!collapsed}" title="${esc(section.label)}">
+        <svg class="section-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        ${swatch}
+        <span class="section-name">${esc(section.label)}</span>
+        <span class="section-count">${section.items.length}</span>
+      </button>
+      ${collapsed ? '' : `<div class="section-body">${groups.map(renderGroup).join('')}</div>`}
+    </section>`;
 }
+
+/**
+ * Sections are laid out on the page's own card tracks, each spanning as many as
+ * its contents need — so a lone roll of ABS takes one column and the next type
+ * sits beside it instead of a row below.
+ *
+ * The track count has to be measured rather than assumed: it comes from
+ * `auto-fill`, so it moves with the window, the density switch and the
+ * platform's scrollbar width.
+ */
+function syncSectionWidths() {
+  const sections = [...el.grid.querySelectorAll('.section')];
+  if (!sections.length) return;
+
+  // Measure with every section back at one column. A section spanning more
+  // tracks than auto-fill produced makes the grid add implicit columns to fit
+  // it, and those show up in the track list — so measuring while the previous
+  // spans are still applied reads the last layout instead of the current width,
+  // and on a resize the spans would grow but never shrink back.
+  for (const section of sections) section.style.setProperty('--span', '1');
+
+  // Reading a used value here forces the layout above to flush, so the track
+  // list below reflects the reset rather than what was on screen a moment ago.
+  const tracks = getComputedStyle(el.grid).gridTemplateColumns;
+  const cols = tracks && tracks !== 'none' ? tracks.split(/\s+/).filter(Boolean).length : 1;
+
+  for (const section of sections) {
+    const span = Math.max(1, Math.min(Number(section.dataset.slots) || 1, cols));
+    section.style.setProperty('--span', String(span));
+  }
+}
+
+// Re-measure on layout changes, since the track count moves with the width.
+new ResizeObserver(() => {
+  if (el.grid.classList.contains('is-grouped')) syncSectionWidths();
+}).observe(el.grid);
 
 /**
  * Collapses interchangeable spools into one entry. Anything that would make you

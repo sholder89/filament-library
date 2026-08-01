@@ -428,9 +428,13 @@ select {
 /* ── Grid ───────────────────────────────────────────────────────────────── */
 
 .grid {
+  /* Shared with .section-body so cards inside a section sit on the same rhythm
+     as cards outside one. */
+  --card-gap: 12px;
+
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
-  gap: 12px;
+  gap: var(--card-gap);
   padding: 14px 16px;
 }
 
@@ -609,20 +613,50 @@ select {
   pointer-events: none;
 }
 
-/* ── Grouped view headings ───────────────────────────────────────────────── */
+/* ── Grouped view sections ───────────────────────────────────────────────── */
 
+/* A section spans as many of the page's card tracks as its contents need
+   (--span, measured in app.js), so a type with one roll takes one column and
+   the next type sits beside it rather than a row below.
+
+   Deliberately no padding or border of its own: any inset would eat into the
+   tracks it spans, and a one-column section would end up with visibly smaller
+   cards than the four-column section sitting next to it. The heading's rule
+   carries the grouping instead, and now spans exactly the section's columns. */
+.section {
+  grid-column: span var(--span, 1);
+  /* Content height, not row height — otherwise a one-roll section stretches to
+     match the tall section beside it and trails empty space. */
+  align-self: start;
+  min-width: 0;
+}
+/* Sections need more air between rows than cards do; column-gap must stay at
+   --card-gap for the spans above to line up with the tracks. */
+.grid.is-grouped { row-gap: 26px; }
+
+/* The section's own cards, on tracks identical to the page grid's. */
+.section-body {
+  display: grid;
+  grid-template-columns: repeat(var(--span, 1), minmax(0, 1fr));
+  gap: var(--card-gap);
+  margin-top: 10px;
+}
+
+/* A filled chip rather than an underline. Two single-column sections now sit
+   side by side, and adjacent underlines merged into one continuous rule with
+   the names sprinkled along it — you couldn't see where one group ended. The
+   chip is exactly as wide as the section it labels, so it reads as a lid on
+   its own cards. */
 .section-head {
-  grid-column: 1 / -1;
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
-  min-height: 46px;
-  margin: 8px 0 -2px;
-  padding: 0 4px 8px;
-  background: transparent;
-  border: 0;
-  border-bottom: 1px solid var(--border-sm);
+  min-height: 42px;
+  padding: 0 12px;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  border: 1px solid var(--border-sm);
+  border-radius: var(--radius-sm);
   color: var(--text);
   font-size: 15.5px;
   font-weight: 680;
@@ -630,8 +664,7 @@ select {
   text-align: left;
   cursor: pointer;
 }
-.section-head:first-child { margin-top: 0; }
-.section-head:hover { color: var(--accent); }
+.section-head:hover { color: var(--accent); border-color: var(--accent); }
 
 .section-chevron {
   width: 18px;
@@ -641,7 +674,7 @@ select {
   transform: rotate(90deg);
   transition: transform .18s cubic-bezier(.2, .8, .3, 1);
 }
-.section-head.is-collapsed .section-chevron { transform: rotate(0deg); }
+.section.is-collapsed .section-chevron { transform: rotate(0deg); }
 
 .section-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -698,7 +731,7 @@ select {
 
 /* Small: the spool with its type on top. Everything else waits for a hover or
    a tap through to the detail page. */
-.grid.view-small { grid-template-columns: repeat(auto-fill, minmax(98px, 1fr)); gap: 10px; }
+.grid.view-small { --card-gap: 10px; grid-template-columns: repeat(auto-fill, minmax(98px, 1fr)); }
 .grid.view-small .card { padding: 8px; }
 .grid.view-small .card-spool { margin-bottom: 0; }
 .grid.view-small .card-text { display: none; }
@@ -729,7 +762,7 @@ select {
 .grid.view-large .card-title { font-size: 16.5px; }
 
 /* List: one row per spool, densest of the four. */
-.grid.view-list { grid-template-columns: 1fr; gap: 8px; }
+.grid.view-list { --card-gap: 8px; grid-template-columns: 1fr; }
 .grid.view-list .card {
   flex-direction: row;
   align-items: center;
@@ -1438,7 +1471,12 @@ input[type="range"] {
   .topbar { padding-inline: 24px; }
   .stats, .toolbar, .grid { padding-inline: 24px; }
   .stats { grid-template-columns: repeat(4, minmax(0, 210px)); }
-  .grid { grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); gap: 16px; }
+  /* Sets the variable rather than `gap` directly: .section-body reads it too,
+     and the two have to agree or cards inside a five-column section come out a
+     few pixels wider than cards inside a one-column section beside it. The
+     density rules below carry more specificity, so they're restated here. */
+  .grid, .grid.view-small, .grid.view-list { --card-gap: 16px; }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); }
   .search { flex: 1 1 260px; }
   .filters select { flex: 0 1 170px; }
   .fab { right: 32px; bottom: 32px; }
