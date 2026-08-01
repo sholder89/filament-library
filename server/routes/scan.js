@@ -39,6 +39,15 @@ router.post('/', async (req, res, next) => {
   const base64 = raw.replace(/^data:image\/[a-z+]+;base64,/i, '').trim();
   if (!base64) return res.status(400).json({ error: 'No image supplied.' });
 
+  /*
+   * Text already read from this box, sent back by the client. The whole lot is
+   * parsed together so a second photo of another face adds to the first rather
+   * than replacing it — the brand is often on the front and the specs on a
+   * panel round the side, and neither photo has all of it. Capped so a long
+   * session can't grow the parse input without bound.
+   */
+  const context = String(req.body?.context ?? '').slice(-20000);
+
   // base64 is 4 characters per 3 bytes.
   if (base64.length * 0.75 > MAX_BYTES) {
     return res.status(413).json({ error: 'That photo is too large to scan.' });
@@ -77,13 +86,15 @@ router.post('/', async (req, res, next) => {
     }
 
     const text = first.fullTextAnnotation?.text ?? '';
-    if (!text.trim()) {
+    if (!text.trim() && !context) {
       return res.json({ fields: {}, text: '', message: 'No text found in that photo.' });
     }
 
     // `text` goes back too so the UI can show what was read when the parse
     // comes up short — otherwise a miss is indistinguishable from a bad photo.
-    res.json({ fields: parseLabel(text), text });
+    // `fields` covers this photo and everything before it; `text` is only what
+    // this one added, so the client can tell whether the photo was any use.
+    res.json({ fields: parseLabel([context, text].filter(Boolean).join('\n')), text });
   } catch (err) {
     if (err.name === 'TimeoutError' || err.name === 'AbortError') {
       return res.status(504).json({ error: 'Vision took too long to respond.' });

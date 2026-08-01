@@ -50,7 +50,7 @@ db.exec('PRAGMA foreign_keys = ON');
  * Schema is versioned through PRAGMA user_version so upgrades are additive and
  * never lose a spool record. Bump SCHEMA_VERSION and add a migration below.
  */
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 function migrate() {
   const current = db.prepare('PRAGMA user_version').get().user_version;
@@ -100,6 +100,14 @@ function migrate() {
     db.exec(`ALTER TABLE filaments ADD COLUMN color_hex2 TEXT NOT NULL DEFAULT ''`);
     db.exec(`ALTER TABLE filaments ADD COLUMN color_hex3 TEXT NOT NULL DEFAULT ''`);
     db.exec(`PRAGMA user_version = 3`);
+  }
+
+  if (current < 4) {
+    // Whether the spool is physically in a printer or AMS right now. Separate
+    // from status: a loaded spool is still 'opened', it's just not on the shelf.
+    db.exec(`ALTER TABLE filaments ADD COLUMN loaded INTEGER NOT NULL DEFAULT 0`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_filaments_loaded ON filaments (loaded)`);
+    db.exec(`PRAGMA user_version = 4`);
   }
 }
 

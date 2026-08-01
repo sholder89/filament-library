@@ -20,6 +20,9 @@
   --opened:    #ffb020;
   --empty:     #7b8494;
   --danger:    #ff5d5d;
+  /* Loaded in a printer. Deliberately not the accent, which already means
+     "selected", nor a status colour — being in a printer is its own axis. */
+  --loaded:    #a970ff;
   --shadow:    0 10px 30px rgba(0, 0, 0, .45);
   --radius:    18px;
   --radius-sm: 12px;
@@ -56,6 +59,7 @@
   --opened:    #c9820a;
   --empty:     #8b94a3;
   --danger:    #d92d20;
+  --loaded:    #7c3aed;
   --shadow:    0 10px 30px rgba(16, 24, 40, .10);
 
   --spool-rim-hi: #c3cad6;
@@ -455,6 +459,38 @@ select {
 .card:active { transform: translateY(-1px) scale(.99); }
 .card.is-empty { opacity: .58; }
 
+/* Loaded in a printer. A ring rather than a plain border colour so it reads at
+   a glance in a grid of two hundred, without repainting the card and losing the
+   colour of the filament itself — which is the thing you're scanning for. */
+.card.is-loaded {
+  border-color: var(--loaded);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--loaded) 42%, transparent);
+}
+.card.is-loaded:hover {
+  border-color: var(--loaded);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--loaded) 55%, transparent), var(--shadow);
+}
+
+.loaded-flag {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  z-index: 3;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 680;
+  letter-spacing: .02em;
+  color: var(--accent-ink);
+  background: var(--loaded);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+/* Small cards have no room for words, and large/list ones put the spool in a
+   column of its own where a floating pill would sit over the artwork. */
+.grid.view-small .loaded-flag { font-size: 0; padding: 5px; }
+.grid.view-large .loaded-flag,
+.grid.view-list .loaded-flag { left: auto; right: 8px; top: 8px; }
+
 .card-spool { position: relative; width: 100%; aspect-ratio: 1; margin-bottom: 8px; }
 .card-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .card-brand { font-size: 12px; color: var(--muted); font-weight: 600; letter-spacing: .02em; }
@@ -672,6 +708,15 @@ select {
   cursor: pointer;
 }
 .section-head:hover { color: var(--accent); border-color: var(--accent); }
+
+/* The "in printer" section, tinted so it reads as pinned rather than as another
+   brand that happens to sort first. */
+.section.is-pinned .section-head {
+  color: var(--loaded);
+  border-color: color-mix(in srgb, var(--loaded) 45%, transparent);
+  background: color-mix(in srgb, var(--loaded) 12%, transparent);
+}
+.section.is-pinned .section-chevron { color: inherit; }
 
 /* Folded away, a group is a single tile with nothing under it — so the chip
    takes the whole tile rather than leaving the rest of the row's height empty
@@ -1194,6 +1239,14 @@ select {
 .btn.warn    { color: var(--opened); border-color: color-mix(in srgb, var(--opened) 45%, transparent); }
 .btn.danger  { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, transparent); }
 .btn.wide    { width: 100%; }
+/* Filled while the spool is in a printer, so the button shows the current state
+   as well as offering the change. */
+.btn.loaded-on {
+  background: var(--loaded);
+  border-color: var(--loaded);
+  color: var(--accent-ink);
+}
+.btn.loaded-on svg { color: var(--accent-ink); }
 
 /* ── Detail view ────────────────────────────────────────────────────────── */
 

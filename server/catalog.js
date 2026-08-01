@@ -6,48 +6,51 @@
  * these lists with the distinct values already present in your inventory).
  */
 
-export const BRANDS = [
-  'Sunlu',
-  'Bambu Lab',
-  'Creality',
-  '3D-Fuel',
-  'Overture',
-  'Hatchbox',
-  'eSun',
-  'Polymaker',
-  'Prusament',
-  'Elegoo',
-  'Anycubic',
-  'Inland',
-  'Jayo',
-  'Eryone',
-  'Duramic 3D',
-  'Amolen',
-  'Atomic Filament',
-  'MatterHackers',
-  'Protopasta',
-  'Fillamentum',
-  'ColorFabb',
-  '3DXTech',
-  'Kingroon',
-  'Voxelab',
-  'Geeetech',
-  'Tinmorry',
+import { GENERATED_BRANDS } from './catalog-generated.js';
+
+/**
+ * Brands the generated list doesn't carry. Anything added here should be a real
+ * manufacturer that filamentcolors.xyz hasn't catalogued yet.
+ */
+const EXTRA_BRANDS = [
+  'Fiberon',
   'Flashforge',
-  'AnkerMake',
-  'Priline',
   'GizmoDorks',
-  'Spectrum',
-  'Devil Design',
-  'Extrudr',
-  'FormFutura',
-  'NinjaTek',
-  'Filamentum',
-  'IIID Max',
-  'Numakers',
-  'Ziro',
-  'TTYT3D',
-  'Comgrow',
+  'Priline',
+];
+
+/**
+ * Names shown first in the picker. The rest are still there and still
+ * type-ahead, but three hundred alphabetised brands with Sunlu somewhere in the
+ * middle is not a list anyone wants to scroll on a phone.
+ *
+ * Brands you already own are promoted above even these — see /api/catalog.
+ */
+const POPULAR_BRANDS = [
+  'Bambu Lab', 'Sunlu', 'Creality', 'Elegoo', 'Overture', 'eSun', 'Polymaker',
+  'Prusament', 'Hatchbox', 'Anycubic', 'Inland', '3D-Fuel', 'Siraya Tech',
+  'Fiberon', 'Jayo', 'Eryone', 'Duramic 3D', 'Protopasta', 'Fillamentum',
+  'ColorFabb', 'MatterHackers', 'Atomic Filament',
+];
+
+const byName = (a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' });
+
+/** Case-insensitive dedupe that keeps the first spelling it saw. */
+function unique(names) {
+  const seen = new Map();
+  for (const name of names) {
+    const key = name.toLowerCase();
+    if (!seen.has(key)) seen.set(key, name);
+  }
+  return [...seen.values()];
+}
+
+const ALL_BRANDS = unique([...GENERATED_BRANDS, ...EXTRA_BRANDS]).sort(byName);
+const popular = new Set(POPULAR_BRANDS.map((b) => b.toLowerCase()));
+
+export const BRANDS = [
+  ...unique(POPULAR_BRANDS).filter((b) => ALL_BRANDS.some((a) => a.toLowerCase() === b.toLowerCase())),
+  ...ALL_BRANDS.filter((b) => !popular.has(b.toLowerCase())),
 ];
 
 /**
@@ -79,7 +82,28 @@ export const MATERIALS = [
   { name: 'PVA',        nozzle: 215, bed: 60,  family: 'Other', enclosure: false, dry: true  },
   { name: 'HIPS',       nozzle: 240, bed: 100, family: 'Other', enclosure: true,  dry: true  },
   { name: 'PP',         nozzle: 250, bed: 90,  family: 'Other', enclosure: true,  dry: true  },
+  { name: 'PP-CF',      nozzle: 255, bed: 90,  family: 'Other', enclosure: true,  dry: true  },
   { name: 'PEEK',       nozzle: 400, bed: 130, family: 'Other', enclosure: true,  dry: true  },
+
+  // High-flow grades, sold alongside the standard ones and printed hotter.
+  { name: 'PLA HF',     nozzle: 220, bed: 60,  family: 'PLA',   enclosure: false, dry: false },
+  { name: 'PETG HF',    nozzle: 245, bed: 80,  family: 'PETG',  enclosure: false, dry: true  },
+
+  // Foaming/lightweight grades. They expand as they print, so the temperature
+  // is what sets the density — these are mid-range starting points.
+  { name: 'PLA Aero',   nozzle: 230, bed: 60,  family: 'PLA',   enclosure: false, dry: true  },
+  { name: 'TPU Air',    nozzle: 235, bed: 45,  family: 'TPU',   enclosure: false, dry: true  },
+
+  { name: 'TPU 98A',    nozzle: 230, bed: 45,  family: 'TPU',   enclosure: false, dry: true  },
+  { name: 'ASA-CF',     nozzle: 260, bed: 100, family: 'ABS',   enclosure: true,  dry: true  },
+  { name: 'PET',        nozzle: 250, bed: 80,  family: 'PETG',  enclosure: false, dry: true  },
+  { name: 'PVB',        nozzle: 215, bed: 70,  family: 'Other', enclosure: false, dry: true  },
+
+  // Engineering grades. All want a hot chamber and a very dry spool.
+  { name: 'PA6-CF',     nozzle: 275, bed: 80,  family: 'Nylon', enclosure: true,  dry: true  },
+  { name: 'PA12-CF',    nozzle: 265, bed: 80,  family: 'Nylon', enclosure: true,  dry: true  },
+  { name: 'PPA-CF',     nozzle: 300, bed: 100, family: 'Other', enclosure: true,  dry: true  },
+  { name: 'PPS-CF',     nozzle: 320, bed: 120, family: 'Other', enclosure: true,  dry: true  },
 ];
 
 /**

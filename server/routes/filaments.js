@@ -14,6 +14,13 @@ const SORTS = {
   opened:   'opened_at DESC',
 };
 
+/**
+ * What's in a printer right now comes first under every sort. It's the handful
+ * of spools you're most likely to be looking for, and it saves hunting for them
+ * among a couple of hundred on the shelf.
+ */
+const LOADED_FIRST = 'loaded DESC';
+
 class BadRequest extends Error {
   constructor(message) {
     super(message);
@@ -78,6 +85,9 @@ function readBody(body, { partial = false } = {}) {
   if (has('opened_at'))     out.opened_at    = isoDate(body.opened_at);
   if (has('finished_at'))   out.finished_at  = isoDate(body.finished_at);
 
+  // node:sqlite won't bind a boolean, so this lands as 0 or 1.
+  if (want('loaded')) out.loaded = truthy(body.loaded) ? 1 : 0;
+
   if (want('status')) {
     out.status = str(body.status) || 'new';
     if (!STATUSES.includes(out.status)) {
@@ -87,6 +97,9 @@ function readBody(body, { partial = false } = {}) {
 
   return out;
 }
+
+/** Accepts what JSON, a form and a query string each call true. */
+const truthy = (v) => v === true || v === 1 || /^(1|true|yes|on)$/i.test(str(v));
 
 /**
  * Keeps the lifecycle timestamps honest no matter which route did the writing:
@@ -103,6 +116,8 @@ function reconcileLifecycle(row) {
     if (!row.opened_at) row.opened_at = now;
     if (!row.finished_at) row.finished_at = now;
     row.remaining_pct = 0;
+    // Whatever ran out has been taken out of the printer by definition.
+    row.loaded = 0;
   } else if (row.status === 'new') {
     row.opened_at = null;
     row.finished_at = null;
@@ -113,9 +128,9 @@ function reconcileLifecycle(row) {
 
 const COLUMNS = [
   'brand', 'material', 'color_name', 'color_hex', 'color_hex2', 'color_hex3',
-  'finish', 'diameter', 'spool_weight_g', 'remaining_pct', 'status', 'location',
-  'notes', 'price', 'nozzle_temp', 'bed_temp', 'purchased_at', 'opened_at',
-  'finished_at',
+  'finish', 'diameter', 'spool_weight_g', 'remaining_pct', 'status', 'loaded',
+  'location', 'notes', 'price', 'nozzle_temp', 'bed_temp', 'purchased_at',
+  'opened_at', 'finished_at',
 ];
 
 const getStmt = db.prepare('SELECT * FROM filaments WHERE id = ?');
@@ -154,7 +169,7 @@ router.get('/', (req, res) => {
   }
 
   const order = SORTS[str(req.query.sort)] || SORTS.newest;
-  const sql = `SELECT * FROM filaments${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY ${order}`;
+  const sql = `SELECT * FROM filaments${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY ${LOADED_FIRST}, ${order}`;
 
   res.json(db.prepare(sql).all(...params));
 });
@@ -198,8 +213,8 @@ router.post('/', (req, res) => {
   const row = reconcileLifecycle({
     color_name: '', color_hex: '#808080', color_hex2: '', color_hex3: '',
     finish: '', diameter: 1.75,
-    spool_weight_g: 1000, remaining_pct: 100, status: 'new', location: '',
-    notes: '', price: null, nozzle_temp: null, bed_temp: null,
+    spool_weight_g: 1000, remaining_pct: 100, status: 'new', loaded: 0,
+    location: '', notes: '', price: null, nozzle_temp: null, bed_temp: null,
     purchased_at: null, opened_at: null, finished_at: null,
     ...fields,
   });
@@ -277,6 +292,8 @@ router.post('/:id/duplicate', (req, res) => {
     ...source,
     status: 'new',
     remaining_pct: 100,
+    // Only one physical spool is in the printer, and it isn't this new one.
+    loaded: 0,
     opened_at: null,
     finished_at: null,
     purchased_at: null,
@@ -317,6 +334,103 @@ router.post('/:id/open',    (req, res) => transition(req.params.id, 'opened', re
 router.post('/:id/empty',   (req, res) => transition(req.params.id, 'empty', res));
 router.post('/:id/restore', (req, res) => transition(req.params.id, 'opened', res));
 router.post('/:id/unopen',  (req, res) => transition(req.params.id, 'new', res));
+
+// ── Import ───────────────────────────────────────────────────────────────────
+
+/**
+ * Restores a file produced by /api/export.
+ *
+ * Defaults to merging: a spool whose id is already here is skipped rather than
+ * overwritten, so importing the same backup twice is harmless and importing an
+ * older one can't quietly revert edits you made since. `mode: 'replace'` empties
+ * the library first, for restoring onto a clean install, and `mode: 'overwrite'`
+ * takes the file's version of anything that clashes.
+ *
+ * Rows go through the same validation as a normal create, so a hand-edited file
+ * can't put anything in the table that the API wouldn't accept. Ids are kept
+ * when they're well-formed, which is what makes the merge idempotent and keeps
+ * printed QR labels pointing at the right spool.
+ */
+const ID_RE = /^[0-9A-HJKMNP-TV-Z]{8}$/;
+
+export function importHandler(req, res, next) {
+  try {
+    const body = req.body ?? {};
+    const rows = Array.isArray(body) ? body : body.filaments;
+    if (!Array.isArray(rows)) {
+      throw new BadRequest('That file has no "filaments" list — pick a file exported from this app.');
+    }
+    if (rows.length > 20000) throw new BadRequest('That file has too many spools to import at once.');
+
+    const mode = str(body.mode) || 'merge';
+    if (!['merge', 'overwrite', 'replace'].includes(mode)) {
+      throw new BadRequest('Import mode must be merge, overwrite or replace.');
+    }
+
+    const insert = db.prepare(`
+      INSERT INTO filaments (id, ${COLUMNS.join(', ')}, created_at, updated_at)
+      VALUES (?, ${COLUMNS.map(() => '?').join(', ')}, ?, ?)
+    `);
+    const update = db.prepare(`
+      UPDATE filaments SET ${COLUMNS.map((c) => `${c} = ?`).join(', ')}, updated_at = ?
+      WHERE id = ?
+    `);
+
+    const result = { imported: 0, updated: 0, skipped: 0, failed: 0, errors: [] };
+
+    // One transaction: a file that goes bad halfway through leaves no trace,
+    // which matters most for 'replace' — it has already cleared the table.
+    db.exec('BEGIN');
+    try {
+      if (mode === 'replace') db.exec('DELETE FROM filaments');
+
+      for (const [i, raw] of rows.entries()) {
+        try {
+          const fields = readBody(raw ?? {});
+          const row = reconcileLifecycle({
+            color_name: '', color_hex: '#808080', color_hex2: '', color_hex3: '',
+            finish: '', diameter: 1.75, spool_weight_g: 1000, remaining_pct: 100,
+            status: 'new', loaded: 0, location: '', notes: '', price: null,
+            nozzle_temp: null, bed_temp: null, purchased_at: null,
+            opened_at: null, finished_at: null,
+            ...fields,
+          });
+
+          const id = ID_RE.test(str(raw.id)) ? str(raw.id) : newId();
+          const existing = getFilament(id);
+
+          if (existing && mode === 'merge') { result.skipped += 1; continue; }
+
+          // Keep the original timestamps where the file has usable ones — an
+          // import shouldn't make a two-year-old spool look like it arrived
+          // today, since that's what the default sort reads.
+          const created = isoDate(raw.created_at) ?? nowISO();
+          const updated = isoDate(raw.updated_at) ?? created;
+
+          if (existing) {
+            update.run(...COLUMNS.map((c) => row[c]), updated, id);
+            result.updated += 1;
+          } else {
+            insert.run(id, ...COLUMNS.map((c) => row[c]), created, updated);
+            result.imported += 1;
+          }
+        } catch (err) {
+          result.failed += 1;
+          // Enough to find the bad row without returning the whole file back.
+          if (result.errors.length < 10) result.errors.push(`Row ${i + 1}: ${err.message}`);
+        }
+      }
+      db.exec('COMMIT');
+    } catch (err) {
+      db.exec('ROLLBACK');
+      throw err;
+    }
+
+    res.json({ ...result, mode, total: rows.length });
+  } catch (err) {
+    next(err);
+  }
+}
 
 // ── Delete ───────────────────────────────────────────────────────────────────
 

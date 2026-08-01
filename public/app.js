@@ -684,9 +684,21 @@ const SECTIONS = {
   color:    { label: (f) => f.color_name?.trim() || 'Not set', swatch: true },
 };
 
+/**
+ * Grouping by brand would bury the spool that's in the printer somewhere down
+ * in the Bs, which is the opposite of the point of flagging it — so under a
+ * grouped sort the loaded ones are lifted into a section of their own at the
+ * top. They're taken out of their usual group rather than shown twice, so the
+ * counts still add up to what you own.
+ */
+const LOADED_SECTION = 'In printer';
+
 function sectionsOf(filaments, spec) {
+  const loaded = filaments.filter((f) => f.loaded);
   const byLabel = new Map();
+
   for (const f of filaments) {
+    if (f.loaded) continue;
     const label = spec.label(f);
     if (!byLabel.has(label)) byLabel.set(label, { label, items: [], hex: f.color_hex });
     byLabel.get(label).items.push(f);
@@ -695,11 +707,14 @@ function sectionsOf(filaments, spec) {
   // Sorted rather than left in encounter order: variants of one base type can
   // arrive far apart (PA-CF sorts nowhere near "Nylon (PA)") and merge into a
   // heading that would otherwise sit in a surprising place.
-  return [...byLabel.values()].sort((a, b) => {
+  const sections = [...byLabel.values()].sort((a, b) => {
     if (a.label === 'Not set') return 1;
     if (b.label === 'Not set') return -1;
     return a.label.localeCompare(b.label);
   });
+
+  if (loaded.length) sections.unshift({ label: LOADED_SECTION, items: loaded, pinned: true });
+  return sections;
 }
 
 /**
@@ -771,7 +786,9 @@ function slotsFor(section) {
 }
 
 function runHTML(section, spec, slots, { span, collapsed, continued, id }) {
-  const swatch = spec.swatch
+  // No swatch on the pinned section — it holds whatever colours happen to be
+  // in the printer, so any one of them would misrepresent it.
+  const swatch = spec.swatch && !section.pinned
     ? `<span class="section-swatch" style="background:${
         isRainbow(section.label) ? RAINBOW_CSS : esc(section.hex || '#808080')}"></span>`
     : '';
@@ -781,7 +798,7 @@ function runHTML(section, spec, slots, { span, collapsed, continued, id }) {
   // group's label, which guarantees it's a valid ident and unique — a clash
   // makes the browser drop the whole transition.
   return `
-    <section class="section${collapsed ? ' is-collapsed' : ''}"
+    <section class="section${collapsed ? ' is-collapsed' : ''}${section.pinned ? ' is-pinned' : ''}"
              style="--span:${span}; view-transition-name: run-${id}">
       <button class="section-head" data-section="${esc(section.label)}"
               aria-expanded="${!collapsed}" title="${esc(section.label)}">
@@ -839,7 +856,10 @@ function groupFilaments(filaments) {
     // a NUL separator gets rewritten to U+FFFD and would never match again.
     // Percent-encoding keeps it ASCII and makes "|" safe as a separator, since
     // encodeURIComponent escapes any "|" inside the values themselves.
-    const key = [f.brand, f.material, f.color_name, f.color_hex, f.status, f.spool_weight_g]
+    // `loaded` is part of the key because a spool in a printer is not
+    // interchangeable with one on the shelf — hiding it inside a stack would
+    // defeat the point of flagging it.
+    const key = [f.brand, f.material, f.color_name, f.color_hex, f.status, f.loaded, f.spool_weight_g]
       .map((v) => encodeURIComponent(String(v ?? '').toLowerCase())).join('|');
     if (!groups.has(key)) groups.set(key, { key, items: [] });
     groups.get(key).items.push(f);
@@ -858,7 +878,8 @@ function cardHTML(f) {
   const sub = [f.brand, f.color_name].filter(Boolean).join(' · ');
 
   return `
-  <button class="card ${f.status === 'empty' ? 'is-empty' : ''}" data-id="${esc(f.id)}">
+  <button class="card ${f.status === 'empty' ? 'is-empty' : ''}${f.loaded ? ' is-loaded' : ''}" data-id="${esc(f.id)}">
+    ${f.loaded ? '<span class="loaded-flag" title="Loaded in a printer">In printer</span>' : ''}
     <span class="badge ${esc(f.status)}">${esc(STATUS_LABEL[f.status])}</span>
     <div class="card-spool">
       ${spoolSVG(f)}
@@ -1045,6 +1066,10 @@ async function showDetail(id, push = false) {
     </div>
 
     <div class="action-grid">
+      ${f.status !== 'empty' ? `
+      <button class="btn span2 ${f.loaded ? 'loaded-on' : ''}" data-act="loaded">
+        <svg viewBox="0 0 24 24"><path d="M12 3v9m0 0 3.5-3.5M12 12 8.5 8.5M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        ${f.loaded ? 'Loaded in a printer — take it out' : 'Mark as loaded in a printer'}</button>` : ''}
       ${statusAction}
       <button class="btn" data-act="edit">
         <svg viewBox="0 0 24 24"><path d="M4 20h4L20 8l-4-4L4 16z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
@@ -1166,6 +1191,23 @@ el.detail.addEventListener('click', async (e) => {
     } catch (err) {
       toast(err.message, true);
     } finally {
+      btn.disabled = false;
+    }
+    return;
+  }
+
+  if (act === 'loaded') {
+    btn.disabled = true;
+    const now = !state.currentFilament?.loaded;
+    try {
+      await api(`/api/filaments/${encodeURIComponent(id)}`, {
+        method: 'PATCH', body: { loaded: now ? 1 : 0 },
+      });
+      await refresh();
+      await showDetail(id);
+      toast(now ? 'Marked as loaded in a printer' : 'Taken out of the printer');
+    } catch (err) {
+      toast(err.message, true);
       btn.disabled = false;
     }
     return;
@@ -1363,6 +1405,7 @@ function openEditor(filament = null) {
   syncSaveButton();
 
   form.reset();
+  scanContext = '';
   const f = filament ?? {};
   refreshBrandPicker(f.brand ?? '');
   refreshMaterialPicker(f.material ?? '');
@@ -1375,6 +1418,9 @@ function openEditor(filament = null) {
   syncExtraColors();
   setField('color_name', f.color_name);
   setField('color_hex', f.color_hex || '#808080');
+  // An existing spool's colour was already chosen deliberately, so editing its
+  // name shouldn't repaint it. A new one starts free to follow what's typed.
+  colorPinned = Boolean(f.color_hex);
   setField('status', f.status || 'new');
   setField('spool_weight_g', f.spool_weight_g ?? 1000);
   // How much is left is adjusted on the spool's own page, not here — but the
@@ -1439,12 +1485,11 @@ let editorRemaining = 100;
 /**
  * The slider is only offered while adding — an existing spool's level is
  * adjusted on its own page, and having it in two places invites them to
- * disagree.
+ * disagree. A used-up spool has nothing left to set.
  */
 function syncEditorRemaining() {
   const adding = !state.editingId;
-  const opened = form.elements.status.value === 'opened';
-  $('#remainingField').hidden = !(adding && opened);
+  $('#remainingField').hidden = !adding || form.elements.status.value === 'empty';
 
   form.elements.remaining_pct.value = editorRemaining;
   $('#remainingOut').textContent = `${editorRemaining}%`;
@@ -1453,18 +1498,29 @@ function syncEditorRemaining() {
   }
 }
 
-form.elements.remaining_pct.addEventListener('input', (e) => {
-  editorRemaining = Number(e.target.value);
+/**
+ * Saying a spool is part used says it has been opened, so the condition follows
+ * along rather than making you set the same fact twice — and a sealed spool
+ * recorded as 60% full would be nonsense anyway.
+ *
+ * Only ever promotes. Sliding back to full leaves it opened, because a spool
+ * you opened and didn't print with is a real thing, and silently re-sealing it
+ * would undo a deliberate choice.
+ */
+function setEditorRemaining(pct) {
+  editorRemaining = pct;
+  if (pct < 100 && form.elements.status.value === 'new') {
+    form.elements.status.value = 'opened';
+  }
   syncEditorRemaining();
   syncPreview();
-});
+}
+
+form.elements.remaining_pct.addEventListener('input', (e) => setEditorRemaining(Number(e.target.value)));
 
 $('#editorRemainingQuick').addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-pct]');
-  if (!btn) return;
-  editorRemaining = Number(btn.dataset.pct);
-  syncEditorRemaining();
-  syncPreview();
+  if (btn) setEditorRemaining(Number(btn.dataset.pct));
 });
 
 function renderSwatches() {
@@ -1480,6 +1536,17 @@ function renderSwatches() {
   syncColorText();
 }
 
+/**
+ * Whether the colour was chosen outright — a swatch, a hex, or a scan — rather
+ * than inferred from the name that was typed.
+ *
+ * Once it has been, typing over the name leaves it alone: naming a spool
+ * "Midnight Blue Sparkle" after picking the exact purple off the label should
+ * not drag it back to blue. Until then the name still drives the colour, which
+ * is what makes typing "Red" fill the swatch in for you.
+ */
+let colorPinned = false;
+
 $('#swatches').addEventListener('click', (e) => {
   const sw = e.target.closest('.swatch');
   if (!sw) return;
@@ -1487,6 +1554,7 @@ $('#swatches').addEventListener('click', (e) => {
   // Always renames. Leaving the old name behind after picking a new swatch was
   // the bug — you'd end up with a spool labelled Red that renders blue.
   form.elements.color_name.value = sw.dataset.name;
+  colorPinned = true;
   syncColorText();
   syncPreview();
 });
@@ -1528,7 +1596,12 @@ function hexForColorName(input) {
 
 /** Typing a recognised color name repaints the swatch as you go. */
 form.elements.color_name.addEventListener('input', () => {
-  const hex = hexForColorName(form.elements.color_name.value);
+  const typed = form.elements.color_name.value;
+
+  // Clearing the field is the way back to letting the name drive the colour.
+  if (!typed.trim()) colorPinned = false;
+
+  const hex = colorPinned ? null : hexForColorName(typed);
   if (hex) {
     form.elements.color_hex.value = hex;
     syncColorText();
@@ -1541,12 +1614,17 @@ $('#f_color_hex_text').addEventListener('input', (e) => {
   if (!v.startsWith('#')) v = `#${v}`;
   if (/^#[0-9a-fA-F]{6}$/.test(v)) {
     form.elements.color_hex.value = v;
+    colorPinned = true;
     syncPreview();
     syncColorText();
   }
 });
 
-form.elements.color_hex.addEventListener('input', () => { syncColorText(); syncPreview(); });
+form.elements.color_hex.addEventListener('input', () => {
+  colorPinned = true;
+  syncColorText();
+  syncPreview();
+});
 form.elements.status.addEventListener('change', () => {
   // A sealed spool is full and a used-up one is empty, by definition.
   const status = form.elements.status.value;
@@ -1947,27 +2025,62 @@ async function openLabelScanner() {
 }
 
 /**
+ * Everything read from this box so far. A box rarely has all of it on one face,
+ * so each photo's text is kept and sent back with the next one — the server
+ * parses the accumulated lot, which is what lets a shot of the brand and a shot
+ * of the spec panel add up to a filled-in form.
+ *
+ * Reset whenever the editor opens, so the next spool starts clean.
+ */
+let scanContext = '';
+
+/**
  * Writes whatever came back onto the form.
  *
- * Only fields the label actually yielded are touched — a scan that finds no
- * brand leaves the brand alone rather than clearing it, so scanning twice or
- * scanning after typing never loses work.
+ * Only blanks are filled. A later photo can complete what an earlier one
+ * missed, but nothing already on the form is overwritten — not by a second
+ * scan, and not over something typed by hand.
  */
 function applyScannedFields(fields) {
-  const applied = [];
+  const added = [];
+  const known = [];
 
-  if (fields.brand) { refreshBrandPicker(fields.brand); applied.push('brand'); }
-  if (fields.material) { refreshMaterialPicker(fields.material); applied.push('type'); }
-  if (fields.color_name) { setField('color_name', fields.color_name); applied.push('color'); }
-  if (fields.color_hex) setField('color_hex', fields.color_hex);
+  /*
+   * Taken before anything is written, for two reasons. Filling in the material
+   * pre-fills the catalog's typical temperatures, and those must not count as
+   * "already answered" and beat the ones actually printed on the label. And a
+   * field still holding the value the form ships with — 1.75 mm, 1000 g —
+   * hasn't been answered either, so the label is free to set it.
+   */
+  const untouched = {};
+  for (const name of ['brand', 'material', 'color_name', 'finish',
+                      'diameter', 'spool_weight_g', 'nozzle_temp', 'bed_temp']) {
+    const input = form.elements[name];
+    const value = String(input?.value ?? '').trim();
+    untouched[name] = !value || value === String(input?.defaultValue ?? '').trim();
+  }
 
-  if (fields.finish) {
+  const fill = (name, label, apply) => {
+    if (fields[name] == null || fields[name] === '') return;
+    if (untouched[name]) { apply(); added.push(label); } else known.push(label);
+  };
+
+  fill('brand', 'brand', () => refreshBrandPicker(fields.brand));
+  fill('material', 'type', () => refreshMaterialPicker(fields.material));
+  fill('color_name', 'color', () => {
+    setField('color_name', fields.color_name);
+    if (fields.color_hex) {
+      setField('color_hex', fields.color_hex);
+      // Read off the label, so typing a nicer name for it shouldn't repaint it.
+      colorPinned = true;
+    }
+  });
+  fill('finish', 'finish', () => {
     fillFinishSelect();
     setField('finish', fields.finish);
     syncFinishHint();
     syncExtraColors();
-    applied.push('finish');
-  }
+  });
 
   for (const [field, label] of [
     ['diameter', 'diameter'],
@@ -1975,12 +2088,12 @@ function applyScannedFields(fields) {
     ['nozzle_temp', 'nozzle temp'],
     ['bed_temp', 'bed temp'],
   ]) {
-    if (fields[field] != null) { setField(field, fields[field]); applied.push(label); }
+    fill(field, label, () => setField(field, fields[field]));
   }
 
   syncColorText();
   syncPreview();
-  return applied;
+  return { added, known };
 }
 
 $('#labelCaptureBtn').addEventListener('click', async () => {
@@ -1995,21 +2108,42 @@ $('#labelCaptureBtn').addEventListener('click', async () => {
   $('#labelStatus').textContent = 'Reading…';
 
   try {
-    const result = await api('/api/scan', { method: 'POST', body: { image } });
-    const applied = applyScannedFields(result.fields ?? {});
+    const result = await api('/api/scan', {
+      method: 'POST', body: { image, context: scanContext },
+    });
+    // Kept whether or not this photo added anything on its own: a line it read
+    // may only become meaningful next to one from the next photo.
+    if (result.text) scanContext = `${scanContext}\n${result.text}`.trim();
 
-    if (!applied.length) {
-      // Distinguishes "the photo was unreadable" from "the text was read but
-      // matched nothing we know" — they need different fixes from the user.
-      $('#labelStatus').textContent = result.text
-        ? "Read the label, but couldn't match anything on it. Try the printed spec panel."
-        : 'No text found. Try getting closer, or improve the lighting.';
+    const { added, known } = applyScannedFields(result.fields ?? {});
+
+    if (!added.length) {
+      // Three different dead ends, each needing something different from you.
+      $('#labelStatus').textContent = known.length
+        ? `Nothing new — this shot only repeats the ${known.join(', ')} you already have. Try another face of the box.`
+        : result.text
+          ? "Read the label, but couldn't match anything on it. Try the printed spec panel."
+          : 'No text found. Try getting closer, or improve the lighting.';
+      btn.disabled = false;
+      return;
+    }
+
+    // Left open when there's still an obvious gap, since the next photo is
+    // usually of another face of the same box.
+    const missing = ['brand', 'material', 'color_name']
+      .filter((name) => !String(form.elements[name]?.value ?? '').trim());
+
+    if (missing.length) {
+      $('#labelStatus').textContent =
+        `Got ${added.join(', ')}. Still missing ${missing.length === 3 ? 'everything' : missing
+          .map((m) => ({ brand: 'the brand', material: 'the type', color_name: 'the color' })[m])
+          .join(' and ')} — photograph another side.`;
       btn.disabled = false;
       return;
     }
 
     closeSheet(el.labelScanner);
-    toast(`Filled in ${applied.join(', ')}`);
+    toast(`Filled in ${added.join(', ')}`);
   } catch (err) {
     $('#labelError').textContent = err.message;
     $('#labelError').hidden = false;
@@ -2040,6 +2174,55 @@ applyTheme(
 );
 $('#themeBtn').addEventListener('click', () => {
   applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+});
+
+// ── Import ───────────────────────────────────────────────────────────────────
+
+$('#importBtn').addEventListener('click', () => $('#importFile').click());
+
+$('#importFile').addEventListener('change', async (e) => {
+  const file = e.target.files?.[0];
+  // Cleared straight away so picking the same file twice still fires a change.
+  e.target.value = '';
+  if (!file) return;
+
+  let payload;
+  try {
+    payload = JSON.parse(await file.text());
+  } catch {
+    toast(`${file.name} isn't valid JSON`, true);
+    return;
+  }
+
+  const rows = Array.isArray(payload) ? payload : payload?.filaments;
+  if (!Array.isArray(rows) || !rows.length) {
+    toast('That file has no spools in it', true);
+    return;
+  }
+
+  // Merging is the default and the safe one, so the prompt asks only about the
+  // destructive alternative rather than presenting them as equals.
+  const replace = confirm(
+    `Import ${rows.length} spool${rows.length === 1 ? '' : 's'} from ${file.name}?\n\n` +
+    'OK — add anything not already in the library, leaving what\'s here untouched.\n' +
+    'Cancel — stop, change nothing.',
+  );
+  if (!replace) return;
+
+  try {
+    const r = await api('/api/import', { method: 'POST', body: { filaments: rows, mode: 'merge' } });
+    await refresh();
+
+    const parts = [];
+    if (r.imported) parts.push(`added ${r.imported}`);
+    if (r.skipped) parts.push(`${r.skipped} already here`);
+    if (r.failed) parts.push(`${r.failed} couldn't be read`);
+    toast(parts.length ? `Import done — ${parts.join(', ')}` : 'Nothing to import', Boolean(r.failed));
+
+    if (r.errors?.length) console.warn('Import problems:\n' + r.errors.join('\n'));
+  } catch (err) {
+    toast(err.message, true);
+  }
 });
 
 // ── Routing ──────────────────────────────────────────────────────────────────

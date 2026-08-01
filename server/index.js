@@ -2,7 +2,7 @@ import express from 'express';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { db } from './db.js';
-import { router as filamentsRouter } from './routes/filaments.js';
+import { router as filamentsRouter, importHandler } from './routes/filaments.js';
 import { router as catalogRouter } from './routes/catalog.js';
 import { router as printRouter, printMode } from './routes/print.js';
 import { router as scanRouter, scanEnabled } from './routes/scan.js';
@@ -73,6 +73,13 @@ app.get('/api/export', (_req, res) => {
     filaments: db.prepare('SELECT * FROM filaments ORDER BY created_at').all(),
   });
 });
+
+/*
+ * Restores an export. Bigger than the general limit because a large library is
+ * a few hundred kilobytes of JSON, and being unable to read back a file this
+ * app itself wrote would be a poor kind of backup.
+ */
+app.post('/api/import', express.json({ limit: '8mb' }), importHandler);
 
 app.use(express.static(PUBLIC_DIR, {
   // index.html must revalidate or a stale shell can outlive a deploy.

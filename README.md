@@ -47,12 +47,21 @@ through — used-up spools stay in the library as a record instead of vanishing.
   pick a swatch and the name follows.
 - **Buy another?** — *Add another sealed one* on a spool's page copies its specs
   into a fresh, unopened record.
-- **Pre-filled catalog** — pick from 40 brands (Sunlu, Bambu Lab, Creality,
-  Overture, Prusament…) and 24 material types grouped by family (PLA, PETG, ABS,
-  TPU, Nylon…), or choose *Something else* to type your own. Brands and types
-  you've already used float to the top of the list next time. Picking a type
-  fills in its typical nozzle and bed temperatures and flags whether it wants an
+- **Pre-filled catalog** — pick from 327 brands and 37 material types grouped by
+  family (PLA, PETG, ABS, TPU, Nylon…), or choose *Something else* to type your
+  own. The common brands are listed first and the rest follow alphabetically;
+  brands and types you've already used float above both. Picking a type fills in
+  its typical nozzle and bed temperatures and flags whether it wants an
   enclosure or drying.
+
+  The brand list is generated from the [filamentcolors.xyz](https://filamentcolors.xyz)
+  public API by `tools/fetch-catalog.mjs` and committed, so nothing at runtime
+  depends on their site. Re-run it to refresh. Material types stay
+  hand-maintained, because their API's type list is per-product marketing names
+  rather than material classes.
+- **In the printer** — mark a spool as loaded in a printer or AMS from its page.
+  Loaded spools get a coloured ring and sort to the top of every list, with a
+  section of their own under the grouped sorts.
 - **Add a batch at once** — bought five of the same spool? Set the quantity and
   each one gets its own record, so you can open and use them up individually.
 - **Scan the label** — photograph a spool label and the brand, type, color,
@@ -202,6 +211,22 @@ curl -o backup.json http://<server-ip>:8088/api/export
 
 It includes used-up spools, which the default view hides.
 
+To read one back, use the ⬆ icon beside it and pick the file. Importing
+**merges**: a spool already in the library is left alone, so running the same
+backup twice changes nothing and an older backup can't revert edits you've made
+since. Ids are preserved, which is what keeps printed QR labels pointing at the
+right spool.
+
+```bash
+curl -X POST -H 'Content-Type: application/json' \
+     -d @backup.json http://<server-ip>:8088/api/import
+```
+
+Add `"mode": "overwrite"` to take the file's version of anything that clashes,
+or `"mode": "replace"` to clear the library first — for restoring onto a fresh
+install. Rows are validated exactly as the normal create route validates them,
+and the whole import runs in one transaction, so a bad file leaves no trace.
+
 ---
 
 ## API
@@ -222,9 +247,15 @@ It includes used-up spools, which the default view hides.
 | `POST` | `/api/print/:id` | Print a QR label |
 | `GET` | `/api/print/qr/:id.svg` | QR code as SVG |
 | `GET` | `/api/export` | Full JSON dump |
+| `POST` | `/api/import` | Restore a dump. `mode`: `merge` (default), `overwrite`, `replace` |
 
 Status transitions keep their own timestamps straight: editing a note never
 rewrites the date you opened a spool.
+
+`loaded` marks a spool as being in a printer or AMS right now. It's separate
+from `status` — a loaded spool is still `opened`, it just isn't on the shelf —
+and it sorts to the top of every list, with its own section under the grouped
+sorts. Running a spool out clears it, and duplicating one never copies it.
 
 ---
 
@@ -406,8 +437,15 @@ the source of.
 
 **What it reads.** Brand, type, color, finish, diameter, spool weight and print
 temperature, each independently — a label with no brand still yields its type.
-Anything it isn't sure about is left blank rather than guessed, and a scan never
-overwrites a field it didn't find, so scanning after typing can't lose work.
+Anything it isn't sure about is left blank rather than guessed.
+
+**Scan more than once.** Boxes rarely put everything on one face: the brand is
+on the front, the specs on a panel round the side. Each photo's text is kept and
+sent back with the next one, so they're read together — photograph the front,
+then the side, and the second shot fills in what the first missed. Only blanks
+are ever filled, so nothing you scanned or typed earlier gets overwritten. The
+scanner stays open while the brand, type or color is still missing, and tells you
+which of them to go looking for.
 
 `server/label-parse.js` does the interpreting and is tested separately against
 text transcribed from real labels:
