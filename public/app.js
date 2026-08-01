@@ -721,34 +721,34 @@ function flowSections(sections, spec, cols) {
   let free = cols;
   let html = '';
 
-  for (const section of sections) {
+  sections.forEach((section, g) => {
     const collapsed = state.collapsedSections.has(section.label);
     if (free === 0) free = cols;
 
     // Folded away, a group is one tile wide however much it holds.
     if (collapsed) {
-      html += runHTML(section, spec, [], { span: 1, collapsed, continued: false });
+      html += runHTML(section, spec, [], { span: 1, collapsed, continued: false, id: `${g}-0` });
       free -= 1;
-      continue;
+      return;
     }
 
     const slots = slotsFor(section);
     if (stacked) {
-      html += runHTML(section, spec, slots, { span: 1, collapsed, continued: false });
+      html += runHTML(section, spec, slots, { span: 1, collapsed, continued: false, id: `${g}-0` });
       free = 0;
-      continue;
+      return;
     }
 
-    for (let i = 0; i < slots.length;) {
+    for (let i = 0, run = 0; i < slots.length; run += 1) {
       if (free === 0) free = cols;
       const take = Math.min(free, slots.length - i);
       html += runHTML(section, spec, slots.slice(i, i + take), {
-        span: take, collapsed, continued: i > 0,
+        span: take, collapsed, continued: i > 0, id: `${g}-${run}`,
       });
       i += take;
       free -= take;
     }
-  }
+  });
   return html;
 }
 
@@ -770,14 +770,19 @@ function slotsFor(section) {
   return out;
 }
 
-function runHTML(section, spec, slots, { span, collapsed, continued }) {
+function runHTML(section, spec, slots, { span, collapsed, continued, id }) {
   const swatch = spec.swatch
     ? `<span class="section-swatch" style="background:${
         isRainbow(section.label) ? RAINBOW_CSS : esc(section.hex || '#808080')}"></span>`
     : '';
 
+  // Naming each run lets a view transition slide it to its new place instead of
+  // dissolving it there. The name is positional rather than built from the
+  // group's label, which guarantees it's a valid ident and unique — a clash
+  // makes the browser drop the whole transition.
   return `
-    <section class="section${collapsed ? ' is-collapsed' : ''}" style="--span:${span}">
+    <section class="section${collapsed ? ' is-collapsed' : ''}"
+             style="--span:${span}; view-transition-name: run-${id}">
       <button class="section-head" data-section="${esc(section.label)}"
               aria-expanded="${!collapsed}" title="${esc(section.label)}">
         <svg class="section-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -900,20 +905,34 @@ function renderGroup(group) {
     </div>`;
 }
 
+/**
+ * Folding a group away re-flows every group after it, so there's no one element
+ * to animate — the whole grid is what changes. A view transition handles that:
+ * it snapshots the grid as it stands, lets the re-render happen, and eases
+ * between the two. Where it isn't supported the render just lands, as before.
+ */
+function renderGridSmooth() {
+  if (!document.startViewTransition || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    renderGrid();
+    return;
+  }
+  document.startViewTransition(() => renderGrid());
+}
+
 el.grid.addEventListener('click', (e) => {
   const section = e.target.closest('[data-section]');
   if (section) {
     const label = section.dataset.section;
     if (state.collapsedSections.has(label)) state.collapsedSections.delete(label);
     else state.collapsedSections.add(label);
-    renderGrid();
+    renderGridSmooth();
     return;
   }
 
   const collapse = e.target.closest('[data-collapse]');
   if (collapse) {
     state.expandedGroups.delete(collapse.dataset.collapse);
-    renderGrid();
+    renderGridSmooth();
     return;
   }
 
@@ -922,7 +941,7 @@ el.grid.addEventListener('click', (e) => {
   const stack = e.target.closest('[data-expand]');
   if (stack) {
     state.expandedGroups.add(stack.dataset.expand);
-    renderGrid();
+    renderGridSmooth();
     return;
   }
 

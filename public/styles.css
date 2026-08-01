@@ -735,6 +735,23 @@ select {
 .restack:hover { border-color: var(--accent); color: var(--text); }
 .restack svg { width: 22px; height: 22px; flex: none; }
 
+/* Folding a group re-flows the ones after it, sometimes by a whole screen. The
+   runs are named in app.js so each one eases to its new place; the rest of the
+   page is unchanged, so its half of the transition is invisible. */
+::view-transition-group(*) {
+  animation-duration: .34s;
+  animation-timing-function: cubic-bezier(.2, .8, .3, 1);
+}
+/* A run that also changes width would have its snapshot stretched to fit on the
+   way. Holding the snapshot at its own size and cropping keeps the cards inside
+   the right shape while the run resizes around them. */
+::view-transition-old(*),
+::view-transition-new(*) {
+  object-fit: none;
+  object-position: top left;
+  animation-duration: .22s;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .section-chevron { transition: none; }
 }
