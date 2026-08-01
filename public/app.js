@@ -418,19 +418,23 @@ function closePicker() {
   releaseScrollLock();
 }
 
+function syncPickerHint() {
+  const selected = state.filters[pickerKind] ?? [];
+  $('#pickerHint').textContent = selected.length
+    ? `${selected.length} selected — spools matching any of them are shown.`
+    : 'Pick as many as you like.';
+}
+
 function renderPickerOptions() {
   const options = tally(pickerKind);
   const selected = state.filters[pickerKind];
-  const hint = $('#pickerHint');
 
   if (!options.length) {
-    hint.textContent = 'Nothing in the library to filter by yet.';
+    $('#pickerHint').textContent = 'Nothing in the library to filter by yet.';
     $('#pickerOptions').innerHTML = '';
     return;
   }
-  hint.textContent = selected.length
-    ? `${selected.length} selected — spools matching any of them are shown.`
-    : 'Pick as many as you like.';
+  syncPickerHint();
 
   $('#pickerOptions').innerHTML = options.map(({ value, count }) => `
     <button type="button" class="option-row" data-value="${esc(value)}"
@@ -445,11 +449,22 @@ function renderPickerOptions() {
 $('#pickerOptions').addEventListener('click', (e) => {
   const row = e.target.closest('.option-row');
   if (!row || !pickerKind) return;
+
   const value = row.dataset.value;
   const selected = state.filters[pickerKind];
   const at = selected.indexOf(value);
   if (at === -1) selected.push(value); else selected.splice(at, 1);
-  renderPickerOptions();
+
+  /*
+   * Toggled in place rather than by re-rendering the list. Replacing the HTML
+   * would detach the row mid-click, and the outside-click handler below would
+   * then find no #picker ancestor on the event target and close the popover —
+   * so picking one option dismissed the whole thing. Editing the row also keeps
+   * the list from scrolling back to the top on every tap.
+   */
+  row.setAttribute('aria-pressed', String(at === -1));
+  syncPickerHint();
+
   syncFilterButtons();
   saveFilters();
   loadFilaments();
@@ -477,7 +492,19 @@ for (const kind of Object.keys(FILTER_KINDS)) {
 // so they're excluded rather than double-handled.
 document.addEventListener('click', (e) => {
   if (!pickerKind) return;
-  if (e.target.closest('#picker') || e.target.closest('.filter-btn')) return;
+
+  /*
+   * composedPath() is captured when the event is dispatched, so it still holds
+   * the real ancestors even if a handler further down removed the target from
+   * the DOM first. Walking up from e.target instead would treat a click on
+   * anything the popover replaced as a click outside it.
+   */
+  const path = e.composedPath?.() ?? [];
+  const insidePicker = path.includes(el.picker) || e.target.closest?.('#picker');
+  const onFilterButton = path.some((n) => n?.classList?.contains?.('filter-btn'))
+    || e.target.closest?.('.filter-btn');
+
+  if (insidePicker || onFilterButton) return;
   closePicker();
 });
 
