@@ -517,13 +517,27 @@ async function loadStats() {
   el.stats.innerHTML = `
     ${statCard('is-new', s.new, 'Sealed')}
     ${statCard('is-opened', s.opened, 'Opened')}
-    ${statCard('', (s.active_grams / 1000).toFixed(1) + ' kg', 'On hand')}
+    ${statCard('', formatKg(s.active_grams), 'On hand', 'kg')}
     ${statCard('', s.empty, 'Used up')}
   `;
 }
 
-const statCard = (cls, value, label) =>
-  `<div class="stat ${cls}"><b>${esc(value)}</b><span>${esc(label)}</span></div>`;
+/** A decimal is useful at 40.1 kg and just noise at 140 kg. */
+const formatKg = (grams) => {
+  const kg = grams / 1000;
+  return kg >= 100 ? Math.round(kg).toString() : kg.toFixed(1);
+};
+
+/**
+ * The unit is a separate, smaller element rather than part of the value, so it
+ * can sit alongside the number instead of wrapping onto its own line and making
+ * this card taller than the three beside it.
+ */
+const statCard = (cls, value, label, unit = '') =>
+  `<div class="stat ${cls}">
+     <b>${esc(value)}${unit ? `<i>${esc(unit)}</i>` : ''}</b>
+     <span>${esc(label)}</span>
+   </div>`;
 
 async function loadFilaments() {
   const p = new URLSearchParams();

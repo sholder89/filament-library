@@ -192,7 +192,26 @@ input, textarea { -webkit-text-fill-color: var(--text); }
   padding: 10px 12px;
   min-width: 0;
 }
-.stat b { display: block; font-size: 21px; font-weight: 680; letter-spacing: -.02em; line-height: 1.15; }
+.stat b {
+  display: block;
+  /* Shrinks on a narrow phone, where four cards leave each one about 60px of
+     usable width — "40.1 kg" doesn't fit at the full size. */
+  font-size: clamp(17px, 4.7vw, 21px);
+  font-weight: 680;
+  letter-spacing: -.02em;
+  line-height: 1.15;
+  /* Value and unit stay on one line, so this card can't end up taller than the
+     three next to it. */
+  white-space: nowrap;
+}
+/* The unit, sized down so it reads as a suffix rather than part of the number. */
+.stat b i {
+  font-style: normal;
+  font-size: .62em;
+  font-weight: 620;
+  margin-left: 2px;
+  opacity: .8;
+}
 .stat span { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stat.is-new b    { color: var(--new); }
 .stat.is-opened b { color: var(--opened); }
