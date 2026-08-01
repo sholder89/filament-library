@@ -53,6 +53,10 @@ services:
       LABEL_MODE: ${LABEL_MODE:-auto}
       LABEL_CLIENT_URL: ${LABEL_CLIENT_URL:-}
 
+      # Google Cloud Vision key for reading filament labels. Leave blank and
+      # the scan button simply doesn't appear.
+      VISION_API_KEY: ${VISION_API_KEY:-}
+
       TZ: ${TZ:-UTC}
 
     labels:

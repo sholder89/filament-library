@@ -1,6 +1,6 @@
 import { spoolSVG, escapeXML as esc, luminance, RAINBOW_CSS, isRainbow, effectFor } from './spool.js';
 import { labelPreviewHTML } from './label.js';
-import { QrScanner, cameraBlockedReason, filamentIdFrom } from './scan.js';
+import { QrScanner, StillCamera, cameraBlockedReason, filamentIdFrom } from './scan.js';
 
 // ── State ────────────────────────────────────────────────────────────────────
 
@@ -8,6 +8,7 @@ const state = {
   filaments: [],
   catalog: { brands: [], materials: [], colors: [], locations: [] },
   print: { mode: 'off' },
+  labelScan: false,
   editingId: null,
   filters: { status: 'active', brand: [], material: [], finish: [], q: '', sort: 'newest' },
   // Group keys the user has fanned open; everything else stays stacked.
@@ -29,6 +30,7 @@ const el = {
   clearFilters: $('#clearFilters'),
   picker: $('#picker'),
   scanner: $('#scanner'),
+  labelScanner: $('#labelScanner'),
   detail: $('#detail'),
   detailBody: $('#detailBody'),
   editor: $('#editor'),
@@ -84,7 +86,7 @@ function ago(iso) {
 }
 
 // The filter popover isn't a <dialog> — it's dismissed by closePicker instead.
-const SHEETS = [el.detail, el.editor, el.scanner];
+const SHEETS = [el.detail, el.editor, el.scanner, el.labelScanner];
 
 /** Locks background scrolling while a sheet is up — iOS ignores <dialog>'s own lock. */
 function openSheet(dialog) {
@@ -102,6 +104,7 @@ function closeSheet(dialog) {
   // Single choke point, so the camera is always released no matter which
   // affordance dismissed the sheet — button, backdrop tap or Esc.
   if (dialog === el.scanner) stopScanner();
+  if (dialog === el.labelScanner) stopLabelCamera();
   dialog.close();
   releaseScrollLock();
 }
@@ -1126,6 +1129,8 @@ function openEditor(filament = null) {
   el.editorTitle.textContent = filament ? 'Edit spool' : 'Add filament';
   el.editorError.hidden = true;
   $('#quantityField').hidden = Boolean(filament);
+  // Scanning only makes sense for a new spool — an edit already has its values.
+  $('#scanLabelBtn').hidden = Boolean(filament) || !state.labelScan;
   closeSaveMenu();
   syncSaveButton();
 
@@ -1678,6 +1683,120 @@ el.scanner.addEventListener('click', (e) => {
 el.scanner.addEventListener('close', stopScanner);
 el.scanner.addEventListener('cancel', (e) => { e.preventDefault(); closeSheet(el.scanner); });
 
+// ── Label scanning ───────────────────────────────────────────────────────────
+
+let labelCamera = null;
+
+function stopLabelCamera() {
+  labelCamera?.stop();
+  labelCamera = null;
+}
+
+async function openLabelScanner() {
+  const blocked = cameraBlockedReason();
+  $('#labelError').hidden = true;
+  $('#labelStatus').textContent = 'Fill the frame with the label — the printed text, not the barcode.';
+  $('#labelCaptureBtn').disabled = false;
+  openSheet(el.labelScanner);
+
+  if (blocked) {
+    $('#labelError').textContent = blocked;
+    $('#labelError').hidden = false;
+    return;
+  }
+
+  labelCamera = new StillCamera($('#labelVideo'));
+  try {
+    await labelCamera.start();
+  } catch (err) {
+    const denied = err.name === 'NotAllowedError' || err.name === 'SecurityError';
+    $('#labelError').textContent = denied
+      ? 'Camera access was blocked. Allow it for this site in your browser settings, then try again.'
+      : `Could not start the camera (${err.name || 'unknown error'}).`;
+    $('#labelError').hidden = false;
+    stopLabelCamera();
+  }
+}
+
+/**
+ * Writes whatever came back onto the form.
+ *
+ * Only fields the label actually yielded are touched — a scan that finds no
+ * brand leaves the brand alone rather than clearing it, so scanning twice or
+ * scanning after typing never loses work.
+ */
+function applyScannedFields(fields) {
+  const applied = [];
+
+  if (fields.brand) { refreshBrandPicker(fields.brand); applied.push('brand'); }
+  if (fields.material) { refreshMaterialPicker(fields.material); applied.push('type'); }
+  if (fields.color_name) { setField('color_name', fields.color_name); applied.push('color'); }
+  if (fields.color_hex) setField('color_hex', fields.color_hex);
+
+  if (fields.finish) {
+    fillFinishSelect();
+    setField('finish', fields.finish);
+    syncFinishHint();
+    syncExtraColors();
+    applied.push('finish');
+  }
+
+  for (const [field, label] of [
+    ['diameter', 'diameter'],
+    ['spool_weight_g', 'spool size'],
+    ['nozzle_temp', 'nozzle temp'],
+    ['bed_temp', 'bed temp'],
+  ]) {
+    if (fields[field] != null) { setField(field, fields[field]); applied.push(label); }
+  }
+
+  syncColorText();
+  syncPreview();
+  return applied;
+}
+
+$('#labelCaptureBtn').addEventListener('click', async () => {
+  if (!labelCamera) return;
+  const btn = $('#labelCaptureBtn');
+
+  const image = labelCamera.capture();
+  if (!image) return;
+
+  btn.disabled = true;
+  $('#labelError').hidden = true;
+  $('#labelStatus').textContent = 'Reading…';
+
+  try {
+    const result = await api('/api/scan', { method: 'POST', body: { image } });
+    const applied = applyScannedFields(result.fields ?? {});
+
+    if (!applied.length) {
+      // Distinguishes "the photo was unreadable" from "the text was read but
+      // matched nothing we know" — they need different fixes from the user.
+      $('#labelStatus').textContent = result.text
+        ? "Read the label, but couldn't match anything on it. Try the printed spec panel."
+        : 'No text found. Try getting closer, or improve the lighting.';
+      btn.disabled = false;
+      return;
+    }
+
+    closeSheet(el.labelScanner);
+    toast(`Filled in ${applied.join(', ')}`);
+  } catch (err) {
+    $('#labelError').textContent = err.message;
+    $('#labelError').hidden = false;
+    $('#labelStatus').textContent = 'Fill the frame with the label — the printed text, not the barcode.';
+    btn.disabled = false;
+  }
+});
+
+$('#scanLabelBtn').addEventListener('click', openLabelScanner);
+el.labelScanner.addEventListener('click', (e) => {
+  if (e.target.closest('[data-close]')) closeSheet(el.labelScanner);
+});
+el.labelScanner.addEventListener('close', stopLabelCamera);
+el.labelScanner.addEventListener('cancel', (e) => { e.preventDefault(); closeSheet(el.labelScanner); });
+
 // ── Theme ────────────────────────────────────────────────────────────────────
 
 function applyTheme(theme) {
@@ -1718,6 +1837,10 @@ addEventListener('popstate', routeFromPath);
   try {
     state.print = await api('/api/print/status');
   } catch { /* printing stays disabled */ }
+
+  try {
+    state.labelScan = (await api('/api/scan/status')).enabled;
+  } catch { /* label scanning stays hidden */ }
 
   try {
     await refresh();

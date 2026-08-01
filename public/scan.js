@@ -66,6 +66,61 @@ export function cameraBlockedReason() {
   return null;
 }
 
+/**
+ * A plain rear camera for taking one still, used by label scanning.
+ *
+ * Deliberately does not hunt for the ultra-wide the way QrScanner does: that
+ * lens exists to focus on a sticker held a couple of centimetres away, whereas
+ * a filament label is read at arm's length where the standard lens is sharper
+ * and has the longer focal length that keeps text from bowing at the edges.
+ */
+export class StillCamera {
+  constructor(video) {
+    this.video = video;
+    this.stream = null;
+  }
+
+  async start() {
+    const select = { facingMode: { ideal: 'environment' } };
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        video: { ...select, width: { ideal: 2560 }, height: { ideal: 1440 }, advanced: [{ focusMode: 'continuous' }] },
+        audio: false,
+      });
+    } catch {
+      this.stream = await navigator.mediaDevices.getUserMedia({ video: select, audio: false });
+    }
+    this.video.srcObject = this.stream;
+    this.video.setAttribute('playsinline', '');
+    await this.video.play();
+  }
+
+  /**
+   * JPEG data URL of the current frame, long edge capped.
+   *
+   * Small text needs resolution, but the whole thing is base64'd into a JSON
+   * body — 1600px is the point where label text is still comfortably legible
+   * without the upload becoming the slow part.
+   */
+  capture(maxEdge = 1600) {
+    const { videoWidth: w, videoHeight: h } = this.video;
+    if (!w || !h) return null;
+
+    const scale = Math.min(1, maxEdge / Math.max(w, h));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(w * scale);
+    canvas.height = Math.round(h * scale);
+    canvas.getContext('2d').drawImage(this.video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.85);
+  }
+
+  stop() {
+    for (const track of this.stream?.getTracks() ?? []) track.stop();
+    this.stream = null;
+    this.video.srcObject = null;
+  }
+}
+
 export class QrScanner {
   constructor(video, onResult) {
     this.video = video;

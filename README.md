@@ -55,6 +55,9 @@ through — used-up spools stay in the library as a record instead of vanishing.
   enclosure or drying.
 - **Add a batch at once** — bought five of the same spool? Set the quantity and
   each one gets its own record, so you can open and use them up individually.
+- **Scan the label** — photograph a spool label and the brand, type, color,
+  finish, diameter, weight and temperatures fill themselves in. Needs a Google
+  Cloud Vision key; without one the button doesn't appear.
 - **QR labels** — print a QR sticker for a spool through your Voice Label
   Printer. Scanning it opens that spool's page. Each spool's page shows a
   preview of the sticker before you print it, and the add form has an **Add to
@@ -125,6 +128,7 @@ Everything is optional — the app runs with an empty `.env`.
 | `LABEL_NAME_LABEL` | `0` | Also print a second plain-text label with the spool description |
 | `LABEL_MODE` | `auto` | `relay`, `direct`, or `auto` |
 | `LABEL_CLIENT_URL` | — | Bypass the relay and talk to the Windows client directly |
+| `VISION_API_KEY` | — | Google Cloud Vision key, enables label scanning |
 
 ---
 
@@ -382,3 +386,38 @@ being three.js-based, the trunk effect specifically is a p5 sketch. `p5.min.js`
 and `vanta.trunk.min.js` are vendored in `public/vendor/` for the same offline
 reason as `jsqr.js`; see the header comment in each for the exact pinned
 versions and how to regenerate them.
+
+---
+
+## Label scanning
+
+With `VISION_API_KEY` set, the add form grows a **Scan the label** button. Take
+a photo of the spool label and the fields fill themselves in.
+
+Get a key from [console.cloud.google.com](https://console.cloud.google.com):
+enable the Cloud Vision API, then **APIs & Services → Credentials → Create
+credentials → API key**, and restrict it to the Cloud Vision API. One scan is
+one unit and the free tier covers 1000 a month, which is far more than a
+filament shelf will ever need.
+
+The photo goes phone → your server → Vision, never phone → Vision directly, so
+the key stays in the server's environment rather than in a page anyone can view
+the source of.
+
+**What it reads.** Brand, type, color, finish, diameter, spool weight and print
+temperature, each independently — a label with no brand still yields its type.
+Anything it isn't sure about is left blank rather than guessed, and a scan never
+overwrites a field it didn't find, so scanning after typing can't lose work.
+
+`server/label-parse.js` does the interpreting and is tested separately against
+text transcribed from real labels:
+
+```bash
+node tools/test-label-parse.mjs
+```
+
+Those fixtures cover the cases that actually turn up: product codes standing in
+for brand names (`CR-PETG` is Creality), values printed on the line below their
+heading with a Chinese translation in between, `℃` as a single character, and
+colour run together with the weight as `LIGHT BLUE-1KG(N.W)`. If a label of
+yours reads wrong, adding it there is the quickest way to pin down why.

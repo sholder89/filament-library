@@ -154,6 +154,12 @@
       </div>
     </div>
 
+    <!-- Hidden unless VISION_API_KEY is set on the server. -->
+    <button type="button" class="btn wide" id="scanLabelBtn" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2m8 0h2a2 2 0 0 1 2 2v2m0 8v2a2 2 0 0 1-2 2h-2m-8 0H6a2 2 0 0 1-2-2v-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M7 12h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      Scan the label to fill this in
+    </button>
+
     <!-- Picker + free-text pair: the select carries `required` so an empty
          choice complains on a control the browser can actually focus, and the
          text input only becomes required once "Something else" is picked. -->
@@ -340,6 +346,27 @@
 </div>
 
 <!-- ── QR scanner ────────────────────────────────────────────────────────── -->
+<!-- ── Label photo capture ───────────────────────────────────────────────── -->
+<dialog id="labelScanner" class="sheet">
+  <div class="sheet-inner">
+    <div class="sheet-head">
+      <h2>Scan the label</h2>
+      <button type="button" class="icon-btn" data-close aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="scan-stage">
+      <video id="labelVideo" playsinline muted></video>
+    </div>
+    <p class="hint" id="labelStatus">Fill the frame with the label — the printed text, not the barcode.</p>
+    <p class="form-error" id="labelError" hidden></p>
+    <div class="sheet-actions">
+      <button type="button" class="btn ghost" data-close>Cancel</button>
+      <button type="button" class="btn primary" id="labelCaptureBtn">Read the label</button>
+    </div>
+  </div>
+</dialog>
+
 <dialog id="scanner" class="sheet">
   <div class="sheet-inner">
     <div class="sheet-head">

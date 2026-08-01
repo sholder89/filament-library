@@ -5,6 +5,7 @@ import { db } from './db.js';
 import { router as filamentsRouter } from './routes/filaments.js';
 import { router as catalogRouter } from './routes/catalog.js';
 import { router as printRouter, printMode } from './routes/print.js';
+import { router as scanRouter, scanEnabled } from './routes/scan.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(__dirname, '..', 'public');
@@ -36,6 +37,13 @@ if (TRUST_PROXY) {
   );
 }
 
+/*
+ * Mounted ahead of the global body parser with a much larger limit of its own:
+ * a label photo is a megabyte or two of base64, where every other endpoint on
+ * this app deals in small JSON and shouldn't have its guard relaxed to suit.
+ */
+app.use('/api/scan', express.json({ limit: '12mb' }), scanRouter);
+
 app.use(express.json({ limit: '256kb' }));
 
 /**
@@ -50,7 +58,7 @@ app.use('/api', (_req, res, next) => {
 });
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, print_mode: printMode(), version: 1 });
+  res.json({ ok: true, print_mode: printMode(), label_scan: scanEnabled(), version: 1 });
 });
 
 app.use('/api/filaments', filamentsRouter);
