@@ -916,7 +916,37 @@ function renderGridSmooth() {
     renderGrid();
     return;
   }
-  document.startViewTransition(() => renderGrid());
+
+  const before = runNames();
+  const transition = document.startViewTransition(() => {
+    renderGrid();
+    holdArrivals(runNames().filter((name) => !before.includes(name)));
+  });
+
+  const clear = () => holdArrivals([]);
+  transition.finished.then(clear, clear);
+}
+
+const runNames = () => [...el.grid.querySelectorAll('.section')]
+  .map((section) => section.style.viewTransitionName)
+  .filter(Boolean);
+
+/**
+ * A run that didn't exist before has nowhere to move from, so it arrives at its
+ * final place immediately — landing on top of the runs still holding their old
+ * one. Waiting out the same pause lets the layout open up first, then fades it
+ * in where it belongs.
+ */
+function holdArrivals(names) {
+  let sheet = document.getElementById('vt-arrivals');
+  if (!sheet) {
+    sheet = document.createElement('style');
+    sheet.id = 'vt-arrivals';
+    document.head.append(sheet);
+  }
+  sheet.textContent = names.length
+    ? `${names.map((n) => `::view-transition-new(${n})`).join(',')}{animation-delay:var(--vt-hold)}`
+    : '';
 }
 
 el.grid.addEventListener('click', (e) => {
