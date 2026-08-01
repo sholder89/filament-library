@@ -615,44 +615,51 @@ select {
 
 /* ── Grouped view sections ───────────────────────────────────────────────── */
 
-/* A section spans as many of the page's card tracks as its contents need
-   (--span, measured in app.js), so a type with one roll takes one column and
-   the next type sits beside it rather than a row below.
+/* One run of a group: the heading, and the cards of that group that fit on this
+   row. A group too long for the row is emitted as several runs, each carrying
+   the heading again (app.js decides where they break).
 
    Deliberately no padding or border of its own: any inset would eat into the
-   tracks it spans, and a one-column section would end up with visibly smaller
-   cards than the four-column section sitting next to it. The heading's rule
-   carries the grouping instead, and now spans exactly the section's columns. */
+   tracks it spans, and a one-column run would end up with visibly smaller cards
+   than the four-column run sitting next to it. */
 .section {
   grid-column: span var(--span, 1);
-  /* Content height, not row height — otherwise a one-roll section stretches to
-     match the tall section beside it and trails empty space. */
-  align-self: start;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
+  /* So the heading can drop its count on a one-column run, where the name is
+     what you actually need and the badge was eating it into "Bambu …". */
+  container-type: inline-size;
 }
-/* Sections need more air between rows than cards do; column-gap must stay at
+@container (max-width: 200px) {
+  .section-count { display: none; }
+}
+/* Runs need more air between rows than cards do; column-gap must stay at
    --card-gap for the spans above to line up with the tracks. */
-.grid.is-grouped { row-gap: 26px; }
+.grid.is-grouped { row-gap: 22px; }
 
-/* The section's own cards, on tracks identical to the page grid's. */
+/* This run's cards — always a single row, since a run is only ever given as
+   many cards as it has columns. It fills the run's height so that a run of
+   short cards beside a run of tall ones leaves no gap under it. */
 .section-body {
+  flex: 1;
   display: grid;
   grid-template-columns: repeat(var(--span, 1), minmax(0, 1fr));
   gap: var(--card-gap);
   margin-top: 10px;
 }
 
-/* A filled chip rather than an underline. Two single-column sections now sit
-   side by side, and adjacent underlines merged into one continuous rule with
-   the names sprinkled along it — you couldn't see where one group ended. The
-   chip is exactly as wide as the section it labels, so it reads as a lid on
-   its own cards. */
+/* A filled chip rather than an underline. Runs sit side by side on a row, and
+   adjacent underlines merged into one continuous rule with the names sprinkled
+   along it — you couldn't see where one group ended. The chip is exactly as
+   wide as the run it labels, so it reads as a lid on its own cards. */
 .section-head {
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
   min-height: 42px;
+  flex: none;
   padding: 0 12px;
   background: color-mix(in srgb, var(--surface) 72%, transparent);
   border: 1px solid var(--border-sm);
@@ -665,6 +672,14 @@ select {
   cursor: pointer;
 }
 .section-head:hover { color: var(--accent); border-color: var(--accent); }
+
+/* Folded away, a group is a single tile with nothing under it — so the chip
+   takes the whole tile rather than leaving the rest of the row's height empty
+   beneath a stray pill. */
+.section.is-collapsed .section-head {
+  flex: 1;
+  border-style: dashed;
+}
 
 .section-chevron {
   width: 18px;
@@ -697,6 +712,28 @@ select {
   border: 1px solid var(--border-sm);
   border-radius: 999px;
 }
+
+/* Takes a card's slot in the run, so fanning a stack open doesn't need a
+   full-width bar — which would have had to break the row it sits in. */
+.restack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.35;
+  text-align: center;
+  cursor: pointer;
+}
+.restack:hover { border-color: var(--accent); color: var(--text); }
+.restack svg { width: 22px; height: 22px; flex: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .section-chevron { transition: none; }

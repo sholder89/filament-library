@@ -602,6 +602,9 @@ addEventListener('focus', () => refreshOnResume());
 
 // ── Grid ─────────────────────────────────────────────────────────────────────
 
+/** Columns the current grouped layout was flowed into. */
+let gridColumns = 0;
+
 function renderGrid() {
   const spec = SECTIONS[state.filters.sort];
   // Drives the section row spacing, so it has to be off for the flat sorts and
@@ -625,8 +628,24 @@ function renderGrid() {
     el.grid.innerHTML = groupFilaments(state.filaments).map(renderGroup).join('');
     return;
   }
-  el.grid.innerHTML = sectionsOf(state.filaments, spec).map((s) => renderSection(s, spec)).join('');
-  syncSectionWidths();
+
+  // Emptying first so the track count below is the grid's own, not one widened
+  // by the spans of the layout being replaced.
+  el.grid.innerHTML = '';
+  gridColumns = measureColumns();
+  el.grid.innerHTML = flowSections(sectionsOf(state.filaments, spec), spec, gridColumns);
+}
+
+/**
+ * How many card columns the grid is currently laying out. It comes from
+ * `auto-fill`, so it moves with the window, the density switch and the
+ * platform's scrollbar width — and `auto-fill` keeps its empty tracks, so this
+ * reads correctly on an empty grid.
+ */
+function measureColumns() {
+  const tracks = getComputedStyle(el.grid).gridTemplateColumns;
+  if (!tracks || tracks === 'none') return 1;
+  return Math.max(1, tracks.split(/\s+/).filter(Boolean).length);
 }
 
 /**
@@ -683,94 +702,125 @@ function sectionsOf(filaments, spec) {
   });
 }
 
-function renderSection(section, spec) {
-  const collapsed = state.collapsedSections.has(section.label);
+/**
+ * Lays the groups out as one continuous run of cards rather than a block per
+ * group, so nothing is ever left half empty: a group picks up wherever the last
+ * one stopped and wraps onto the next row when it runs out of columns. Each
+ * piece of a wrapped group carries the heading again, so you can always see
+ * which group the row in front of you belongs to.
+ *
+ * Groups stay in the order they were sorted into — no packing heuristic gets to
+ * pull a later group forward to plug a hole, which would quietly break the A–Z
+ * the sort promised.
+ */
+function flowSections(sections, spec, cols) {
+  // A single column can't leave a gap beside anything, so there groups simply
+  // stack. Flowing them would give every single card a heading of its own,
+  // which is what list view would otherwise turn into.
+  const stacked = cols === 1;
+  let free = cols;
+  let html = '';
+
+  for (const section of sections) {
+    const collapsed = state.collapsedSections.has(section.label);
+    if (free === 0) free = cols;
+
+    // Folded away, a group is one tile wide however much it holds.
+    if (collapsed) {
+      html += runHTML(section, spec, [], { span: 1, collapsed, continued: false });
+      free -= 1;
+      continue;
+    }
+
+    const slots = slotsFor(section);
+    if (stacked) {
+      html += runHTML(section, spec, slots, { span: 1, collapsed, continued: false });
+      free = 0;
+      continue;
+    }
+
+    for (let i = 0; i < slots.length;) {
+      if (free === 0) free = cols;
+      const take = Math.min(free, slots.length - i);
+      html += runHTML(section, spec, slots.slice(i, i + take), {
+        span: take, collapsed, continued: i > 0,
+      });
+      i += take;
+      free -= take;
+    }
+  }
+  return html;
+}
+
+/**
+ * One group's cards in layout order. A stack counts once while it's stacked and
+ * once per spool once it's fanned open, with a tile on the end to stack it back
+ * up — the old full-width "stack them back up" bar would have had to break the
+ * run it sits in.
+ */
+function slotsFor(section) {
+  const out = [];
+  for (const group of groupFilaments(section.items)) {
+    if (group.items.length > 1 && state.expandedGroups.has(group.key)) {
+      out.push(...group.items.map(cardHTML), restackHTML(group));
+    } else {
+      out.push(renderGroup(group));
+    }
+  }
+  return out;
+}
+
+function runHTML(section, spec, slots, { span, collapsed, continued }) {
   const swatch = spec.swatch
     ? `<span class="section-swatch" style="background:${
         isRainbow(section.label) ? RAINBOW_CSS : esc(section.hex || '#808080')}"></span>`
     : '';
 
-  const groups = groupFilaments(section.items);
-  // How many card slots the body needs, which is what decides how wide this
-  // section wants to be. Stacked duplicates take one slot, not one per spool;
-  // a fanned-open stack takes one per spool plus its header row.
-  const slots = collapsed ? 1 : groups.reduce(
-    (n, g) => n + (g.items.length > 1 && state.expandedGroups.has(g.key) ? g.items.length + 1 : 1), 0,
-  );
-
   return `
-    <section class="section${collapsed ? ' is-collapsed' : ''}" data-slots="${slots}">
+    <section class="section${collapsed ? ' is-collapsed' : ''}" style="--span:${span}">
       <button class="section-head" data-section="${esc(section.label)}"
               aria-expanded="${!collapsed}" title="${esc(section.label)}">
         <svg class="section-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         ${swatch}
         <span class="section-name">${esc(section.label)}</span>
-        <span class="section-count">${section.items.length}</span>
+        ${continued ? '' : `<span class="section-count">${section.items.length}</span>`}
       </button>
-      ${collapsed ? '' : `<div class="section-body">${groups.map(renderGroup).join('')}</div>`}
+      ${slots.length ? `<div class="section-body">${slots.join('')}</div>` : ''}
     </section>`;
 }
 
-/**
- * Sections are laid out on the page's own card tracks, each spanning as many as
- * its contents need — so a lone roll of ABS takes one column and the next type
- * sits beside it instead of a row below. A section too big for what's left of a
- * row is narrowed to fill it and wraps its cards internally, so the next group
- * starts immediately after the previous one rather than on a fresh line.
- *
- * The track count has to be measured rather than assumed: it comes from
- * `auto-fill`, so it moves with the window, the density switch and the
- * platform's scrollbar width.
- */
-function syncSectionWidths() {
-  const sections = [...el.grid.querySelectorAll('.section')];
-  if (!sections.length) return;
+const restackHTML = (group) => `
+  <button type="button" class="restack" data-collapse="${esc(group.key)}">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V5m0 0L8 9m4-4 4 4M4 19h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span>Stack these ${group.items.length} back up</span>
+  </button>`;
 
-  // Measure with every section back at one column. A section spanning more
-  // tracks than auto-fill produced makes the grid add implicit columns to fit
-  // it, and those show up in the track list — so measuring while the previous
-  // spans are still applied reads the last layout instead of the current width,
-  // and on a resize the spans would grow but never shrink back.
-  for (const section of sections) section.style.setProperty('--span', '1');
-
-  // Reading a used value here forces the layout above to flush, so the track
-  // list below reflects the reset rather than what was on screen a moment ago.
-  const tracks = getComputedStyle(el.grid).gridTemplateColumns;
-  const cols = tracks && tracks !== 'none' ? tracks.split(/\s+/).filter(Boolean).length : 1;
-
-  // Walk the sections in order, keeping track of what's left on the row. This
-  // mirrors what grid auto-placement will do with the spans, so setting the
-  // span alone is enough — nothing needs to be placed explicitly.
-  let free = cols;
-  for (const section of sections) {
-    const want = Math.max(1, Math.min(Number(section.dataset.slots) || 1, cols));
-    let span = want;
-
-    if (want > free) {
-      // Narrow a section to finish off the current row rather than dropping to
-      // the next one and leaving the rest of this row empty — but not past half
-      // the width it asked for. Below that a long group turns into a sliver
-      // running further down the page than the gap it was avoiding.
-      span = free >= Math.ceil(want / 2) ? free : want;
-      if (span === want) free = cols; // didn't fit, so it opens a fresh row
-    }
-
-    section.style.setProperty('--span', String(span));
-    free -= span;
-    if (free <= 0) free = cols;
-  }
-}
-
-// Re-measure when the grid gets wider or narrower, since that's what moves the
-// track count. Height is ignored on purpose: re-spanning changes how tall the
-// sections are, which would otherwise bounce straight back through here.
+// The column count decides where every group breaks, so a width change means
+// re-running the layout rather than nudging it. Height is ignored on purpose:
+// re-flowing changes how tall the grid is, which would otherwise come straight
+// back through here.
 let lastGridWidth = 0;
 new ResizeObserver(([entry]) => {
   const width = Math.round(entry.contentRect.width);
   if (width === lastGridWidth) return;
   lastGridWidth = width;
-  if (el.grid.classList.contains('is-grouped')) syncSectionWidths();
+  if (el.grid.classList.contains('is-grouped') && columnsIgnoringSpans() !== gridColumns) renderGrid();
 }).observe(el.grid);
+
+/**
+ * The track count as the grid would lay it out empty. A run still spanning more
+ * columns than the narrowed grid now has makes it add implicit tracks to fit,
+ * and those show up in the track list — so measuring around the outgoing layout
+ * would report the old width and the flow would never re-break.
+ */
+function columnsIgnoringSpans() {
+  const sections = [...el.grid.querySelectorAll('.section')];
+  const spans = sections.map((s) => s.style.getPropertyValue('--span'));
+  for (const s of sections) s.style.setProperty('--span', '1');
+  const cols = measureColumns();
+  sections.forEach((s, i) => s.style.setProperty('--span', spans[i]));
+  return cols;
+}
 
 /**
  * Collapses interchangeable spools into one entry. Anything that would make you
