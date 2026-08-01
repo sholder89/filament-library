@@ -10,6 +10,7 @@ export const BRANDS = [
   'Sunlu',
   'Bambu Lab',
   'Creality',
+  '3D-Fuel',
   'Overture',
   'Hatchbox',
   'eSun',
