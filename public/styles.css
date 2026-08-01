@@ -739,7 +739,7 @@ select {
    runs are named in app.js so each one eases to its new place; the rest of the
    page is unchanged, so its half of the transition is invisible. */
 ::view-transition-group(*) {
-  animation-duration: .34s;
+  animation-duration: .58s;
   animation-timing-function: cubic-bezier(.2, .8, .3, 1);
 }
 /* A run that also changes width would have its snapshot stretched to fit on the
@@ -749,7 +749,9 @@ select {
 ::view-transition-new(*) {
   object-fit: none;
   object-position: top left;
-  animation-duration: .22s;
+  /* Shorter than the move above on purpose: the fade is only there to cover
+     content changing, while the slide is the part worth watching. */
+  animation-duration: .34s;
 }
 
 @media (prefers-reduced-motion: reduce) {
