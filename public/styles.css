@@ -39,11 +39,6 @@
      lower on light because ink is more visible against a pale page. */
   --bgfx-color:   #5b8cff;
   --bgfx-opacity: .22;
-
-  /* How long the grid holds still at the start of a collapse, so the cards
-     going away can be seen leaving before the gap closes over them. Read by
-     app.js too, for the runs arriving. */
-  --vt-hold: .24s;
 }
 
 :root[data-theme="light"] {
@@ -742,15 +737,9 @@ select {
 
 /* Folding a group re-flows the ones after it, sometimes by a whole screen. The
    runs are named in app.js so each one eases to its new place rather than
-   dissolving there.
-
-   The move waits out --vt-hold first. Without that pause the runs sliding up
-   swept over the cards being folded away before they had faded — they were
-   still on screen, just buried, which read as them vanishing on the spot. Now
-   the leaving cards fade out in place, and only then does the gap close. */
+   dissolving there. */
 ::view-transition-group(*) {
-  animation-duration: .46s;
-  animation-delay: var(--vt-hold);
+  animation-duration: .58s;
   animation-timing-function: cubic-bezier(.2, .8, .3, 1);
 }
 /* A run that also changes width would have its snapshot stretched to fit on the
@@ -760,14 +749,16 @@ select {
 ::view-transition-new(*) {
   object-fit: none;
   object-position: top left;
-  animation-duration: .28s;
+  animation-duration: .34s;
 }
-/* The page around the grid never changes, so cross-fading it is pure overhead —
-   and with the move held back it dimmed the whole app for a beat. */
-::view-transition-old(root),
-::view-transition-new(root) { animation: none; }
-::view-transition-old(root) { opacity: 0; }
-::view-transition-new(root) { opacity: 1; }
+
+/* Runs that are going away get lifted above the ones sliding up to take their
+   place, by a rule app.js writes for them by name (the stacking has to go on
+   the transition pseudo-element, so it can't be a class here). Underneath, they
+   were covered a frame or two into the move and looked like they had vanished
+   on the spot; on top, they stay visible for their whole fade — and everything
+   still moves at once, which pausing the layout to show them off first did
+   not. */
 
 @media (prefers-reduced-motion: reduce) {
   .section-chevron { transition: none; }

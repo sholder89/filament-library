@@ -920,10 +920,11 @@ function renderGridSmooth() {
   const before = runNames();
   const transition = document.startViewTransition(() => {
     renderGrid();
-    holdArrivals(runNames().filter((name) => !before.includes(name)));
+    const after = runNames();
+    animateLeaving(before.filter((name) => !after.includes(name)));
   });
 
-  const clear = () => holdArrivals([]);
+  const clear = () => animateLeaving([]);
   transition.finished.then(clear, clear);
 }
 
@@ -932,20 +933,31 @@ const runNames = () => [...el.grid.querySelectorAll('.section')]
   .filter(Boolean);
 
 /**
- * A run that didn't exist before has nowhere to move from, so it arrives at its
- * final place immediately — landing on top of the runs still holding their old
- * one. Waiting out the same pause lets the layout open up first, then fades it
- * in where it belongs.
+ * Runs that exist before a collapse but not after have no new size or place to
+ * be eased towards, so the browser gives them nothing but a fade — a group of
+ * six rows folding down to one had five of them blink out where they stood
+ * while the sixth animated. These get an exit of their own: they shrink back
+ * towards the heading as they go, which is the direction the group is folding.
+ *
+ * It goes on the run's outgoing image rather than its group, because the group
+ * carries the transform that puts it on the page and animating that would tear
+ * it out of position.
  */
-function holdArrivals(names) {
-  let sheet = document.getElementById('vt-arrivals');
+function animateLeaving(names) {
+  let sheet = document.getElementById('vt-leaving');
   if (!sheet) {
     sheet = document.createElement('style');
-    sheet.id = 'vt-arrivals';
+    sheet.id = 'vt-leaving';
     document.head.append(sheet);
   }
   sheet.textContent = names.length
-    ? `${names.map((n) => `::view-transition-new(${n})`).join(',')}{animation-delay:var(--vt-hold)}`
+    ? `@keyframes fl-run-leave { to { opacity: 0; transform: scale(.78); } }
+       ${names.map((n) => `::view-transition-old(${n})`).join(',')} {
+         animation-name: fl-run-leave;
+         animation-duration: .44s;
+         animation-timing-function: cubic-bezier(.4, 0, .55, 1);
+         transform-origin: top left;
+       }`
     : '';
 }
 
