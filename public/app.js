@@ -714,7 +714,9 @@ function renderSection(section, spec) {
 /**
  * Sections are laid out on the page's own card tracks, each spanning as many as
  * its contents need — so a lone roll of ABS takes one column and the next type
- * sits beside it instead of a row below.
+ * sits beside it instead of a row below. A section too big for what's left of a
+ * row is narrowed to fill it and wraps its cards internally, so the next group
+ * starts immediately after the previous one rather than on a fresh line.
  *
  * The track count has to be measured rather than assumed: it comes from
  * `auto-fill`, so it moves with the window, the density switch and the
@@ -736,14 +738,37 @@ function syncSectionWidths() {
   const tracks = getComputedStyle(el.grid).gridTemplateColumns;
   const cols = tracks && tracks !== 'none' ? tracks.split(/\s+/).filter(Boolean).length : 1;
 
+  // Walk the sections in order, keeping track of what's left on the row. This
+  // mirrors what grid auto-placement will do with the spans, so setting the
+  // span alone is enough — nothing needs to be placed explicitly.
+  let free = cols;
   for (const section of sections) {
-    const span = Math.max(1, Math.min(Number(section.dataset.slots) || 1, cols));
+    const want = Math.max(1, Math.min(Number(section.dataset.slots) || 1, cols));
+    let span = want;
+
+    if (want > free) {
+      // Narrow a section to finish off the current row rather than dropping to
+      // the next one and leaving the rest of this row empty — but not past half
+      // the width it asked for. Below that a long group turns into a sliver
+      // running further down the page than the gap it was avoiding.
+      span = free >= Math.ceil(want / 2) ? free : want;
+      if (span === want) free = cols; // didn't fit, so it opens a fresh row
+    }
+
     section.style.setProperty('--span', String(span));
+    free -= span;
+    if (free <= 0) free = cols;
   }
 }
 
-// Re-measure on layout changes, since the track count moves with the width.
-new ResizeObserver(() => {
+// Re-measure when the grid gets wider or narrower, since that's what moves the
+// track count. Height is ignored on purpose: re-spanning changes how tall the
+// sections are, which would otherwise bounce straight back through here.
+let lastGridWidth = 0;
+new ResizeObserver(([entry]) => {
+  const width = Math.round(entry.contentRect.width);
+  if (width === lastGridWidth) return;
+  lastGridWidth = width;
   if (el.grid.classList.contains('is-grouped')) syncSectionWidths();
 }).observe(el.grid);
 
