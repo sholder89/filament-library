@@ -475,7 +475,7 @@ select {
   position: absolute;
   left: 8px;
   top: 8px;
-  z-index: 3;
+  z-index: 4;
   padding: 3px 8px;
   font-size: 11px;
   font-weight: 680;
@@ -485,11 +485,21 @@ select {
   border-radius: 999px;
   white-space: nowrap;
 }
-/* Small cards have no room for words, and large/list ones put the spool in a
-   column of its own where a floating pill would sit over the artwork. */
+/* Small cards have no room for the words, so it keeps only its colour. */
 .grid.view-small .loaded-flag { font-size: 0; padding: 5px; }
-.grid.view-large .loaded-flag,
-.grid.view-list .loaded-flag { left: auto; right: 8px; top: 8px; }
+
+/* List rows put the status badge in flow at the end, where a pill pinned to the
+   top right corner landed straight on top of it. Here the flag joins the row
+   and follows the badge instead. */
+.grid.view-list .loaded-flag {
+  position: static;
+  order: 4;
+  align-self: center;
+  flex: none;
+}
+/* Large cards can't do the same: at the narrowest they're laid out at, the row
+   has no width left for a second pill and the flag hung over the card's edge.
+   It stays pinned over the spool, which is 88px wide here — wide enough. */
 
 .card-spool { position: relative; width: 100%; aspect-ratio: 1; margin-bottom: 8px; }
 .card-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -540,6 +550,10 @@ select {
   position: absolute;
   top: 10px;
   right: 10px;
+  /* The spool is positioned too and comes after this in the DOM, so with both
+     on auto it painted over the badge — mostly invisibly, since the artwork is
+     largely transparent, but a glow halo or a wide flange would swallow it. */
+  z-index: 3;
   display: inline-flex;
   align-items: center;
   gap: 5px;
