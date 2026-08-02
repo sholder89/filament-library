@@ -44,15 +44,19 @@ through — used-up spools stay in the library as a record instead of vanishing.
   a hue sweep.
 - **Color names that resolve** — 187 known names (the W3C set plus filament
   ones like Galaxy Black and Prusa Orange). Type a name and the swatch follows;
-  pick a swatch and the name follows.
+  pick a swatch and the name follows. Choosing a swatch, entering a hex or
+  reading one off a label settles it, after which renaming the spool leaves the
+  color alone — calling a hand-picked cyan "Snow Mountain Blue" shouldn't drag
+  it to navy. Pick a different swatch to go back to guessing from the name.
 - **Buy another?** — *Add another sealed one* on a spool's page copies its specs
   into a fresh, unopened record.
-- **Pre-filled catalog** — pick from 327 brands and 37 material types grouped by
-  family (PLA, PETG, ABS, TPU, Nylon…), or choose *Something else* to type your
-  own. The common brands are listed first and the rest follow alphabetically;
-  brands and types you've already used float above both. Picking a type fills in
-  its typical nozzle and bed temperatures and flags whether it wants an
-  enclosure or drying.
+- **Pre-filled catalog** — 327 brands and 37 material types, grouped by family
+  (PLA, PETG, ABS, TPU, Nylon…). Start typing and the list narrows to what
+  matches, with names that begin with what you typed first; type something
+  that isn't in the list and it's saved exactly as typed. Brands and types
+  you've already used are grouped at the top. Picking a type fills in its
+  typical nozzle and bed temperatures and flags whether it wants an enclosure
+  or drying.
 
   The brand list is generated from the [filamentcolors.xyz](https://filamentcolors.xyz)
   public API by `tools/fetch-catalog.mjs` and committed, so nothing at runtime

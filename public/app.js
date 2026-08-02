@@ -145,100 +145,190 @@ function fillFinishSelect() {
 
 // ── Brand / type pickers ─────────────────────────────────────────────────────
 
-const CUSTOM = '__custom__';
-
 /**
- * A <select> of known values paired with a text input for anything new.
+ * A text field that filters a grouped list as you type.
  *
- * The select owns `required` so an unmade choice complains on a control the
- * browser can focus; the text input only becomes required once "Something
- * else" is picked. A hidden required field fails validation silently, which is
- * exactly the trap this avoids.
+ * The input *is* the form field, so anything typed counts whether or not it
+ * matches — which is the point once the brand list runs to three hundred names
+ * and a dropdown becomes a thing you scroll rather than read. The old control
+ * was a <select> plus a hidden "Something else" input; that was workable at
+ * forty brands and unusable at this many, especially on a phone, where a long
+ * <select> is a spinning wheel.
+ *
+ * `groups` is a function rather than a list because the contents move while the
+ * editor is open — adding a spool of a new brand should offer it next time
+ * without rebuilding the control.
  */
-function buildPicker({ select, input, groups, value, placeholder, onPick }) {
-  const seen = new Set();
-  let html = `<option value="" disabled${value ? '' : ' selected'}>${esc(placeholder)}</option>`;
+function wireCombo({ input, groups, onPick }) {
+  const combo = input.closest('.combo');
+  const list = combo.querySelector('.combo-list');
+  const toggle = combo.querySelector('.combo-toggle');
+  let active = -1;
+  let options = [];
 
-  for (const [label, items] of groups) {
-    const fresh = items.filter((i) => i && !seen.has(i.toLowerCase()));
-    if (!fresh.length) continue;
-    html += `<optgroup label="${esc(label)}">`;
-    for (const item of fresh) {
-      seen.add(item.toLowerCase());
-      html += `<option value="${esc(item)}">${esc(item)}</option>`;
-    }
-    html += '</optgroup>';
+  const close = () => {
+    list.hidden = true;
+    input.setAttribute('aria-expanded', 'false');
+    input.removeAttribute('aria-activedescendant');
+    active = -1;
+  };
+
+  /** Highlights the matched run, on text that's already been escaped. */
+  function mark(text, query) {
+    const at = query ? text.toLowerCase().indexOf(query) : -1;
+    if (at === -1) return esc(text);
+    return esc(text.slice(0, at))
+      + `<mark>${esc(text.slice(at, at + query.length))}</mark>`
+      + esc(text.slice(at + query.length));
   }
 
-  // An existing spool may use a name no longer in the catalog — keep it
-  // selectable so editing doesn't silently rewrite it.
-  if (value && !seen.has(value.toLowerCase())) {
-    html += `<optgroup label="Current"><option value="${esc(value)}">${esc(value)}</option></optgroup>`;
-    seen.add(value.toLowerCase());
-  }
+  function render() {
+    const query = input.value.trim().toLowerCase();
+    const seen = new Set();
+    options = [];
+    let html = '';
 
-  html += `<option value="${CUSTOM}">＋ Something else…</option>`;
-
-  select.innerHTML = html;
-  select.value = value || '';
-  input.value = value || '';
-  input.hidden = true;
-  input.required = false;
-
-  if (!select.dataset.wired) {
-    select.dataset.wired = '1';
-    select.addEventListener('change', () => {
-      if (select.value === CUSTOM) {
-        input.hidden = false;
-        input.required = true;
-        input.value = '';
-        input.focus();
-      } else {
-        input.hidden = true;
-        input.required = false;
-        input.value = select.value;
+    for (const [label, items] of groups()) {
+      const hits = [];
+      for (const item of items) {
+        if (!item || seen.has(item.toLowerCase())) continue;
+        const at = item.toLowerCase().indexOf(query);
+        if (query && at === -1) continue;
+        seen.add(item.toLowerCase());
+        hits.push({ item, at });
       }
-      onPick?.(input.value);
-      syncPreview();
-    });
-    input.addEventListener('input', () => {
-      onPick?.(input.value);
-      syncPreview();
-    });
+      if (!hits.length) continue;
+
+      // Names starting with what you typed come first: "PET" should offer PETG
+      // before PCTG, which only contains those letters further along.
+      hits.sort((a, b) => (a.at - b.at) || a.item.localeCompare(b.item));
+
+      html += `<li class="combo-group" role="presentation">${esc(label)}</li>`;
+      for (const { item } of hits) {
+        html += `<li class="combo-option" role="option" id="${combo.dataset.combo}-opt-${options.length}"
+                     aria-selected="false" data-value="${esc(item)}">${mark(item, query)}</li>`;
+        options.push(item);
+      }
+    }
+
+    if (!options.length) {
+      html = `<li class="combo-empty" role="presentation">${
+        query ? 'Nothing matches — it will be saved exactly as you typed it'
+              : 'Nothing to suggest yet — type a name'}</li>`;
+    }
+
+    list.innerHTML = html;
+    active = -1;
+    list.scrollTop = 0;
   }
+
+  const open = () => {
+    render();
+    list.hidden = false;
+    input.setAttribute('aria-expanded', 'true');
+  };
+
+  function highlight(next) {
+    if (!options.length) return;
+    active = (next + options.length) % options.length;
+    const rows = list.querySelectorAll('.combo-option');
+    rows.forEach((row, i) => row.setAttribute('aria-selected', String(i === active)));
+    const row = rows[active];
+    if (row) {
+      input.setAttribute('aria-activedescendant', row.id);
+      row.scrollIntoView({ block: 'nearest' });
+    }
+  }
+
+  function choose(value) {
+    input.value = value;
+    close();
+    onPick?.(value);
+    syncPreview();
+  }
+
+  input.addEventListener('input', () => {
+    open();
+    // Fires on every keystroke, as it did before: what's typed is the value,
+    // matched or not.
+    onPick?.(input.value);
+    syncPreview();
+  });
+  input.addEventListener('focus', open);
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (list.hidden) return open();
+      return highlight(active + (e.key === 'ArrowDown' ? 1 : -1));
+    }
+    if (e.key === 'Enter' && !list.hidden) {
+      // Only swallowed when it's picking something, so Enter still submits the
+      // form the rest of the time.
+      if (active >= 0) { e.preventDefault(); choose(options[active]); }
+      else close();
+      return;
+    }
+    if (e.key === 'Escape' && !list.hidden) { e.preventDefault(); close(); }
+    if (e.key === 'Tab') close();
+  });
+
+  // mousedown, not click: the input blurs first otherwise and the list is gone
+  // before the click lands.
+  list.addEventListener('mousedown', (e) => {
+    const row = e.target.closest('.combo-option');
+    if (!row) return;
+    e.preventDefault();
+    choose(row.dataset.value);
+  });
+
+  toggle.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    if (list.hidden) { input.focus(); open(); } else close();
+  });
+
+  input.addEventListener('blur', () => {
+    // Deferred so a pick on the list still registers.
+    setTimeout(close, 120);
+  });
+
+  return { close };
 }
 
+let brandCombo;
+let materialCombo;
+
 function refreshBrandPicker(value = '') {
-  const owned = state.catalog.owned_brands ?? [];
-  const rest = (state.catalog.brands ?? []).filter(
-    (b) => !owned.some((o) => o.toLowerCase() === b.toLowerCase()),
-  );
-  buildPicker({
-    select: $('#f_brand_pick'),
-    input: form.elements.brand,
-    groups: [['Brands you own', owned], ['Common brands', rest]],
-    value,
-    placeholder: 'Choose a brand…',
-  });
+  const groups = () => {
+    const owned = state.catalog.owned_brands ?? [];
+    const rest = (state.catalog.brands ?? []).filter(
+      (b) => !owned.some((o) => o.toLowerCase() === b.toLowerCase()),
+    );
+    return [['Brands you own', owned], ['All brands', rest]];
+  };
+
+  brandCombo ??= wireCombo({ input: form.elements.brand, groups });
+  brandCombo.close();
+  form.elements.brand.value = value || '';
 }
 
 function refreshMaterialPicker(value = '') {
-  const materials = state.catalog.materials ?? [];
-  const owned = [...new Set(state.filaments.map((f) => f.material))].filter(Boolean).sort();
-  const byFamily = new Map();
-  for (const m of materials) {
-    if (owned.some((o) => o.toLowerCase() === m.name.toLowerCase())) continue;
-    if (!byFamily.has(m.family)) byFamily.set(m.family, []);
-    byFamily.get(m.family).push(m.name);
-  }
-  buildPicker({
-    select: $('#f_material_pick'),
-    input: form.elements.material,
-    groups: [['Types you use', owned], ...byFamily.entries()],
-    value,
-    placeholder: 'Choose a type…',
-    onPick: applyMaterialDefaults,
+  const groups = () => {
+    const owned = [...new Set(state.filaments.map((f) => f.material))].filter(Boolean).sort();
+    const byFamily = new Map();
+    for (const m of state.catalog.materials ?? []) {
+      if (owned.some((o) => o.toLowerCase() === m.name.toLowerCase())) continue;
+      if (!byFamily.has(m.family)) byFamily.set(m.family, []);
+      byFamily.get(m.family).push(m.name);
+    }
+    return [['Types you use', owned], ...byFamily.entries()];
+  };
+
+  materialCombo ??= wireCombo({
+    input: form.elements.material, groups, onPick: applyMaterialDefaults,
   });
+  materialCombo.close();
+  form.elements.material.value = value || '';
 }
 
 function fillDatalist(id, values) {
@@ -1594,14 +1684,18 @@ function hexForColorName(input) {
   return bestHex;
 }
 
-/** Typing a recognised color name repaints the swatch as you go. */
+/**
+ * Typing a recognised color name repaints the swatch as you go — but only while
+ * nothing has claimed the colour outright.
+ *
+ * Clearing the field deliberately does not hand control back. Renaming means
+ * selecting the old text and typing over it, which takes the field through
+ * empty on the way, and treating that as "start guessing again" is what made a
+ * hand-picked cyan jump to navy the moment "Snow Mountain Blue" was typed over
+ * it. To go back to guessing, pick a different swatch.
+ */
 form.elements.color_name.addEventListener('input', () => {
-  const typed = form.elements.color_name.value;
-
-  // Clearing the field is the way back to letting the name drive the colour.
-  if (!typed.trim()) colorPinned = false;
-
-  const hex = colorPinned ? null : hexForColorName(typed);
+  const hex = colorPinned ? null : hexForColorName(form.elements.color_name.value);
   if (hex) {
     form.elements.color_hex.value = hex;
     syncColorText();

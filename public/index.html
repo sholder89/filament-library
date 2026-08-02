@@ -166,19 +166,34 @@
       Scan the label to fill this in
     </button>
 
-    <!-- Picker + free-text pair: the select carries `required` so an empty
-         choice complains on a control the browser can actually focus, and the
-         text input only becomes required once "Something else" is picked. -->
+    <!-- Type to narrow the list, or just type something that isn't in it — the
+         input is the field itself, so whatever it holds is what gets saved.
+         It carries `required` directly, which a <select> used to have to do on
+         its behalf back when this control was hidden. -->
     <div class="field">
-      <label for="f_brand_pick">Brand</label>
-      <select id="f_brand_pick" required></select>
-      <input id="f_brand" name="brand" placeholder="Enter a brand name" autocomplete="off" enterkeyhint="next" hidden>
+      <label for="f_brand">Brand</label>
+      <div class="combo" data-combo="brand">
+        <input id="f_brand" name="brand" required placeholder="Start typing a brand…"
+               autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="next"
+               role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="brandComboList">
+        <button type="button" class="combo-toggle" tabindex="-1" aria-label="Show all brands">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <ul class="combo-list" id="brandComboList" role="listbox" aria-label="Brands" hidden></ul>
+      </div>
     </div>
 
     <div class="field">
-      <label for="f_material_pick">Type</label>
-      <select id="f_material_pick" required></select>
-      <input id="f_material" name="material" placeholder="Enter a filament type" autocomplete="off" enterkeyhint="next" hidden>
+      <label for="f_material">Type</label>
+      <div class="combo" data-combo="material">
+        <input id="f_material" name="material" required placeholder="Start typing a filament type…"
+               autocomplete="off" spellcheck="false" enterkeyhint="next"
+               role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="materialComboList">
+        <button type="button" class="combo-toggle" tabindex="-1" aria-label="Show all types">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <ul class="combo-list" id="materialComboList" role="listbox" aria-label="Filament types" hidden></ul>
+      </div>
       <p class="hint" id="materialHint"></p>
     </div>
 
