@@ -2,6 +2,7 @@
   "name": "filament-library",
   "version": "1.0.0",
   "description": "3D printing filament inventory tracker — PWA + SQLite, runs in Docker",
+  "license": "MIT",
   "type": "module",
   "main": "server/index.js",
   "engines": {

@@ -467,6 +467,29 @@ and nothing crosses the network at all.
 
 ---
 
+## License
+
+MIT — see [LICENSE](LICENSE). Do what you like with it; no warranty.
+
+That covers the code in this repository. The three libraries in `public/vendor/`
+keep their own licences and are shipped unmodified:
+
+| File | Licence |
+|---|---|
+| `jsqr.js` | Apache-2.0 |
+| `vanta.trunk.min.js` | MIT |
+| `p5.min.js` | **LGPL-2.1** |
+
+Apache-2.0 and MIT are permissive and ask for nothing beyond keeping the notice.
+LGPL is not: p5 is used here as an unmodified, separately loadable file, which
+is what keeps it a library rather than something folded into this project. If
+you ever inline it, minify it into a bundle, or patch it, that stops being true
+and its terms start applying to what you've built. Swapping the ambient
+background for something hand-written — see below — removes the question
+entirely.
+
+---
+
 ## Third-party code
 
 `public/vendor/jsqr.js` is [jsQR](https://github.com/cozmo/jsQR) 1.4.0 by Cosmo
