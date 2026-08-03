@@ -9,9 +9,13 @@
   },
   "scripts": {
     "start": "node server/index.js",
-    "dev": "node --watch server/index.js"
+    "dev": "node --watch server/index.js",
+    "test": "node tools/test-label-parse.mjs",
+    "icons": "node tools/build-icons.mjs",
+    "catalog": "node tools/fetch-catalog.mjs"
   },
   "dependencies": {
+    "compression": "^1.8.1",
     "express": "^4.21.2",
     "qrcode": "^1.5.4"
   },

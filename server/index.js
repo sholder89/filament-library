@@ -1,4 +1,5 @@
 import express from 'express';
+import compression from 'compression';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { db } from './db.js';
@@ -36,6 +37,19 @@ if (TRUST_PROXY) {
     TRUST_PROXY === 'true' ? true : Number.isInteger(asNumber) ? asNumber : TRUST_PROXY,
   );
 }
+
+/*
+ * Everything text — the app shell, the catalog, the QR SVGs — goes out gzipped.
+ * It was all being served raw, which is around 1.3 MB on a first load, and the
+ * phone this is built for is often the far side of a home connection. Binary
+ * that's already compressed (the PNG icons) is left alone; compression skips it
+ * by content type.
+ *
+ * In the app rather than on the reverse proxy because docker-compose also
+ * publishes a LAN port straight to the container, and a Traefik middleware
+ * would only cover the half of the traffic that goes through Traefik.
+ */
+app.use(compression());
 
 /*
  * Mounted ahead of the global body parser with a much larger limit of its own:

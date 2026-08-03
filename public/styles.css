@@ -698,7 +698,6 @@ select {
   color: #fff;
   pointer-events: none;
 }
-.stack-count[data-empty] { display: none; }
 /* A loaded card already has a mark in that corner. */
 .card.is-loaded .stack-count { top: 36px; }
 
@@ -1143,7 +1142,6 @@ select {
 }
 .scan-zoom[hidden] { display: none; }
 .scan-zoom label { font-size: 13px; font-weight: 620; color: var(--muted); }
-.muted-note { font-weight: 500; opacity: .75; }
 .scan-zoom output { font-size: 14px; font-weight: 650; min-width: 42px; text-align: right; }
 .scan-zoom input[type="range"] { width: 100%; height: 44px; }
 

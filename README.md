@@ -392,6 +392,13 @@ Node 24 and Express, with SQLite via Node's built-in `node:sqlite` — no native
 modules, so the image builds in seconds on any architecture. The frontend is
 vanilla ES modules with no build step: what's in `public/` is what runs.
 
+Responses are gzipped, which takes a first load from about 1.3 MB down to 350 KB.
+That's done in the app rather than at the reverse proxy because `docker-compose`
+also publishes a LAN port straight to the container, and a proxy middleware would
+only cover the traffic that goes through the proxy. It matters on a first load
+over a weak signal or a VPN; after that the service worker is serving the shell
+and nothing crosses the network at all.
+
 ---
 
 ## Third-party code
