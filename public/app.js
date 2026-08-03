@@ -962,13 +962,26 @@ function groupFilaments(filaments) {
  * the class on the grid, so the grouping and stacking code below doesn't need to
  * know or care which density is active.
  */
+/**
+ * The filament's colour as CSS, for the parts of the card that aren't the spool
+ * graphic. Multi-tone stock gets the same treatment there as it does on the
+ * winding, so a dual-colour spool doesn't flatten to whichever tone happens to
+ * be stored first.
+ */
+export function colorCSS(f) {
+  if (isRainbow(f.color_name)) return RAINBOW_CSS;
+  const tones = [f.color_hex, f.color_hex2, f.color_hex3].filter(Boolean);
+  return tones.length > 1 ? `linear-gradient(170deg, ${tones.join(', ')})` : (tones[0] || '#808080');
+}
+
 function cardHTML(f) {
   const detail = [f.color_name || '—', f.finish].filter(Boolean).join(' · ');
   const grams = Math.round(f.spool_weight_g * f.remaining_pct / 100);
   const sub = [f.brand, f.color_name].filter(Boolean).join(' · ');
 
   return `
-  <button class="card ${f.status === 'empty' ? 'is-empty' : ''}${f.loaded ? ' is-loaded' : ''}" data-id="${esc(f.id)}">
+  <button class="card ${f.status === 'empty' ? 'is-empty' : ''}${f.loaded ? ' is-loaded' : ''}"
+          style="--fc:${colorCSS(f)}" data-id="${esc(f.id)}">
     ${f.loaded ? '<span class="loaded-flag" title="Loaded in a printer">In printer</span>' : ''}
     <span class="badge ${esc(f.status)}">${esc(STATUS_LABEL[f.status])}</span>
     <div class="card-spool">
@@ -981,7 +994,7 @@ function cardHTML(f) {
     <div class="card-text">
       <span class="card-brand">${esc(f.brand)}</span>
       <span class="card-title">${esc(f.material)}</span>
-      <span class="card-color">${esc(detail)}</span>
+      <span class="card-color"><i class="color-chip"></i><span>${esc(detail)}</span></span>
       <div class="card-extra">
         ${f.status === 'empty'
           ? `<span class="card-meta">Used up ${esc(fmtDate(f.finished_at))}</span>`
@@ -1141,10 +1154,10 @@ async function showDetail(id, push = false) {
       </button>
     </div>
 
-    <div class="detail-hero">
+    <div class="detail-hero" style="--fc:${colorCSS(f)}">
       <div id="detailSpool">${spoolSVG(f)}</div>
       <div>
-        <div class="detail-sub">${esc(f.color_name || 'No color set')}</div>
+        <div class="detail-sub"><i class="color-chip"></i>${esc(f.color_name || 'No color set')}</div>
         <div class="chips">
           <span class="chip">${esc(STATUS_LABEL[f.status])}</span>
           ${f.finish ? `<span class="chip">${esc(f.finish)}</span>` : ''}

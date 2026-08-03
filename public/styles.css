@@ -443,17 +443,40 @@ select {
 }
 
 .card {
+  /* Its own name so the colour bar below can round its corners to match. The
+     list view uses a tighter radius and the bar has to follow it. */
+  --card-radius: var(--radius);
+
   position: relative;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 14px 12px 13px;
+  padding: 14px 12px 13px 17px;
   background: var(--surface);
   border: 1px solid var(--border-sm);
-  border-radius: var(--radius);
+  border-radius: var(--card-radius);
   cursor: pointer;
   text-align: left;
   transition: transform .16s cubic-bezier(.2,.8,.3,1), border-color .16s, box-shadow .16s;
+}
+
+/* The filament's colour down the leading edge. The winding is the only other
+   place it appears, and that shrinks as the spool empties — which is exactly
+   when you're most likely to be looking for it. This doesn't move. */
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 5px;
+  background: var(--fc, transparent);
+  /* Inside the 1px border, so a pixel tighter than the card's own corner. */
+  border-radius: calc(var(--card-radius) - 1px) 0 0 calc(var(--card-radius) - 1px);
+  /* A hairline where the bar meets the card. Without it a white filament has no
+     edge against a white card on the light theme, and a navy one has none
+     against the dark card on the other — the two cases pull opposite ways, and
+     a line mixed from the text colour lands between them in both. */
+  box-shadow: inset -1px 0 0 color-mix(in srgb, var(--text) 22%, transparent);
+  pointer-events: none;
 }
 .card:hover { transform: translateY(-3px); border-color: var(--border); box-shadow: var(--shadow); }
 .card:active { transform: translateY(-1px) scale(.99); }
@@ -505,8 +528,20 @@ select {
 .card-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .card-brand { font-size: 12px; color: var(--muted); font-weight: 600; letter-spacing: .02em; }
 .card-title { font-size: 15px; font-weight: 650; line-height: 1.25; letter-spacing: -.01em; }
-.card-color { font-size: 13px; color: var(--muted); }
-.card-brand, .card-title, .card-color { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card-color { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); }
+.card-brand, .card-title, .card-color > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card-color > span { min-width: 0; }
+
+/* The same colour again, beside the name it belongs to. The inset ring is what
+   stops a white or cream filament disappearing into a white card. */
+.color-chip {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 4px;
+  background: var(--fc, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 30%, transparent);
+}
 
 .card-extra { display: none; gap: 5px; margin-top: 7px; }
 .card-meta { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -853,7 +888,8 @@ select {
 /* Small: the spool with its type on top. Everything else waits for a hover or
    a tap through to the detail page. */
 .grid.view-small { --card-gap: 10px; grid-template-columns: repeat(auto-fill, minmax(98px, 1fr)); }
-.grid.view-small .card { padding: 8px; }
+/* The only cue on a small card — there's no text under it to carry a swatch. */
+.grid.view-small .card { padding: 8px 8px 8px 12px; }
 .grid.view-small .card-spool { margin-bottom: 0; }
 .grid.view-small .card-text { display: none; }
 .grid.view-small .card-overlay { display: flex; }
@@ -871,9 +907,14 @@ select {
 
 /* Large: spool beside a full read-out. */
 .grid.view-large { grid-template-columns: repeat(auto-fill, minmax(252px, 1fr)); }
-.grid.view-large .card { flex-direction: row; align-items: center; gap: 14px; padding: 14px; }
+.grid.view-large .card { flex-direction: row; align-items: center; gap: 14px; padding: 14px 14px 14px 19px; }
 .grid.view-large .card-spool { width: 88px; flex: none; margin: 0; }
 .grid.view-large .card-text { flex: 1; }
+/* The one density where the chip doesn't earn its keep: the status badge sits
+   in this row and takes most of it, leaving the text about 68px, and the chip
+   plus its gap is 20px of that — enough to start truncating colour names. The
+   bar down the edge is already carrying the colour here. */
+.grid.view-large .color-chip { display: none; }
 .grid.view-large .card-extra { display: grid; }
 /* The badge is first in the DOM so it can sit in the corner of a stacked card;
    once it's in flow it belongs at the end of the row. */
@@ -885,11 +926,11 @@ select {
 /* List: one row per spool, densest of the four. */
 .grid.view-list { --card-gap: 8px; grid-template-columns: 1fr; }
 .grid.view-list .card {
+  --card-radius: var(--radius-sm);
   flex-direction: row;
   align-items: center;
   gap: 12px;
-  padding: 9px 12px;
-  border-radius: var(--radius-sm);
+  padding: 9px 12px 9px 17px;
 }
 .grid.view-list .card-spool { width: 44px; flex: none; margin: 0; }
 .grid.view-list .card-text {
@@ -1272,7 +1313,15 @@ select {
 }
 .detail-hero .spool-wrap { width: 132px; }
 .detail-hero h2 { font-size: 22px; line-height: 1.2; }
-.detail-sub { color: var(--muted); font-size: 14px; margin-top: 3px; }
+.detail-sub {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 14px;
+  margin-top: 3px;
+}
+.detail-sub .color-chip { width: 14px; height: 14px; }
 
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
 .chip {

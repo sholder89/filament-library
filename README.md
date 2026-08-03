@@ -42,6 +42,11 @@ through — used-up spools stay in the library as a record instead of vanishing.
   and metallic catches a highlight that sweeps across it. Gradient and dual-color
   take up to three colors. Anything named *rainbow* or *multicolor* is painted as
   a hue sweep.
+- **Color where it doesn't move** — a bar down the leading edge of every card,
+  and a swatch beside the color's name. The winding on the spool graphic shrinks
+  as the spool empties, which is exactly when you're most likely to be checking
+  what color it is; these don't. Multi-tone and rainbow filaments get the same
+  treatment on both as they do on the winding.
 - **Color names that resolve** — 187 known names (the W3C set plus filament
   ones like Galaxy Black and Prusa Orange). Type a name and the swatch follows;
   pick a swatch and the name follows. Choosing a swatch, entering a hex or
