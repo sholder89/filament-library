@@ -15,6 +15,10 @@ RUN apk add --no-cache su-exec
 ENV NODE_ENV=production \
     PORT=8080 \
     DB_PATH=/data/filament.db \
+    # A plain Linux bind mount, with no sync client touching it, is where WAL
+    # works properly — so it's asked for here rather than defaulted to in the
+    # code, which also has to run on a Windows folder that OneDrive is syncing.
+    SQLITE_JOURNAL_MODE=WAL \
     NODE_OPTIONS=--disable-warning=ExperimentalWarning
 
 WORKDIR /app

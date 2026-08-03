@@ -1,20 +1,46 @@
 import { DatabaseSync } from 'node:sqlite';
 import { randomBytes } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const DB_PATH = process.env.DB_PATH || '/data/filament.db';
+/**
+ * Where the database lives when nobody says otherwise.
+ *
+ * The container sets DB_PATH explicitly (see the Dockerfile), so this is only
+ * reached when someone runs the app directly with Node.
+ *
+ * On Windows that means LocalAppData rather than a folder beside the app, and
+ * the reason is OneDrive. Documents and Desktop are synced by default, and a
+ * sync client and a SQLite database actively fight: the folder gets locked
+ * mid-write, deleted directories are recreated underneath you, and the failure
+ * arrives as "unable to open database file" for a file plainly sitting there.
+ * LocalAppData is never synced and always writable by the account that owns it,
+ * which makes it the one place this reliably works no matter where the app
+ * itself was unzipped.
+ *
+ * Elsewhere, beside the project — no sync client, and it keeps the data next to
+ * the thing it belongs to.
+ */
+const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+function defaultDbPath() {
+  if (process.platform === 'win32' && process.env.LOCALAPPDATA) {
+    return join(process.env.LOCALAPPDATA, 'FilamentLibrary', 'filament.db');
+  }
+  return join(PROJECT_ROOT, 'data', 'filament.db');
+}
+
+const DB_PATH = process.env.DB_PATH || defaultDbPath();
 
 /**
  * SQLite reports a permission problem as a bare "unable to open database file"
- * (errcode 14), which says nothing about how to fix it. Almost always it's the
- * data directory being owned by someone this process isn't.
+ * (errcode 14), which says nothing about how to fix it. What to do about it
+ * differs completely between the two ways this runs, so the message does too.
  */
 function openDatabase() {
   const dir = dirname(DB_PATH);
-  const whoami = typeof process.getuid === 'function'
-    ? `${process.getuid()}:${process.getgid()}`
-    : 'unknown';
+  const posix = typeof process.getuid === 'function';
 
   try {
     mkdirSync(dir, { recursive: true });
@@ -28,22 +54,55 @@ function openDatabase() {
 
     if (!permissionProblem) throw err;
 
-    throw new Error(
-      `Cannot open the database at ${DB_PATH}\n\n` +
-      `This process runs as uid:gid ${whoami} and can't write to ${dir}.\n` +
-      `That directory is a bind mount, so its owner comes from the host.\n\n` +
-      `Fix it on the host with either:\n` +
-      `  sudo chown -R 1000:1000 ./data\n` +
-      `or set PUID and PGID in .env to the user that owns ./data:\n` +
-      `  id -u && id -g\n`,
-      { cause: err },
-    );
+    const fix = posix
+      ? `This process runs as uid:gid ${process.getuid()}:${process.getgid()} and can't write to ${dir}.\n` +
+        `That directory is a bind mount, so its owner comes from the host.\n\n` +
+        `Fix it on the host with either:\n` +
+        `  sudo chown -R 1000:1000 ./data\n` +
+        `or set PUID and PGID in .env to the user that owns ./data:\n` +
+        `  id -u && id -g\n`
+      : `Windows won't let this account write to ${dir}.\n\n` +
+        `Usually that means the app was unpacked somewhere protected, like\n` +
+        `Program Files. Move the folder somewhere you own — your Desktop or\n` +
+        `Documents — and start it again.\n`;
+
+    throw new Error(`Cannot open the database at ${DB_PATH}\n\n${fix}`, { cause: err });
   }
 }
 
 export const db = openDatabase();
 
-db.exec('PRAGMA journal_mode = WAL');
+/*
+ * Journalling mode, and why it isn't simply WAL.
+ *
+ * WAL needs its own -wal and -shm sidecar files and real file locking. A folder
+ * synced by OneDrive or Dropbox gives it neither reliably: the sidecars can be
+ * created one minute and refused the next, depending on whether the sync client
+ * happens to be touching the folder. The failure doesn't surface when the mode
+ * is set either — the mode is recorded in the database file, so it comes back
+ * on the next open, as "unable to open database file" on the first query
+ * against a database that is plainly right there.
+ *
+ * On Windows this matters, because Documents is synced by default and that's
+ * exactly where somebody unpacks a folder like this one. So the mode is chosen
+ * explicitly: the container asks for WAL (see the Dockerfile), and everything
+ * else gets the ordinary rollback journal, which is entirely adequate for one
+ * person's filament shelf.
+ *
+ * Setting it also converts a database that arrived in the other mode, so a copy
+ * taken off the server runs on a laptop without complaint.
+ */
+const JOURNAL_MODE = /^(wal|delete|truncate|persist|memory|off)$/i.test(process.env.SQLITE_JOURNAL_MODE ?? '')
+  ? process.env.SQLITE_JOURNAL_MODE.toUpperCase()
+  : 'DELETE';
+
+try {
+  db.exec(`PRAGMA journal_mode = ${JOURNAL_MODE}`);
+} catch {
+  // Not worth failing to start over: whatever mode the file already has works
+  // well enough, and the alternative is no app at all.
+}
+
 db.exec('PRAGMA foreign_keys = ON');
 
 /**

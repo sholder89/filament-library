@@ -7,3 +7,5 @@ data
 !README.md
 tools
 npm-debug.log*
+# The no-Docker launcher, which has no business inside the image.
+start-windows.cmd

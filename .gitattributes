@@ -3,5 +3,11 @@
 # can confuse the Dockerfile parser.
 * text=auto eol=lf
 
+# Except the Windows launcher. Batch files are run by cmd.exe on a machine that
+# has never seen this repository, and LF endings make it misparse multi-line
+# blocks — so this one has to arrive with CRLF however it was checked out.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
 *.png binary
 *.ico binary

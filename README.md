@@ -122,6 +122,35 @@ To update after changing anything:
 docker compose up -d --build
 ```
 
+### On a Windows PC, without Docker
+
+There's nothing to compile — the app is plain Node, and SQLite comes from Node
+itself — so it runs on a normal desktop with no container runtime at all.
+
+1. Install **Node.js LTS** from [nodejs.org](https://nodejs.org), all defaults.
+2. Download this project and unzip it anywhere.
+3. Double-click **`start-windows.cmd`**.
+
+The first run fetches the few libraries the server needs and takes a minute;
+after that it's a couple of seconds. A browser opens by itself, and the window
+prints an address you can use from a phone on the same network. Closing the
+window stops the app.
+
+The launcher checks for Node before doing anything and sends you to the download
+page if it's missing or too old, rather than failing at a command prompt.
+
+**Where the data goes.** On Windows the database is written to
+`%LOCALAPPDATA%\FilamentLibrary\filament.db`, not next to the app. That's
+deliberate: Documents and Desktop are synced by OneDrive on most Windows
+installs, and a sync client and a SQLite database fight each other — the folder
+gets locked mid-write and the app fails to start with "unable to open database
+file" for a file that's plainly sitting there. LocalAppData is never synced.
+Use **Settings → Download a backup** to take a copy somewhere you choose.
+
+For the same reason the local install uses SQLite's ordinary rollback journal
+rather than WAL, which needs sidecar files a synced folder won't reliably allow.
+The container still uses WAL, where it works properly.
+
 ### Add it to your iPhone
 
 Open the app in **Safari** → Share → **Add to Home Screen**. It launches
