@@ -127,9 +127,29 @@ docker compose up -d --build
 There's nothing to compile — the app is plain Node, and SQLite comes from Node
 itself — so it runs on a normal desktop with no container runtime at all.
 
-1. Install **Node.js LTS** from [nodejs.org](https://nodejs.org), all defaults.
-2. Download this project and unzip it anywhere.
-3. Double-click **`start-windows.cmd`**.
+#### 1. Install Node.js
+
+1. Go to **[nodejs.org](https://nodejs.org)**.
+2. Click the big green button labelled **LTS**. It downloads an installer
+   (`node-v22.x.x-x64.msi` or similar) — around 30 MB.
+3. Open the downloaded file and click **Next** through the installer. Accept the
+   licence when asked. **Leave every option as it comes.**
+4. On the screen offering *"Tools for Native Modules"*, leave the box
+   **unticked**. This app doesn't need it, and ticking it starts a long extra
+   download.
+5. Click **Install**, then **Finish**.
+
+> If you already had a launcher window open, close it and open it again. The
+> installer adds Node to the system path, and windows that were already open
+> don't pick that up.
+
+You never have to open Node or run it yourself — it just needs to be on the
+machine.
+
+#### 2. Run the app
+
+1. Download this project and unzip it anywhere — Desktop is fine.
+2. Double-click **`start-windows.cmd`**.
 
 The first run fetches the few libraries the server needs and takes a minute;
 after that it's a couple of seconds. A browser opens by itself, and the window
@@ -138,6 +158,10 @@ window stops the app.
 
 The launcher checks for Node before doing anything and sends you to the download
 page if it's missing or too old, rather than failing at a command prompt.
+
+> **Windows may ask about the firewall** the first time. Allow it on
+> **private networks** — that's what lets a phone on the same Wi-Fi reach it.
+> Blocking it is fine too; the app still works on the PC itself.
 
 **Where the data goes.** On Windows the database is written to
 `%LOCALAPPDATA%\FilamentLibrary\filament.db`, not next to the app. That's
