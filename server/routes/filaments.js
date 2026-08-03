@@ -12,6 +12,9 @@ const SORTS = {
   material: 'material COLLATE NOCASE ASC, brand COLLATE NOCASE ASC',
   color:    'color_name COLLATE NOCASE ASC',
   opened:   'opened_at DESC',
+  // What you're closest to running out of. Ties break on the smaller spool,
+  // since 20% of a 250 g reel is a lot less filament than 20% of a kilo.
+  remaining: 'remaining_pct ASC, spool_weight_g ASC',
 };
 
 /**

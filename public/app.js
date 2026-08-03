@@ -968,6 +968,13 @@ function groupFilaments(filaments) {
  * winding, so a dual-colour spool doesn't flatten to whichever tone happens to
  * be stored first.
  */
+/**
+ * Colours the fill bar once a spool is getting low, so "what am I about to run
+ * out of" reads off the grid without sorting for it. Thresholds are deliberately
+ * generous — the point is to notice before you're mid-print, not after.
+ */
+const lowClass = (pct) => (pct <= 10 ? 'is-out' : pct <= 25 ? 'is-low' : '');
+
 export function colorCSS(f) {
   if (isRainbow(f.color_name)) return RAINBOW_CSS;
   const tones = [f.color_hex, f.color_hex2, f.color_hex3].filter(Boolean);
@@ -1011,8 +1018,8 @@ function cardHTML(f, stack = 0) {
       <div class="card-extra">
         ${f.status === 'empty'
           ? `<span class="card-meta">Used up ${esc(fmtDate(f.finished_at))}</span>`
-          : `<span class="card-bar"><i style="width:${f.remaining_pct}%"></i></span>
-             <span class="card-meta">${f.remaining_pct}% left · ${grams} g</span>`}
+          : `<span class="card-bar ${lowClass(f.remaining_pct)}"><i style="width:${f.remaining_pct}%"></i></span>
+             <span class="card-meta ${lowClass(f.remaining_pct)}">${f.remaining_pct}% left · ${grams} g</span>`}
         ${f.location ? `<span class="card-meta">${esc(f.location)}</span>` : ''}
       </div>
     </div>

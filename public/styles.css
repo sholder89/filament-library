@@ -553,6 +553,12 @@ select {
   overflow: hidden;
 }
 .card-bar i { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+/* Getting low, and nearly gone. The bar and its read-out shift together so the
+   warning survives the densities that hide one or the other. */
+.card-bar.is-low i { background: var(--opened); }
+.card-bar.is-out i { background: var(--danger); }
+.card-meta.is-low { color: var(--opened); }
+.card-meta.is-out { color: var(--danger); }
 
 /* Label sitting on the spool itself — only used by the small view, where
    there's no room for text beneath it. */

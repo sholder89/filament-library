@@ -68,6 +68,9 @@ through — used-up spools stay in the library as a record instead of vanishing.
   depends on their site. Re-run it to refresh. Material types stay
   hand-maintained, because their API's type list is per-product marketing names
   rather than material classes.
+- **What's running out** — the fill bar turns amber under 25% and red under 10%,
+  and *Least left first* sorts the whole library by it. Ties break on the smaller
+  spool, since 20% of a 250 g reel is a lot less filament than 20% of a kilo.
 - **In the printer** — mark a spool as loaded in a printer or AMS from its page.
   Loaded spools get a coloured ring and sort to the top of every list, with a
   section of their own under the grouped sorts.
