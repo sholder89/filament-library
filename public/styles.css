@@ -443,10 +443,6 @@ select {
 }
 
 .card {
-  /* Its own name so the colour bar below can round its corners to match. The
-     list view uses a tighter radius and the bar has to follow it. */
-  --card-radius: var(--radius);
-
   position: relative;
   display: flex;
   flex-direction: column;
@@ -454,7 +450,12 @@ select {
   padding: 14px 12px 13px 17px;
   background: var(--surface);
   border: 1px solid var(--border-sm);
-  border-radius: var(--card-radius);
+  border-radius: var(--radius);
+  /* Clips the colour bar to the card's own curve. Rounding the bar itself can't
+     work: a 5px-wide box can't hold a 17px corner, so the browser scales the
+     radius down to fit and the bar stops following the card, leaving its
+     corners poking out past the rounded edge. */
+  overflow: hidden;
   cursor: pointer;
   text-align: left;
   transition: transform .16s cubic-bezier(.2,.8,.3,1), border-color .16s, box-shadow .16s;
@@ -469,8 +470,6 @@ select {
   inset: 0 auto 0 0;
   width: 5px;
   background: var(--fc, transparent);
-  /* Inside the 1px border, so a pixel tighter than the card's own corner. */
-  border-radius: calc(var(--card-radius) - 1px) 0 0 calc(var(--card-radius) - 1px);
   /* A hairline where the bar meets the card. Without it a white filament has no
      edge against a white card on the light theme, and a navy one has none
      against the dark card on the other — the two cases pull opposite ways, and
@@ -905,16 +904,16 @@ select {
 }
 .grid.view-small .badge::before { width: 6px; height: 6px; }
 
-/* Large: spool beside a full read-out. */
-.grid.view-large { grid-template-columns: repeat(auto-fill, minmax(252px, 1fr)); }
+/* Large: spool beside a full read-out.
+   Wide enough that the read-out actually fits. At 252px the desktop grid packed
+   four across, and once the 88px spool and the status badge had taken their
+   share the text was left about 68px of a 290px card — long colour names were
+   truncating in the one view whose whole job is showing them. Three roomy cards
+   beat four cramped ones. */
+.grid.view-large { grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); }
 .grid.view-large .card { flex-direction: row; align-items: center; gap: 14px; padding: 14px 14px 14px 19px; }
 .grid.view-large .card-spool { width: 88px; flex: none; margin: 0; }
-.grid.view-large .card-text { flex: 1; }
-/* The one density where the chip doesn't earn its keep: the status badge sits
-   in this row and takes most of it, leaving the text about 68px, and the chip
-   plus its gap is 20px of that — enough to start truncating colour names. The
-   bar down the edge is already carrying the colour here. */
-.grid.view-large .color-chip { display: none; }
+.grid.view-large .card-text { flex: 1; min-width: 0; }
 .grid.view-large .card-extra { display: grid; }
 /* The badge is first in the DOM so it can sit in the corner of a stacked card;
    once it's in flow it belongs at the end of the row. */
@@ -926,7 +925,7 @@ select {
 /* List: one row per spool, densest of the four. */
 .grid.view-list { --card-gap: 8px; grid-template-columns: 1fr; }
 .grid.view-list .card {
-  --card-radius: var(--radius-sm);
+  border-radius: var(--radius-sm);
   flex-direction: row;
   align-items: center;
   gap: 12px;
@@ -936,6 +935,10 @@ select {
 .grid.view-list .card-text {
   flex: 1;
   display: grid;
+  /* Left alone deliberately. Widening the colour column to fit the swatch as
+     well as the name only moved the truncation onto the type beside it, and the
+     type has nothing else standing for it — where the colour, now, has the
+     swatch. A shortened "Sand · Ma…" still shows you it's sand. */
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
   align-items: center;
   gap: 2px 14px;
@@ -970,6 +973,14 @@ select {
     margin-top: 0;
     align-content: center;
   }
+}
+
+@media (max-width: 759px) {
+  /* On a phone a list row is about 360px, and a loaded spool was spending 128px
+     of it on the status badge and the words "In printer" — enough to truncate
+     the type. The card already carries the loaded ring, so here the flag keeps
+     only its colour, the way the status badge does on small cards. */
+  .grid.view-list .loaded-flag { font-size: 0; padding: 6px; }
 }
 
 @media (max-width: 380px) {
