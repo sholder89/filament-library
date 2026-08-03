@@ -215,7 +215,7 @@ label printer — but the Windows PC has to be on and reachable from the contain
 
 Everything lives in `./data/filament.db`. Copy that folder and you're done.
 
-There's also a JSON export — the ⬇ icon in the header, or:
+There's also a JSON export — **Settings → Download a backup**, or:
 
 ```bash
 curl -o backup.json http://<server-ip>:8088/api/export
@@ -223,7 +223,16 @@ curl -o backup.json http://<server-ip>:8088/api/export
 
 It includes used-up spools, which the default view hides.
 
-To read one back, use the ⬆ icon beside it and pick the file. Importing
+**Download a spreadsheet** gives you the same inventory as CSV instead. That one
+is for reading rather than restoring, so its columns are named for people, the
+grams left are worked out for you, and it carries a byte-order mark so Excel on
+Windows doesn't mangle anything non-ASCII.
+
+```bash
+curl -o inventory.csv http://<server-ip>:8088/api/export.csv
+```
+
+To read a backup back in, use **Restore from a backup** and pick the file. Importing
 **merges**: a spool already in the library is left alone, so running the same
 backup twice changes nothing and an older backup can't revert edits you've made
 since. Ids are preserved, which is what keeps printed QR labels pointing at the
@@ -259,6 +268,7 @@ and the whole import runs in one transaction, so a bad file leaves no trace.
 | `POST` | `/api/print/:id` | Print a QR label |
 | `GET` | `/api/print/qr/:id.svg` | QR code as SVG |
 | `GET` | `/api/export` | Full JSON dump |
+| `GET` | `/api/export.csv` | The same inventory as a spreadsheet |
 | `POST` | `/api/import` | Restore a dump. `mode`: `merge` (default), `overwrite`, `replace` |
 
 Status transitions keep their own timestamps straight: editing a note never

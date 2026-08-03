@@ -51,13 +51,10 @@
     <button class="icon-btn" id="themeBtn" title="Toggle theme" aria-label="Toggle light or dark theme">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z" fill="currentColor"/></svg>
     </button>
-    <a class="icon-btn" id="exportBtn" href="/api/export" title="Export inventory as JSON" aria-label="Export inventory">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 19h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </a>
-    <button class="icon-btn" id="importBtn" title="Import a backup" aria-label="Import a backup">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14V3m0 0 4 4m-4-4-4 4M5 19h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <button class="icon-btn" id="settingsBtn" title="Settings" aria-label="Settings">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.56V21a2 2 0 0 1-4 0v-.09A1.7 1.7 0 0 0 8.9 19.3a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1H3a2 2 0 0 1 0-4h.09A1.7 1.7 0 0 0 4.7 8.9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9.1a1.7 1.7 0 0 0 1-1.56V3a2 2 0 0 1 4 0v.09a1.7 1.7 0 0 0 1 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9.1a1.7 1.7 0 0 0 1.56 1H21a2 2 0 0 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
     </button>
-    <!-- Kept out of the flow: the button above drives it, so it never needs to
+    <!-- Kept out of the flow: the settings sheet drives it, so it never needs to
          be seen or styled. -->
     <input type="file" id="importFile" accept="application/json,.json" hidden>
   </div>
@@ -386,6 +383,43 @@
       <button type="button" class="btn ghost" data-close>Cancel</button>
       <button type="button" class="btn primary" id="labelCaptureBtn">Read the label</button>
     </div>
+  </div>
+</dialog>
+
+<dialog id="settings" class="sheet">
+  <div class="sheet-inner">
+    <div class="sheet-head">
+      <h2>Settings</h2>
+      <button type="button" class="icon-btn" data-close aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+
+    <section class="settings-group">
+      <h3>Your data</h3>
+      <p class="hint">Everything lives in one SQLite file on the server. These are
+        for taking a copy of it elsewhere.</p>
+
+      <a class="btn wide settings-row" href="/api/export" download>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 19h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span><b>Download a backup</b><small>JSON — the format Restore reads</small></span>
+      </a>
+
+      <a class="btn wide settings-row" href="/api/export.csv" download>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h16M9 5v14m6-14v14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <span><b>Download a spreadsheet</b><small>CSV — opens in Excel or Sheets</small></span>
+      </a>
+
+      <button type="button" class="btn wide settings-row" id="importBtn">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14V3m0 0 4 4m-4-4-4 4M5 19h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span><b>Restore from a backup</b><small>Adds anything missing, changes nothing that's here</small></span>
+      </button>
+    </section>
+
+    <section class="settings-group">
+      <h3>This install</h3>
+      <dl class="spec-list" id="settingsFacts"></dl>
+    </section>
   </div>
 </dialog>
 

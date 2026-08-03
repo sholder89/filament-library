@@ -1409,6 +1409,37 @@ select {
 .spec dt { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
 .spec dd { margin: 2px 0 0; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
 
+/* ── Settings sheet ──────────────────────────────────────────────────────── */
+
+.settings-group { display: grid; gap: 10px; }
+.settings-group + .settings-group { margin-top: 26px; }
+.settings-group h3 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 680;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.settings-group .hint { margin-bottom: 2px; }
+
+/* Taller than a plain button because each one carries a second line saying what
+   the file actually is — the difference between the two downloads is the whole
+   question, and "Export" twice wouldn't answer it. */
+.settings-row {
+  justify-content: flex-start;
+  gap: 13px;
+  min-height: 62px;
+  padding: 12px 16px;
+  text-align: left;
+  text-decoration: none;
+}
+.settings-row svg { width: 20px; height: 20px; flex: none; color: var(--muted); }
+.settings-row span { display: grid; gap: 2px; min-width: 0; }
+.settings-row b { font-size: 15px; font-weight: 620; }
+.settings-row small { font-size: 12.5px; font-weight: 500; color: var(--muted); }
+.settings-row:hover svg { color: var(--accent); }
+
 /* ── Remaining control (detail sheet) ────────────────────────────────────── */
 
 .remaining {

@@ -31,6 +31,7 @@ const el = {
   picker: $('#picker'),
   scanner: $('#scanner'),
   labelScanner: $('#labelScanner'),
+  settings: $('#settings'),
   detail: $('#detail'),
   detailBody: $('#detailBody'),
   editor: $('#editor'),
@@ -86,7 +87,7 @@ function ago(iso) {
 }
 
 // The filter popover isn't a <dialog> — it's dismissed by closePicker instead.
-const SHEETS = [el.detail, el.editor, el.scanner, el.labelScanner];
+const SHEETS = [el.detail, el.editor, el.scanner, el.labelScanner, el.settings];
 
 /** Locks background scrolling while a sheet is up — iOS ignores <dialog>'s own lock. */
 function openSheet(dialog) {
@@ -2302,6 +2303,45 @@ $('#themeBtn').addEventListener('click', () => {
   applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
 });
 
+// ── Settings ─────────────────────────────────────────────────────────────────
+
+/**
+ * Reads back what the server is actually configured to do. Printing and label
+ * scanning both switch themselves on from environment variables, and until now
+ * the only way to tell whether a variable had taken was to go looking for the
+ * button it enables.
+ */
+async function showSettings() {
+  openSheet(el.settings);
+  const facts = $('#settingsFacts');
+  facts.innerHTML = '<div class="spec"><dt>Loading…</dt><dd></dd></div>';
+
+  const row = (label, value) =>
+    `<div class="spec"><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`;
+
+  try {
+    const [health, stats] = await Promise.all([
+      api('/api/health'),
+      api('/api/filaments/stats'),
+    ]);
+    facts.innerHTML = [
+      row('Spools', `${stats.total} (${stats.empty} used up)`),
+      row('On hand', `${(stats.active_grams / 1000).toFixed(1)} kg`),
+      row('Brands', stats.brands),
+      row('Label printing', { off: 'Off', relay: 'Via relay', direct: 'Direct to client' }[health.print_mode] ?? health.print_mode),
+      row('Label scanning', health.label_scan ? 'On' : 'Off — set VISION_API_KEY'),
+    ].join('');
+  } catch (err) {
+    facts.innerHTML = row('Could not reach the server', err.message);
+  }
+}
+
+$('#settingsBtn').addEventListener('click', showSettings);
+
+el.settings.addEventListener('click', (e) => {
+  if (e.target.closest('[data-close]')) closeSheet(el.settings);
+});
+
 // ── Import ───────────────────────────────────────────────────────────────────
 
 $('#importBtn').addEventListener('click', () => $('#importFile').click());
@@ -2338,6 +2378,8 @@ $('#importFile').addEventListener('change', async (e) => {
   try {
     const r = await api('/api/import', { method: 'POST', body: { filaments: rows, mode: 'merge' } });
     await refresh();
+    // Out of the way, so the result of the import is what you're looking at.
+    closeSheet(el.settings);
 
     const parts = [];
     if (r.imported) parts.push(`added ${r.imported}`);

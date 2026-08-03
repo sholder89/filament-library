@@ -79,6 +79,65 @@ app.use('/api/filaments', filamentsRouter);
 app.use('/api/catalog', catalogRouter);
 app.use('/api/print', printRouter);
 
+/**
+ * The same inventory as a spreadsheet.
+ *
+ * This one is for reading, not for restoring — /api/import takes the JSON. So
+ * the columns are named for people rather than matching the table, and the
+ * grams left are worked out here instead of leaving you to write the formula.
+ */
+const CSV_COLUMNS = [
+  ['ID',            (f) => f.id],
+  ['Brand',         (f) => f.brand],
+  ['Type',          (f) => f.material],
+  ['Color',         (f) => f.color_name],
+  ['Color hex',     (f) => f.color_hex],
+  ['Finish',        (f) => f.finish],
+  ['Status',        (f) => ({ new: 'Sealed', opened: 'Opened', empty: 'Used up' }[f.status] ?? f.status)],
+  ['In printer',    (f) => (f.loaded ? 'Yes' : 'No')],
+  ['Remaining %',   (f) => f.remaining_pct],
+  ['Remaining g',   (f) => Math.round(f.spool_weight_g * f.remaining_pct / 100)],
+  ['Spool size g',  (f) => f.spool_weight_g],
+  ['Diameter mm',   (f) => f.diameter],
+  ['Nozzle C',      (f) => f.nozzle_temp],
+  ['Bed C',         (f) => f.bed_temp],
+  ['Price',         (f) => f.price],
+  ['Location',      (f) => f.location],
+  ['Purchased',     (f) => date(f.purchased_at)],
+  ['Opened',        (f) => date(f.opened_at)],
+  ['Used up',       (f) => date(f.finished_at)],
+  ['Added',         (f) => date(f.created_at)],
+  ['Notes',         (f) => f.notes],
+];
+
+const date = (iso) => (iso ? String(iso).slice(0, 10) : '');
+
+/**
+ * RFC 4180. A field holding a comma, a quote or a line break is wrapped in
+ * quotes and its own quotes doubled — which matters here because colour names
+ * and notes are free text, and a stray comma would otherwise shift every column
+ * after it on that row.
+ */
+function csvCell(value) {
+  const s = value === null || value === undefined ? '' : String(value);
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+app.get('/api/export.csv', (_req, res) => {
+  const rows = db.prepare('SELECT * FROM filaments ORDER BY brand COLLATE NOCASE, material COLLATE NOCASE, color_name COLLATE NOCASE').all();
+
+  const csv = [
+    CSV_COLUMNS.map(([name]) => csvCell(name)).join(','),
+    ...rows.map((f) => CSV_COLUMNS.map(([, read]) => csvCell(read(f))).join(',')),
+  ].join('\r\n');
+
+  res.set('Content-Type', 'text/csv; charset=utf-8');
+  res.set('Content-Disposition', `attachment; filename="filament-library-${new Date().toISOString().slice(0, 10)}.csv"`);
+  // Excel on Windows assumes the system code page without this and mangles
+  // anything non-ASCII — degree signs, accented brand names.
+  res.send(`﻿${csv}`);
+});
+
 /** Whole-inventory dump, including used-up spools — handy as a backup. */
 app.get('/api/export', (_req, res) => {
   res.set('Content-Disposition', `attachment; filename="filament-library-${new Date().toISOString().slice(0, 10)}.json"`);
