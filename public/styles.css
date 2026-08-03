@@ -443,11 +443,15 @@ select {
 }
 
 .card {
+  /* Width of the colour bar. Every card's left padding is derived from it, so
+     this is the only number to change. */
+  --bar: 9px;
+
   position: relative;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 14px 12px 13px 17px;
+  padding: 14px 12px 13px calc(12px + var(--bar));
   background: var(--surface);
   border: 1px solid var(--border-sm);
   border-radius: var(--radius);
@@ -468,7 +472,7 @@ select {
   content: "";
   position: absolute;
   inset: 0 auto 0 0;
-  width: 5px;
+  width: var(--bar);
   background: var(--fc, transparent);
   /* A hairline where the bar meets the card. Without it a white filament has no
      edge against a white card on the light theme, and a navy one has none
@@ -888,7 +892,7 @@ select {
    a tap through to the detail page. */
 .grid.view-small { --card-gap: 10px; grid-template-columns: repeat(auto-fill, minmax(98px, 1fr)); }
 /* The only cue on a small card — there's no text under it to carry a swatch. */
-.grid.view-small .card { padding: 8px 8px 8px 12px; }
+.grid.view-small .card { padding: 8px 8px 8px calc(8px + var(--bar)); }
 .grid.view-small .card-spool { margin-bottom: 0; }
 .grid.view-small .card-text { display: none; }
 .grid.view-small .card-overlay { display: flex; }
@@ -911,7 +915,7 @@ select {
    truncating in the one view whose whole job is showing them. Three roomy cards
    beat four cramped ones. */
 .grid.view-large { grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); }
-.grid.view-large .card { flex-direction: row; align-items: center; gap: 14px; padding: 14px 14px 14px 19px; }
+.grid.view-large .card { flex-direction: row; align-items: center; gap: 14px; padding: 14px 14px 14px calc(14px + var(--bar)); }
 .grid.view-large .card-spool { width: 88px; flex: none; margin: 0; }
 .grid.view-large .card-text { flex: 1; min-width: 0; }
 .grid.view-large .card-extra { display: grid; }
@@ -929,7 +933,7 @@ select {
   flex-direction: row;
   align-items: center;
   gap: 12px;
-  padding: 9px 12px 9px 17px;
+  padding: 9px 12px 9px calc(12px + var(--bar));
 }
 .grid.view-list .card-spool { width: 44px; flex: none; margin: 0; }
 .grid.view-list .card-text {
