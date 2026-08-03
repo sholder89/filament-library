@@ -974,7 +974,15 @@ export function colorCSS(f) {
   return tones.length > 1 ? `linear-gradient(170deg, ${tones.join(', ')})` : (tones[0] || '#808080');
 }
 
-function cardHTML(f) {
+/**
+ * `stack` is how many identical spools this card stands for, or 0 for a single
+ * one. The count sits beside the type rather than on the wrapper around the
+ * card: in a list row that keeps it attached to the thing it's counting, and
+ * because it rides inside a column that's sized as a fraction of the row, a row
+ * having one doesn't push the colour, fill bar or status badge out of line with
+ * the rows that don't.
+ */
+function cardHTML(f, stack = 0) {
   const detail = [f.color_name || '—', f.finish].filter(Boolean).join(' · ');
   const grams = Math.round(f.spool_weight_g * f.remaining_pct / 100);
   const sub = [f.brand, f.color_name].filter(Boolean).join(' · ');
@@ -982,7 +990,9 @@ function cardHTML(f) {
   return `
   <button class="card ${f.status === 'empty' ? 'is-empty' : ''}${f.loaded ? ' is-loaded' : ''}"
           style="--fc:${colorCSS(f)}" data-id="${esc(f.id)}">
-    ${f.loaded ? '<span class="loaded-flag" title="Loaded in a printer">In printer</span>' : ''}
+    ${f.loaded ? `<span class="loaded-flag" title="Loaded in a printer" role="img" aria-label="Loaded in a printer">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V4h10v4M7 17H6a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-1M7 14h10v6H7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+    </span>` : ''}
     <span class="badge ${esc(f.status)}">${esc(STATUS_LABEL[f.status])}</span>
     <div class="card-spool">
       ${spoolSVG(f)}
@@ -993,7 +1003,10 @@ function cardHTML(f) {
     </div>
     <div class="card-text">
       <span class="card-brand">${esc(f.brand)}</span>
-      <span class="card-title">${esc(f.material)}</span>
+      <span class="card-title-row">
+        <span class="card-title">${esc(f.material)}</span>
+        ${stack > 1 ? `<span class="stack-count">×${stack}</span>` : ''}
+      </span>
       <span class="card-color"><i class="color-chip"></i><span>${esc(detail)}</span></span>
       <div class="card-extra">
         ${f.status === 'empty'
@@ -1024,8 +1037,7 @@ function renderGroup(group) {
     <div class="stack" data-expand="${esc(group.key)}">
       <span class="stack-layer l2"></span>
       <span class="stack-layer l1"></span>
-      <span class="stack-count">×${count}</span>
-      ${cardHTML(first)}
+      ${cardHTML(first, count)}
     </div>`;
 }
 

@@ -497,38 +497,35 @@ select {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--loaded) 55%, transparent), var(--shadow);
 }
 
+/* A printer mark rather than a worded pill. The card already carries the ring,
+   so the badge only has to say which kind of thing it is — and at four to a row
+   the words were more furniture than information. Pinned to the corner in every
+   density, so no row has to make space for it and nothing shifts when a spool
+   goes into a printer. */
 .loaded-flag {
   position: absolute;
-  left: 8px;
-  top: 8px;
+  left: calc(var(--bar) + 5px);
+  top: 7px;
   z-index: 4;
-  padding: 3px 8px;
-  font-size: 11px;
-  font-weight: 680;
-  letter-spacing: .02em;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
   color: var(--accent-ink);
   background: var(--loaded);
-  border-radius: 999px;
-  white-space: nowrap;
+  border-radius: 7px;
 }
-/* Small cards have no room for the words, so it keeps only its colour. */
-.grid.view-small .loaded-flag { font-size: 0; padding: 5px; }
-
-/* List rows put the status badge in flow at the end, where a pill pinned to the
-   top right corner landed straight on top of it. Here the flag joins the row
-   and follows the badge instead. */
-.grid.view-list .loaded-flag {
-  position: static;
-  order: 4;
-  align-self: center;
-  flex: none;
-}
-/* Large cards can't do the same: at the narrowest they're laid out at, the row
-   has no width left for a second pill and the flag hung over the card's edge.
-   It stays pinned over the spool, which is 88px wide here — wide enough. */
+.loaded-flag svg { width: 14px; height: 14px; }
+.grid.view-small .loaded-flag,
+.grid.view-list .loaded-flag { width: 19px; height: 19px; border-radius: 6px; }
+.grid.view-small .loaded-flag svg,
+.grid.view-list .loaded-flag svg { width: 12px; height: 12px; }
+.grid.view-list .loaded-flag { top: 5px; }
 
 .card-spool { position: relative; width: 100%; aspect-ratio: 1; margin-bottom: 8px; }
 .card-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+/* The type, and the stack count that belongs to it. */
+.card-title-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .card-brand { font-size: 12px; color: var(--muted); font-weight: 600; letter-spacing: .02em; }
 .card-title { font-size: 15px; font-weight: 650; line-height: 1.25; letter-spacing: -.01em; }
 .card-color { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); }
@@ -687,9 +684,10 @@ select {
    instead and would sit narrower than the layers behind it. */
 .stack .card { position: relative; width: 100%; }
 
+/* On a card it floats in the corner, so it costs no layout. */
 .stack-count {
   position: absolute;
-  left: 10px;
+  left: calc(var(--bar) + 7px);
   top: 10px;
   z-index: 2;
   padding: 4px 9px;
@@ -700,6 +698,9 @@ select {
   color: #fff;
   pointer-events: none;
 }
+.stack-count[data-empty] { display: none; }
+/* A loaded card already has a mark in that corner. */
+.card.is-loaded .stack-count { top: 36px; }
 
 /* ── Grouped view sections ───────────────────────────────────────────────── */
 
@@ -894,7 +895,14 @@ select {
 /* The only cue on a small card — there's no text under it to carry a swatch. */
 .grid.view-small .card { padding: 8px 8px 8px calc(8px + var(--bar)); }
 .grid.view-small .card-spool { margin-bottom: 0; }
-.grid.view-small .card-text { display: none; }
+/* The children go, not the blocks: the stack count lives in here now, and it's
+   still wanted on a small card. `contents` leaves it anchored to the card. */
+.grid.view-small .card-text,
+.grid.view-small .card-title-row { display: contents; }
+.grid.view-small .card-brand,
+.grid.view-small .card-title,
+.grid.view-small .card-color,
+.grid.view-small .card-extra { display: none; }
 .grid.view-small .card-overlay { display: flex; }
 .grid.view-small .card:hover .card-overlay span,
 .grid.view-small .card:focus-visible .card-overlay span { max-height: 16px; }
@@ -947,25 +955,33 @@ select {
   align-items: center;
   gap: 2px 14px;
 }
-.grid.view-list .card-brand { grid-column: 1; font-size: 11.5px; }
-.grid.view-list .card-title { grid-column: 1; font-size: 14.5px; }
+.grid.view-list .card-brand { grid-column: 1; grid-row: 1; font-size: 11.5px; }
+.grid.view-list .card-title-row { grid-column: 1; grid-row: 2; }
+.grid.view-list .card-title { font-size: 14.5px; }
 .grid.view-list .card-color { grid-column: 2; grid-row: 1 / span 2; font-size: 13px; }
 .grid.view-list .card-extra { display: none; }
-.grid.view-list .badge { position: static; flex: none; }
+/* One width for all three labels — Sealed 65px, Opened 71px, Used up 73px. In a
+   row the badge is in flow, so without this the column of badges stepped in and
+   out by a few pixels according to which word each row happened to have, and
+   took the fill bar beside it along. */
+.grid.view-list .badge { position: static; flex: none; min-width: 76px; justify-content: center; }
 
 /* A fanned paper stack behind a 64px row just reads as misalignment, so the
    layers are dropped here and the count carries the meaning on its own. */
 .grid.view-list .stack-layer { display: none; }
+
+/* In a row the count joins the flow, right after the type it's counting.
+   Pinned to the row's right edge it overlapped the status badge, and the
+   padding that kept the two apart squeezed that row alone — so a stacked
+   spool's fill bar and badge sat left of every other row's. Sitting inside a
+   column that's a fraction of the row, it costs the rows that have one nothing
+   the rows that don't also pay. */
 .grid.view-list .stack-count {
-  left: auto;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  padding: 3px 8px;
+  position: static;
+  flex: none;
+  padding: 3px 7px;
   font-size: 11.5px;
 }
-/* Room for the count so it never lands on the status badge. */
-.grid.view-list .stack .card { padding-right: 56px; }
 
 @media (min-width: 760px) {
   /* Room for the remaining bar and location once the row is wide enough. */
@@ -977,14 +993,18 @@ select {
     margin-top: 0;
     align-content: center;
   }
-}
 
-@media (max-width: 759px) {
-  /* On a phone a list row is about 360px, and a loaded spool was spending 128px
-     of it on the status badge and the words "In printer" — enough to truncate
-     the type. The card already carries the loaded ring, so here the flag keeps
-     only its colour, the way the status badge does on small cards. */
-  .grid.view-list .loaded-flag { font-size: 0; padding: 6px; }
+  /* The printer mark moves to a gutter at the end of the row. On a row this
+     short the corner it sits in elsewhere belongs to the spool, and it looked
+     wedged against it. Every row leaves the gutter open, whether or not it has
+     a mark, so nothing shifts when a spool goes into a printer. */
+  .grid.view-list .card { padding-right: 46px; }
+  .grid.view-list .loaded-flag {
+    left: auto;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
 }
 
 @media (max-width: 380px) {
