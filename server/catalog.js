@@ -239,30 +239,18 @@ export const SPOOL_WEIGHTS = [250, 500, 750, 1000, 2000, 3000, 5000];
 import { SPOOL_TARES as GENERATED_TARES } from './spool-tares.js';
 
 /**
- * Hand corrections to the generated spool weights, for things the tool can't
- * work out from the source text.
+ * Configurations the crowdsourced database doesn't carry, from Printara3D and
+ * Start3D. Additions only — the generator handles the cardboard arithmetic
+ * itself now, including Bambu's, so there's nothing here to override.
  *
- * Bambu is the case that forced this. The database records their 1 kg spool at
- * 207 g, but the comment on that same row says the cardboard centre is another
- * 36 g — so a spool on your scale is 243 g of hardware, and 207 would have
- * claimed 36 g of filament that isn't there. Their other two configurations
- * come from Printara3D and Start3D.
- *
- * A refill has no spool at all, which is why the number that ends up mattering
- * is whatever you wound it onto — the per-spool override, not this table.
+ * A refill has no spool at all, which is why the figure that ends up mattering
+ * for one is whatever you wound it onto: the per-spool override, not this table.
  */
 const EXTRA_TARES = [
-  { brand: 'Bambu Lab', grams: 243, capacity: 1000, note: 'Plastic spool including its cardboard centre' },
-  { brand: 'Bambu Lab', grams: 250, capacity: 1000, note: 'Reusable spool' },
-  { brand: 'Bambu Lab', grams: 215, capacity: 1000, note: 'Refill cardboard core only' },
+  { brand: 'Bambu Lab', grams: 250, capacity: 1000, material: null, note: 'Reusable spool' },
+  { brand: 'Bambu Lab', grams: 215, capacity: 1000, material: null, note: 'Refill cardboard core only' },
 ];
 
-/** Corrections win; the 207 g figure they replace would otherwise skew the median. */
-const corrected = new Set(EXTRA_TARES.map((t) => `${t.brand.toLowerCase()}|${t.capacity}`));
-
-export const SPOOL_TARES = [
-  ...GENERATED_TARES.filter((t) => !corrected.has(`${t.brand.toLowerCase()}|${t.capacity}`)),
-  ...EXTRA_TARES,
-];
+export const SPOOL_TARES = [...GENERATED_TARES, ...EXTRA_TARES];
 
 export const DIAMETERS = [1.75, 2.85, 3.0];

@@ -68,6 +68,51 @@ function readGrams(text) {
 }
 
 /**
+ * The weight including the cardboard centre, where a contributor separated the
+ * two.
+ *
+ * Several spools are a plastic reel around a cardboard core, and some people
+ * weighed the plastic on its own and noted the core separately. What goes on a
+ * scale has the core in it, so the inclusive figure is the one that matters —
+ * Bambu's is recorded as 207 g of plastic with a 36 g ring, and using 207 would
+ * claim 36 g of filament that isn't there on every one of those spools.
+ *
+ * Three shapes appear in the data: a stated total, a "with the X" second
+ * reading in the weight column, and a core weight given on its own to be added.
+ */
+function withCore(weightText, comment) {
+  const base = readGrams(weightText);
+  if (base == null) return { grams: base, adjusted: null };
+
+  const c = String(comment ?? '');
+
+  // "…so total weight is 243 g"
+  const total = c.match(/total\s+weight\s+(?:is\s+)?(\d+(?:\.\d+)?)/i);
+  if (total) {
+    const g = Math.round(Number(total[1]));
+    if (g > base) return { grams: g, adjusted: `stated total ${g} g rather than ${base} g of plastic` };
+  }
+
+  // "205g, 240g*" with a comment explaining the second includes the core.
+  if (/\bwith\b.*\b(core|tube|ring|cardboard|insert)\b/i.test(c)) {
+    const all = [...String(weightText).matchAll(/(\d+(?:\.\d+)?)/g)].map((m) => Math.round(Number(m[1])));
+    const most = Math.max(...all);
+    if (most > base) return { grams: most, adjusted: `${most} g including the core, not ${base} g without` };
+  }
+
+  // "Cardboard ring in center weights 36 g" with no total given.
+  const core = c.match(/(?:cardboard|core|ring|tube)[^.]*?(\d+(?:\.\d+)?)\s*g/i);
+  if (core && !total) {
+    const add = Math.round(Number(core[1]));
+    if (add > 0 && add < base) {
+      return { grams: base + add, adjusted: `${base} g plus a ${add} g core` };
+    }
+  }
+
+  return { grams: base, adjusted: null };
+}
+
+/**
  * How much filament the spool was sold holding, from "PLA, 0,5kg", "1kg",
  * "TPU 750g", "2.3kg", "250g spool", "PLA, 1 KG".
  *
@@ -86,21 +131,59 @@ function readCapacity(text) {
 
 const clean = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
 
+/**
+ * Which material the entry is for, where the contributor said.
+ *
+ * Spool design varies by product line within a brand, not just by size —
+ * Creality's standard spool is 138 g, their PETG one 188 g and their Hyper ABS
+ * a 180 g cardboard reel; Overture's type I is 238 g against 170 g for their
+ * cardboard. Matching on the material as well as the size gets a good deal
+ * closer than a brand-wide average.
+ *
+ * Longest first so PETG beats PET and PLA+ beats PLA, and reduced to the base
+ * family, because that's the granularity the filament records use.
+ */
+const MATERIAL_HINTS = [
+  ['PETG', 'PETG'], ['PCTG', 'PETG'], ['PET', 'PETG'],
+  ['PLA+', 'PLA'], ['PLA', 'PLA'], ['APLA', 'PLA'],
+  ['ABS', 'ABS'], ['ASA', 'ABS'],
+  ['TPU', 'TPU'], ['TPE', 'TPU'], ['FLEX', 'TPU'],
+  ['NYLON', 'Nylon'], ['PA12', 'Nylon'], ['PA6', 'Nylon'],
+  ['PVA', 'Other'], ['HIPS', 'Other'], ['PEEK', 'Other'], ['PVB', 'Other'],
+  ['PC', 'Other'],
+];
+
+function readMaterial(text) {
+  const s = String(text ?? '').toUpperCase();
+  for (const [token, family] of MATERIAL_HINTS) {
+    // A boundary check, so "PLASTIC" isn't read as PLA and "SPOOL" isn't PC.
+    if (new RegExp(`(^|[^A-Z])${token.replace('+', '\\+')}([^A-Z]|$)`).test(s)) return family;
+  }
+  return null;
+}
+
 const res = await fetch(SOURCE);
 if (!res.ok) throw new Error(`${SOURCE} responded ${res.status}`);
 const records = await res.json();
 
-let parsed = records.map((r) => ({
+const cored = [];
+
+let parsed = records.map((r) => {
+  const w = withCore(r['Spool Weight, g'], r.Comment);
+  if (w.adjusted) cored.push(`${clean(r.Manufacturer)} ${clean(r['Flavor (type, size, etc)'])} — ${w.adjusted}`);
+  return {
   brand: normaliseBrand(clean(r.Manufacturer)),
-  grams: readGrams(r['Spool Weight, g']),
+  grams: w.grams,
   capacity: readCapacity(r['Flavor (type, size, etc)']),
   // Measurements of the spool itself are for someone deciding whether it fits a
   // dry box, not for anyone weighing filament.
   note: clean(r.Comment)
     .replace(/\s*(Diameter|Core ID|Core OD|Core Width|Overall OD|Width|Spool size)\s*[:=].*$/i, ''),
+  material: readMaterial(`${r['Flavor (type, size, etc)']} ${r.Comment ?? ''}`),
   flavor: clean(r['Flavor (type, size, etc)']),
   year: r.Year,
-})).filter((t) => t.brand && t.grams);
+  };
+}).filter((t) => t.brand && t.grams);
 
 /*
  * Refuse what can't be true. A tare that is wrong low silently invents filament
@@ -152,14 +235,36 @@ parsed = parsed.filter((t) => {
 // Collapse duplicates: same brand, same size, same weight adds nothing.
 const seen = new Set();
 const entries = parsed.filter((t) => {
-  const key = `${t.brand.toLowerCase()}|${t.capacity}|${t.grams}`;
+  const key = `${t.brand.toLowerCase()}|${t.capacity}|${t.material}|${t.grams}`;
   if (seen.has(key)) return false;
   seen.add(key);
   return true;
 }).sort((a, b) =>
   a.brand.localeCompare(b.brand, 'en', { sensitivity: 'base' })
   || (a.capacity ?? 0) - (b.capacity ?? 0)
+  || String(a.material).localeCompare(String(b.material))
   || a.grams - b.grams);
+
+/*
+ * A fallback per size, for a brand nobody has weighed — without one the feature
+ * simply refuses to work for anything off the beaten track. The median of every
+ * spool of that size in the set, so it moves with the data rather than being a
+ * number somebody once guessed.
+ */
+const fallbacks = [];
+for (const [capacity, list] of classes) {
+  if (capacity === 'unstated' || list.length < 5) continue;
+  const usable = list.filter((g) => g >= FLOOR);
+  if (!usable.length) continue;
+  fallbacks.push({
+    brand: '',
+    grams: Math.round(median(usable)),
+    capacity,
+    material: null,
+    flavor: '',
+    note: `Typical across ${usable.length} spools this size`,
+  });
+}
 
 /**
  * A short label. The flavour field mixes the material, the size and the spool
@@ -187,8 +292,9 @@ const noteFor = (t) => {
   return out.length > 88 ? `${out.slice(0, 87).replace(/\s+\S*$/, '')}…` : out;
 };
 
-const body = entries.map((t) =>
-  `  { brand: ${JSON.stringify(t.brand)}, grams: ${t.grams}, capacity: ${t.capacity}, note: ${JSON.stringify(noteFor(t))} },`,
+const body = [...entries, ...fallbacks].map((t) =>
+  `  { brand: ${JSON.stringify(t.brand)}, grams: ${t.grams}, capacity: ${t.capacity},`
+  + ` material: ${JSON.stringify(t.material)}, note: ${JSON.stringify(noteFor(t))} },`,
 ).join('\n');
 
 const brands = new Set(entries.map((t) => t.brand.toLowerCase())).size;
@@ -212,9 +318,11 @@ writeFileSync(OUT, `/**
  * other style and got 288–294. So the app treats every figure here as a guess,
  * says so, and lets any spool carry its own measured weight instead.
  *
- * \`capacity\` is what the spool was sold holding, which is the strongest signal
- * for choosing between a brand's entries — a 250 g spool and a 1 kg spool are
- * nothing alike. null means the source didn't say.
+ * \`capacity\` is what the spool was sold holding and \`material\` the base family
+ * it was sold as. Both are needed to choose between a brand's entries: a 250 g
+ * spool and a 1 kg spool are nothing alike, and neither are Creality's 138 g
+ * standard reel and the 180 g cardboard one their Hyper ABS ships on. null in
+ * either means the source didn't say.
  */
 export const SPOOL_TARES = [
 ${body}
@@ -222,6 +330,10 @@ ${body}
 `);
 
 console.log(`Wrote ${entries.length} entries across ${brands} brands to ${OUT}`);
+if (cored.length) {
+  console.log(`\nTook the cardboard-inclusive weight for ${cored.length}:`);
+  for (const c of cored) console.log(`  ${c}`);
+}
 if (dropped.length) {
   console.log(`\nDropped ${dropped.length} as implausible for their size class:`);
   for (const d of dropped) console.log(`  ${d}`);

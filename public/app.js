@@ -1173,6 +1173,16 @@ el.grid.addEventListener('click', (e) => {
  * much filament is left, and a spool you think is emptier than it is sends you
  * to check it rather than leaving you stranded mid-print.
  */
+/** The family a material belongs to, as the tare table records it. */
+function familyOf(name) {
+  const known = (state.catalog.materials ?? []).find(
+    (m) => m.name.toLowerCase() === String(name ?? '').trim().toLowerCase(),
+  );
+  // ASA shares ABS's spools, and that's how the tare data is grouped.
+  const family = known?.family ?? baseMaterial(name);
+  return family === 'ASA' ? 'ABS' : family;
+}
+
 function tareFor(f) {
   if (f.empty_spool_g != null) return { grams: f.empty_spool_g, measured: true };
 
@@ -1180,19 +1190,31 @@ function tareFor(f) {
   const brand = String(f.brand ?? '').trim().toLowerCase();
 
   /*
-   * Narrowed by capacity first, because it separates things nothing else can:
-   * Sunlu's 250 g spool is 55 g and their 1 kg spool is 133 g, and no amount of
-   * knowing the brand tells them apart. Entries with no stated capacity are
-   * left in, since they're usually 1 kg and always better than nothing.
+   * Narrow on what the source actually recorded, most telling first, and only
+   * as far as the data allows — an exact match if there is one, otherwise the
+   * entries that didn't say, otherwise everything still in hand.
+   *
+   * Capacity leads because it separates things nothing else can: a 250 g spool
+   * and a 1 kg spool are nothing alike. Material comes next because a brand
+   * does not use one spool for everything — Creality's standard reel is 138 g,
+   * their PETG one 188 g, and Hyper ABS ships on a 180 g cardboard reel. An
+   * average across those is a number that describes none of them.
    */
-  const fits = (list) => {
-    const sized = list.filter((t) => t.capacity === f.spool_weight_g);
-    return sized.length ? sized : list.filter((t) => t.capacity == null);
+  const step = (list, exact, unstated) => {
+    const hit = list.filter(exact);
+    if (hit.length) return hit;
+    const quiet = list.filter(unstated);
+    return quiet.length ? quiet : list;
   };
 
-  let candidates = brand ? fits(all.filter((t) => t.brand.toLowerCase() === brand)) : [];
-  if (!candidates.length) candidates = fits(all.filter((t) => !t.brand));
+  let candidates = brand ? all.filter((t) => t.brand.toLowerCase() === brand) : [];
+  if (!candidates.length) candidates = all.filter((t) => !t.brand);
   if (!candidates.length) return null;
+
+  candidates = step(candidates, (t) => t.capacity === f.spool_weight_g, (t) => t.capacity == null);
+
+  const family = familyOf(f.material);
+  candidates = step(candidates, (t) => t.material === family, (t) => t.material == null);
 
   /*
    * Median, not the heaviest. An earlier version took the maximum on the theory
