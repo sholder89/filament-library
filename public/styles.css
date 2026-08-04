@@ -1959,7 +1959,27 @@ input[type="range"] {
   .grid { grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); }
   .search { flex: 1 1 260px; }
   .filters select { flex: 0 1 170px; }
+
+  /* Room for the Clear button, which only appears once a filter is on.
+     Wrapping is decided on flex-basis rather than the size things end up, so
+     the row has to be able to hold Clear even while it isn't there — otherwise
+     picking a filter bumps the view switch onto a second line. Only the basis
+     comes down: these all grow, so with Clear absent they expand to fill the
+     row exactly as before and nothing looks any different. */
+  .filter-wrap { flex: 1 1 112px; }
+
   .fab { right: 32px; bottom: 32px; }
+}
+
+/* Under about 1120px the row can't hold everything on one line whatever the
+   basis, and there the choice is between wrapping at one width with Clear and
+   at another without it, or wrapping at the same width always. The second is
+   steadier — the button keeps its place and only stops being drawn, so
+   switching tabs never moves the view switch.
+   Only in this band: above it both states fit on one line, and reserving space
+   there would leave a visible gap to fix a problem that isn't happening. */
+@media (min-width: 760px) and (max-width: 1119px) {
+  #clearFilters[hidden] { display: block; visibility: hidden; }
 }
 
 @media (max-width: 380px) {
