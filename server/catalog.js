@@ -249,6 +249,20 @@ import { SPOOL_TARES as GENERATED_TARES } from './spool-tares.js';
 const EXTRA_TARES = [
   { brand: 'Bambu Lab', grams: 250, capacity: 1000, material: null, note: 'Reusable spool' },
   { brand: 'Bambu Lab', grams: 215, capacity: 1000, material: null, note: 'Refill cardboard core only' },
+
+  /*
+   * Sunlu is the one brand where the sources genuinely conflict rather than
+   * merely vary. Eight contributors to the crowdsourced database weigh their
+   * spools at 130–155 g and Start3D says 125 g, while Printara3D says 220 g —
+   * and Sunlu now also ship recycled cardboard spools, which the light figures
+   * plainly aren't. That reads as at least two quite different spools sold
+   * under one name, not as anyone being wrong.
+   *
+   * The heavier figure is carried here so the suggestion sits between them and
+   * the app can say the range out loud, rather than quietly picking a side. On
+   * this brand above all others, weigh one and be done with it.
+   */
+  { brand: 'Sunlu', grams: 220, capacity: 1000, material: null, note: 'Heavier spool — Printara3D. Their light plastic ones are 130–155 g' },
 ];
 
 export const SPOOL_TARES = [...GENERATED_TARES, ...EXTRA_TARES];

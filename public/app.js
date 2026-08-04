@@ -1213,6 +1213,18 @@ function tareFor(f) {
 
   candidates = step(candidates, (t) => t.capacity === f.spool_weight_g, (t) => t.capacity == null);
 
+  /*
+   * The range across everything known about this brand and size, kept before
+   * the material narrowing throws most of it away. The narrowed set gives the
+   * better number; this gives the better warning. Sunlu's PLA entries agree
+   * with each other at 132–155 g while the brand as a whole is reported from
+   * 130 to 220 g, and a suggestion that looks confident because it was drawn
+   * from two entries that happen to concur is worse than one that admits the
+   * brand is a moving target.
+   */
+  const known = candidates.map((t) => t.grams).sort((a, b) => a - b);
+  const brandSpread = known.length > 1 ? [known[0], known.at(-1)] : null;
+
   const family = familyOf(f.material);
   candidates = step(candidates, (t) => t.material === family, (t) => t.material == null);
 
@@ -1232,6 +1244,7 @@ function tareFor(f) {
     grams: median,
     measured: false,
     spread: grams.length > 1 ? [grams[0], grams.at(-1)] : null,
+    brandSpread,
   };
 }
 
@@ -1244,10 +1257,20 @@ function weighHintFor(f) {
   }
 
   const who = esc(f.brand || 'spools this size');
-  const spread = tare.spread && tare.spread[0] !== tare.spread[1]
-    ? ` Measurements for ${who} run ${tare.spread[0]}–${tare.spread[1]} g, so this is a middling guess.`
-    : '';
+  const [low, high] = tare.brandSpread ?? [];
 
+  /*
+   * A range this wide isn't sloppy measuring, it's a brand shipping more than
+   * one spool — cardboard and plastic, old tooling and new. Saying so is the
+   * difference between a number you'd check and one you'd trust and be wrong
+   * by a third.
+   */
+  if (low != null && high > low * 1.3) {
+    return `${tare.grams} g is the usual figure for ${who}, but reports across their spools run `
+      + `${low}–${high} g — they don't all use the same one. Worth weighing this spool to settle it.`;
+  }
+
+  const spread = low != null && low !== high ? ` Reports run ${low}–${high} g.` : '';
   return `The ${tare.grams} g is typical for ${who}, not measured from this spool.${spread}`
     + ' Correct it and it will be remembered.';
 }
