@@ -170,9 +170,15 @@ router.get('/', (req, res) => {
 
   const q = str(req.query.q);
   if (q) {
-    where.push('(brand LIKE ? OR material LIKE ? OR color_name LIKE ? OR finish LIKE ? OR location LIKE ? OR notes LIKE ? OR id = ?)');
-    const like = `%${q}%`;
-    params.push(like, like, like, like, like, like, q.toUpperCase());
+    /*
+     * % and _ are LIKE's own wildcards, so a search for either matched every
+     * row — and any brand or location containing one, "100% Cotton" or
+     * "shelf_a", could not be found at all. Escaped so they mean themselves.
+     */
+    const like = `%${q.replace(/[\\%_]/g, '\\$&')}%`;
+    const cols = ['brand', 'material', 'color_name', 'finish', 'location', 'notes'];
+    where.push(`(${cols.map((c) => `${c} LIKE ? ESCAPE '\\'`).join(' OR ')} OR id = ?)`);
+    params.push(...cols.map(() => like), q.toUpperCase());
   }
 
   const order = SORTS[str(req.query.sort)] || SORTS.newest;
@@ -431,6 +437,23 @@ export function importHandler(req, res, next) {
       // Inside the same transaction, so a file that fails partway leaves the
       // spool weights alone too.
       result.tares = importTares(body.spool_tares);
+
+      /*
+       * 'replace' empties the table first, so a file that turns out to be
+       * unreadable would otherwise commit the deletion and nothing else — the
+       * whole library gone, in exchange for a report saying every row failed.
+       * Nothing landing at all is the one case where that can't be what anyone
+       * wanted, so it aborts instead.
+       */
+      if (mode === 'replace' && !result.imported && !result.updated) {
+        // Thrown rather than rolled back here — the catch below owns that, and
+        // rolling back twice is itself an error.
+        throw new BadRequest(
+          `Nothing in that file could be read (${result.failed} row${result.failed === 1 ? '' : 's'} failed), `
+          + 'so the library has been left exactly as it was.',
+        );
+      }
+
       db.exec('COMMIT');
     } catch (err) {
       db.exec('ROLLBACK');

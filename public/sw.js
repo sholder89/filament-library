@@ -1,6 +1,6 @@
 /* Filament Library service worker — app shell offline, inventory read-only offline. */
 
-const VERSION = 'v43';
+const VERSION = 'v44';
 const SHELL = `shell-${VERSION}`;
 const DATA = `data-${VERSION}`;
 
@@ -50,6 +50,14 @@ self.addEventListener('fetch', (event) => {
     );
     return;
   }
+
+  /*
+   * Downloads are not inventory data and must not be cached. An export is the
+   * whole library in one response — caching it would park a full copy in the
+   * browser's storage indefinitely, and serve a stale one to somebody who
+   * pressed the button expecting today's.
+   */
+  if (url.pathname.startsWith('/api/export')) return;
 
   // Inventory data: fresh when online, last-known when not.
   if (url.pathname.startsWith('/api/')) {

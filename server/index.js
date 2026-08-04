@@ -123,7 +123,18 @@ const date = (iso) => (iso ? String(iso).slice(0, 10) : '');
  * after it on that row.
  */
 function csvCell(value) {
-  const s = value === null || value === undefined ? '' : String(value);
+  let s = value === null || value === undefined ? '' : String(value);
+
+  /*
+   * Excel and Sheets treat a cell starting = + @ - (or a tab) as a formula and
+   * run it on open, so a colour name or note typed into this app becomes code
+   * on the machine of whoever opens the export. Prefixing with an apostrophe is
+   * the standard defusing: spreadsheets read it as "this is text" and don't
+   * display it, and anything else reading the CSV sees one stray character
+   * rather than executing a HYPERLINK someone left in a notes field.
+   */
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
