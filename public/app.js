@@ -1225,6 +1225,18 @@ function tareFor(f) {
   const known = candidates.map((t) => t.grams).sort((a, b) => a - b);
   const brandSpread = known.length > 1 ? [known[0], known.at(-1)] : null;
 
+  /*
+   * Somebody putting a spool on a scale outranks any amount of crowdsourcing,
+   * so a weighed entry ends the search — no material narrowing, no median with
+   * hearsay. Without this the weighed figure loses to whichever guesses happen
+   * to carry a material tag, which is exactly backwards.
+   */
+  const weighed = candidates.filter((t) => t.weighed);
+  if (weighed.length) {
+    const g = weighed.map((t) => t.grams).sort((a, b) => a - b);
+    return { grams: g[Math.floor(g.length / 2)], measured: false, weighed: true, brandSpread };
+  }
+
   const family = familyOf(f.material);
   candidates = step(candidates, (t) => t.material === family, (t) => t.material == null);
 
@@ -1258,6 +1270,11 @@ function weighHintFor(f) {
 
   const who = esc(f.brand || 'spools this size');
   const [low, high] = tare.brandSpread ?? [];
+
+  if (tare.weighed) {
+    return `${tare.grams} g is off a real ${who} spool on a scale, cardboard included. Older ones ran `
+      + `lighter, so check it against yours if this roll has been around a while.`;
+  }
 
   /*
    * A range this wide isn't sloppy measuring, it's a brand shipping more than

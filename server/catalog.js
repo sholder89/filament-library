@@ -251,18 +251,17 @@ const EXTRA_TARES = [
   { brand: 'Bambu Lab', grams: 215, capacity: 1000, material: null, note: 'Refill cardboard core only' },
 
   /*
-   * Sunlu is the one brand where the sources genuinely conflict rather than
-   * merely vary. Eight contributors to the crowdsourced database weigh their
-   * spools at 130–155 g and Start3D says 125 g, while Printara3D says 220 g —
-   * and Sunlu now also ship recycled cardboard spools, which the light figures
-   * plainly aren't. That reads as at least two quite different spools sold
-   * under one name, not as anyone being wrong.
+   * Sunlu revise their spool between production runs — people online talk about
+   * a "version 3" — so the crowdsourced figures of 130–155 g are not wrong so
+   * much as old. Every one of those records cites the same photo, captioned
+   * "Sunlu Generational Differences", which rather gives the game away.
    *
-   * The heavier figure is carried here so the suggestion sits between them and
-   * the app can say the range out loud, rather than quietly picking a side. On
-   * this brand above all others, weigh one and be done with it.
+   * This entry is a current spool on a kitchen scale: 186 g bare, 222 g with
+   * the cardboard, and the cardboard counts because it's on the spool when you
+   * weigh a part-used roll. It agrees with Printara3D's 220 g and disagrees
+   * with the crowd, and a measurement beats a consensus of guesses.
    */
-  { brand: 'Sunlu', grams: 220, capacity: 1000, material: null, note: 'Heavier spool — Printara3D. Their light plastic ones are 130–155 g' },
+  { brand: 'Sunlu', grams: 222, capacity: 1000, material: null, weighed: true, note: 'Weighed: 186 g bare, 222 g with the cardboard. Older spools were lighter' },
 ];
 
 export const SPOOL_TARES = [...GENERATED_TARES, ...EXTRA_TARES];
