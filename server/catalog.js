@@ -258,16 +258,46 @@ const EXTRA_TARES = [
    *
    * A current one measures 186 g bare and 222 g with the cardboard, and the
    * cardboard counts because it's on the spool when you weigh a part-used roll.
-   * That agrees with Printara3D and not with the crowd, which is the whole point
-   * of carrying it: the range this opens up is what the app warns about.
-   *
-   * It stays an ordinary reference row rather than something that overrides the
-   * others. One person's spool isn't a fact about the brand, and anybody who
-   * wants their own figure to win can weigh one and save it under Settings.
+   * The spool weighed was a PETG one, and the same shell is reported across the
+   * range, so this is not tagged to a material.
    */
-  { brand: 'Sunlu', grams: 222, capacity: 1000, material: null, note: 'A 2026 spool: 186 g bare, 222 g with the cardboard. Older ones were lighter' },
+  { brand: 'Sunlu', grams: 222, capacity: 1000, material: null, note: 'The v3 spool: 186 g bare, 222 g with the cardboard' },
 ];
 
-export const SPOOL_TARES = [...GENERATED_TARES, ...EXTRA_TARES];
+/**
+ * Upstream rows we have direct evidence are describing a spool that is no longer
+ * sold. Removed rather than averaged with the newer figure, because a median
+ * across two generations describes neither of them: Sunlu's old PETG reel at
+ * 130 g and the current one at 222 g average to 176 g, a spool nobody owns.
+ *
+ * This is an editorial judgement, so it lives here rather than in the generator
+ * — tools/fetch-spool-tares.mjs stays a faithful mirror of the source, and the
+ * decisions we layer on top are all visible in one place.
+ *
+ * The bar for adding to this list is a dated measurement of the current spool
+ * that contradicts an undated older record. It is deliberately not "a figure I
+ * disagree with": the spread within a brand is usually real and worth showing.
+ */
+const SUPERSEDED = [
+  {
+    brand: 'Sunlu',
+    grams: 130,
+    capacity: 1000,
+    material: 'PETG',
+    why: 'Sunlu PETG 1 kg, undated. A 2026 PETG spool measures 222 g, and being '
+       + 'the only PETG-tagged Sunlu row it won every PETG match outright.',
+  },
+];
+
+const isSuperseded = (t) =>
+  SUPERSEDED.some(
+    (s) =>
+      s.brand.toLowerCase() === t.brand.toLowerCase() &&
+      s.grams === t.grams &&
+      s.capacity === t.capacity &&
+      s.material === t.material,
+  );
+
+export const SPOOL_TARES = [...GENERATED_TARES.filter((t) => !isSuperseded(t)), ...EXTRA_TARES];
 
 export const DIAMETERS = [1.75, 2.85, 3.0];
