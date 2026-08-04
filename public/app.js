@@ -2662,6 +2662,10 @@ function renderTareTable() {
   const table = $('#tareTable');
   const reference = state.catalog.spool_tares ?? [];
 
+  // Saying how many there are is the difference between a link you ignore and
+  // one you know the size of before opening.
+  $('#tareCount').textContent = `Show all ${reference.length} published weights`;
+
   table.innerHTML = `
     <thead><tr><th>Brand</th><th class="tare-g">Empty</th></tr></thead>
     <tbody>

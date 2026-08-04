@@ -175,10 +175,6 @@ let parsed = records.map((r) => {
   brand: normaliseBrand(clean(r.Manufacturer)),
   grams: w.grams,
   capacity: readCapacity(r['Flavor (type, size, etc)']),
-  // Measurements of the spool itself are for someone deciding whether it fits a
-  // dry box, not for anyone weighing filament.
-  note: clean(r.Comment)
-    .replace(/\s*(Diameter|Core ID|Core OD|Core Width|Overall OD|Width|Spool size)\s*[:=].*$/i, ''),
   material: readMaterial(`${r['Flavor (type, size, etc)']} ${r.Comment ?? ''}`),
   flavor: clean(r['Flavor (type, size, etc)']),
   year: r.Year,
@@ -262,35 +258,21 @@ for (const [capacity, list] of classes) {
     capacity,
     material: null,
     flavor: '',
+    ours: true,
     note: `Typical across ${usable.length} spools this size`,
   });
 }
 
 /**
- * A short label. The flavour field mixes the material, the size and the spool
- * style together, and the size is already its own column — so it comes out,
- * along with the punctuation left behind when it does.
+ * Only the notes this tool writes itself get through.
+ *
+ * The source rows carry contributors' own commentary — spool part numbers, which
+ * of their samples this was, asides about the packaging — and shown in the app
+ * it reads as though the app were saying it. What's actually load-bearing in
+ * that text has already been parsed out into `capacity` and `material` by this
+ * point, so nothing is lost by dropping the rest.
  */
-const tidy = (s) => clean(s)
-  .replace(/^[\s,;/.-]+/, '')
-  .replace(/[\s,;/.-]+$/, '')
-  .replace(/\s*,\s*,/g, ',');
-
-const noteFor = (t) => {
-  const flavour = tidy(
-    t.flavor
-      .replace(/\b\d+([.,]\d+)?\s*(kg|g)\b/gi, '')
-      .replace(/\bspool\b/gi, '')
-      .replace(/\b\d+([.,]\d+)?\s*mm\b/gi, ''),
-  );
-
-  const bits = [];
-  if (flavour && !/^(pla|abs|petg)$/i.test(flavour)) bits.push(flavour);
-  if (t.note) bits.push(tidy(t.note));
-
-  const out = tidy(bits.join(' — '));
-  return out.length > 88 ? `${out.slice(0, 87).replace(/\s+\S*$/, '')}…` : out;
-};
+const noteFor = (t) => (t.ours ? t.note : '');
 
 const body = [...entries, ...fallbacks].map((t) =>
   `  { brand: ${JSON.stringify(t.brand)}, grams: ${t.grams}, capacity: ${t.capacity},`

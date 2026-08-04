@@ -1473,6 +1473,31 @@ select {
 .hint.tight { margin: 2px 0 6px; }
 .empty-note { margin: 0 0 12px; font-size: 13px; color: var(--muted); }
 
+/* Two hundred-odd rows nobody reads top to bottom, so they stay behind a
+   disclosure and the sheet stays scrollable. */
+.tare-details > summary {
+  cursor: pointer;
+  padding: 9px 11px;
+  border: 1px solid var(--border-sm);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 620;
+  color: var(--muted);
+  list-style: none;
+}
+.tare-details > summary::-webkit-details-marker { display: none; }
+.tare-details > summary::after {
+  content: '›';
+  display: inline-block;
+  margin-left: 6px;
+  transition: transform .15s ease;
+}
+.tare-details[open] > summary::after { transform: rotate(90deg); }
+.tare-details[open] > summary .when-closed,
+.tare-details:not([open]) > summary .when-open { display: none; }
+.tare-details > summary:hover { color: var(--text); }
+.tare-details[open] > summary { margin-bottom: 8px; }
+
 /* Reference table of empty-spool weights. Scrolls on its own so a long list
    never pushes the sheet sideways. */
 .tare-wrap { overflow-x: auto; border: 1px solid var(--border-sm); border-radius: var(--radius-sm); }
