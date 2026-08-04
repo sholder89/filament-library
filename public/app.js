@@ -2619,6 +2619,7 @@ async function showSettings() {
   openSheet(el.settings);
   renderMyTares();
   renderTareTable();
+  loadVisionState();
   const facts = $('#settingsFacts');
   facts.innerHTML = '<div class="spec"><dt>Loading…</dt><dd></dd></div>';
 
@@ -2635,7 +2636,7 @@ async function showSettings() {
       row('On hand', `${(stats.active_grams / 1000).toFixed(1)} kg`),
       row('Brands', stats.brands),
       row('Label printing', { off: 'Off', relay: 'Via relay', direct: 'Direct to client' }[health.print_mode] ?? health.print_mode),
-      row('Label scanning', health.label_scan ? 'On' : 'Off — set VISION_API_KEY'),
+      row('Label scanning', health.label_scan ? 'On' : 'Off — no Vision key yet'),
     ].join('');
   } catch (err) {
     facts.innerHTML = row('Could not reach the server', err.message);
@@ -2777,6 +2778,95 @@ $('#myTares').addEventListener('click', async (e) => {
       await refreshTares();
       toast(`Saved — ${adopt.dataset.adopt} spools will use ${adopt.dataset.grams} g`);
     }
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+
+// ── Vision API key ───────────────────────────────────────────────────────────
+
+/**
+ * The key is write-only: the server reports whether it holds one and its last
+ * four characters, never the key itself. So this reflects a state rather than
+ * editing a value, and the input is always left empty.
+ */
+async function loadVisionState() {
+  const box = $('#visionState');
+  const form = $('#visionForm');
+
+  try {
+    const s = await api('/api/settings/vision');
+
+    // A deployment that sets the key in its environment shouldn't be editable
+    // from a web page on the same network, so the form goes away entirely.
+    form.hidden = s.managed;
+    $('#visionClear').hidden = !s.configured;
+    $('#visionTest').hidden = !s.configured;
+
+    if (s.managed) {
+      box.className = 'vision-state is-on';
+      box.textContent = `On, using the key from this server's environment (${s.hint}).`;
+    } else if (s.configured) {
+      box.className = 'vision-state is-on';
+      box.textContent = `On, using the key ending ${s.hint.replace(/^•+/, '')}.`;
+    } else {
+      box.className = 'vision-state';
+      box.textContent = 'Off — no key saved, so the scan button is hidden.';
+    }
+  } catch (err) {
+    box.className = 'vision-state is-bad';
+    box.textContent = err.message;
+  }
+}
+
+/**
+ * Saving a key has to light up the Scan a label button straight away. The flag
+ * is read once at startup, so without this you'd paste a key, see it accepted,
+ * and still find nothing to press until you reloaded.
+ */
+async function refreshScanAvailability() {
+  await loadVisionState();
+  try {
+    state.labelScan = (await api('/api/scan/status')).enabled;
+  } catch { /* the settings sheet has already said what went wrong */ }
+}
+
+$('#visionForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const input = $('#t_vision');
+  const key = input.value.trim();
+
+  try {
+    await api('/api/settings/vision', { method: 'PUT', body: { key } });
+    input.value = '';
+    await refreshScanAvailability();
+    toast('Key saved — try Check it works');
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+
+$('#visionTest').addEventListener('click', async () => {
+  const btn = $('#visionTest');
+  const was = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Checking…';
+  try {
+    const r = await api('/api/settings/vision/test', { method: 'POST', body: {} });
+    toast(r.message);
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = was;
+  }
+});
+
+$('#visionClear').addEventListener('click', async () => {
+  try {
+    await api('/api/settings/vision', { method: 'DELETE' });
+    await refreshScanAvailability();
+    toast('Key removed');
   } catch (err) {
     toast(err.message, true);
   }

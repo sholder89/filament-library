@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { parseLabel } from '../label-parse.js';
+import { getSetting } from '../settings.js';
 
 export const router = Router();
 
@@ -8,29 +9,42 @@ export const router = Router();
  *
  * The photo goes phone -> this server -> Vision, never phone -> Vision
  * directly: the API key is a billing credential and has no business being in
- * a page anyone can view source on. It stays in the server's environment.
+ * a page anyone can view source on. It stays on the server.
  *
  * One image is one Vision "unit"; the free tier covers 1000 a month.
  */
 
-const KEY = process.env.VISION_API_KEY || '';
-// Overridable so the request path can be exercised against a stub without
-// spending real quota; nothing but tests should ever set this.
+/** Overridable so tests can point at a stub instead of spending real quota. */
 const ENDPOINT = process.env.VISION_ENDPOINT || 'https://vision.googleapis.com/v1/images:annotate';
+
+export const VISION_KEY_SETTING = 'vision_api_key';
+
+/**
+ * The environment wins where it's set, and nothing in the app can overwrite it.
+ * A deployment that states its own configuration should not be quietly editable
+ * from a web page on the same network; the stored key exists for the install
+ * that has no environment to configure, not as a second way to configure this
+ * one. Read per request, so saving a key takes effect without a restart.
+ */
+export const visionKey = () => process.env.VISION_API_KEY || getSetting(VISION_KEY_SETTING);
+
+/** True when the key is fixed by the deployment and can't be changed from the UI. */
+export const visionKeyIsManaged = () => Boolean(process.env.VISION_API_KEY);
 
 /** Cap on the decoded image, well under Vision's own 20MB request limit. */
 const MAX_BYTES = 8 * 1024 * 1024;
 
-export const scanEnabled = () => Boolean(KEY);
+export const scanEnabled = () => Boolean(visionKey());
 
 router.get('/status', (_req, res) => {
   res.json({ enabled: scanEnabled() });
 });
 
 router.post('/', async (req, res, next) => {
-  if (!scanEnabled()) {
+  const KEY = visionKey();
+  if (!KEY) {
     return res.status(503).json({
-      error: 'Label scanning is not configured. Set VISION_API_KEY and restart the container.',
+      error: 'Label scanning needs a Google Vision API key — add one under Settings.',
     });
   }
 

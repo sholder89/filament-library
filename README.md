@@ -186,6 +186,12 @@ page if it's missing or too old, rather than failing at a command prompt.
 > **private networks** — that's what lets a phone on the same Wi-Fi reach it.
 > Blocking it is fine too; the app still works on the PC itself.
 
+**Reading labels from a photo** needs a Google Cloud Vision key, which is free
+for the first 1000 photos a month. Nothing to configure on disk: open
+**Settings → Reading labels from a photo**, paste the key in, and press *Check
+it works*. See [Label scanning](#label-scanning) for where to get one. Everything
+else works without it.
+
 **Where the data goes.** On Windows the database is written to
 `%LOCALAPPDATA%\FilamentLibrary\filament.db`, not next to the app. That's
 deliberate: Documents and Desktop are synced by OneDrive on most Windows
@@ -225,7 +231,7 @@ Everything is optional — the app runs with an empty `.env`.
 | `LABEL_NAME_LABEL` | `0` | Also print a second plain-text label with the spool description |
 | `LABEL_MODE` | `auto` | `relay`, `direct`, or `auto` |
 | `LABEL_CLIENT_URL` | — | Bypass the relay and talk to the Windows client directly |
-| `VISION_API_KEY` | — | Google Cloud Vision key, enables label scanning |
+| `VISION_API_KEY` | — | Google Cloud Vision key, enables label scanning. Overrides anything set in the UI |
 
 ---
 
@@ -553,14 +559,28 @@ versions and how to regenerate them.
 
 ## Label scanning
 
-With `VISION_API_KEY` set, the add form grows a **Scan the label** button. Take
-a photo of the spool label and the fields fill themselves in.
+Once a Google Cloud Vision key is configured, the add form grows a **Scan the
+label** button. Take a photo of the spool label and the fields fill themselves
+in.
 
 Get a key from [console.cloud.google.com](https://console.cloud.google.com):
 enable the Cloud Vision API, then **APIs & Services → Credentials → Create
 credentials → API key**, and restrict it to the Cloud Vision API. One scan is
 one unit and the free tier covers 1000 a month, which is far more than a
 filament shelf will ever need.
+
+**Two ways to give it the key.** Set `VISION_API_KEY` in the environment, which
+is what the container does — or paste it into **Settings → Reading labels from
+a photo**, which is there for running the app on a PC where there's no
+environment to configure. There's a *Check it works* button that asks Vision
+whether the key is any good, so a wrong one is caught at the keyboard rather
+than at the shelf.
+
+The environment always wins where it's set, and a server configured that way
+hides the form rather than pretending to be editable. A key typed into the UI is
+stored in the database, never sent back to any browser, and deliberately left
+out of `/api/export` — a backup gets passed around, and a billing credential
+shouldn't travel with it.
 
 The photo goes phone → your server → Vision, never phone → Vision directly, so
 the key stays in the server's environment rather than in a page anyone can view

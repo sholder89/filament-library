@@ -109,7 +109,7 @@ db.exec('PRAGMA foreign_keys = ON');
  * Schema is versioned through PRAGMA user_version so upgrades are additive and
  * never lose a spool record. Bump SCHEMA_VERSION and add a migration below.
  */
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 
 function migrate() {
   const current = db.prepare('PRAGMA user_version').get().user_version;
@@ -253,6 +253,26 @@ function migrate() {
       db.exec('ROLLBACK');
       throw err;
     }
+  }
+
+  if (current < 8) {
+    /*
+     * Settings that have to be typed in rather than deployed.
+     *
+     * Only the Vision API key uses this so far. In the container it comes from
+     * the environment and always will — but somebody running the app on their
+     * own PC has no environment to put it in, and telling them to edit a file
+     * and restart is how a feature goes unused. The environment still wins
+     * where it's set; this is the fallback, not a replacement.
+     */
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS app_settings (
+        key        TEXT PRIMARY KEY,
+        value      TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `);
+    db.exec(`PRAGMA user_version = 8`);
   }
 }
 

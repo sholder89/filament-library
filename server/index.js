@@ -6,6 +6,7 @@ import { db } from './db.js';
 import { router as filamentsRouter, importHandler } from './routes/filaments.js';
 import { router as catalogRouter } from './routes/catalog.js';
 import { router as taresRouter, allTares } from './routes/tares.js';
+import { router as appSettingsRouter } from './routes/app-settings.js';
 import { router as printRouter, printMode } from './routes/print.js';
 import { router as scanRouter, scanEnabled } from './routes/scan.js';
 
@@ -79,6 +80,7 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/filaments', filamentsRouter);
 app.use('/api/catalog', catalogRouter);
 app.use('/api/tares', taresRouter);
+app.use('/api/settings', appSettingsRouter);
 app.use('/api/print', printRouter);
 
 /**

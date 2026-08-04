@@ -486,6 +486,32 @@
       </details>
     </section>
 
+    <section class="settings-group" id="visionGroup">
+      <h3>Reading labels from a photo</h3>
+      <p class="hint">Point the camera at a spool's label and the brand, type and
+        temperatures fill themselves in. It goes through Google Cloud Vision,
+        which needs a key of your own — the first 1000 photos a month are free.
+        <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer noopener">Get one here</a>,
+        then enable the Cloud Vision API on the same project.</p>
+
+      <div id="visionState" class="vision-state"></div>
+
+      <form id="visionForm" class="vision-form">
+        <div class="field">
+          <label for="t_vision">API key</label>
+          <input id="t_vision" name="key" type="password" autocomplete="off" spellcheck="false"
+                 placeholder="AIza…" aria-describedby="visionNote">
+        </div>
+        <div class="vision-actions">
+          <button type="submit" class="btn primary">Save the key</button>
+          <button type="button" class="btn" id="visionTest">Check it works</button>
+          <button type="button" class="btn danger" id="visionClear">Remove</button>
+        </div>
+        <p class="hint tight" id="visionNote">Stored on this server, never sent to
+          the browser again, and left out of backups.</p>
+      </form>
+    </section>
+
     <section class="settings-group">
       <h3>This install</h3>
       <dl class="spec-list" id="settingsFacts"></dl>
