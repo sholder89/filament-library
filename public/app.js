@@ -1176,26 +1176,58 @@ el.grid.addEventListener('click', (e) => {
 function tareFor(f) {
   if (f.empty_spool_g != null) return { grams: f.empty_spool_g, measured: true };
 
+  const all = state.catalog.spool_tares ?? [];
   const brand = String(f.brand ?? '').trim().toLowerCase();
-  const known = (state.catalog.spool_tares ?? []).filter(
-    (t) => t.brand.toLowerCase() === brand && brand !== '',
-  );
-  if (known.length) {
-    return { grams: Math.max(...known.map((t) => t.grams)), measured: false };
-  }
 
-  const generic = (state.catalog.spool_tares ?? []).find((t) => !t.brand);
-  return generic ? { grams: generic.grams, measured: false } : null;
+  /*
+   * Narrowed by capacity first, because it separates things nothing else can:
+   * Sunlu's 250 g spool is 55 g and their 1 kg spool is 133 g, and no amount of
+   * knowing the brand tells them apart. Entries with no stated capacity are
+   * left in, since they're usually 1 kg and always better than nothing.
+   */
+  const fits = (list) => {
+    const sized = list.filter((t) => t.capacity === f.spool_weight_g);
+    return sized.length ? sized : list.filter((t) => t.capacity == null);
+  };
+
+  let candidates = brand ? fits(all.filter((t) => t.brand.toLowerCase() === brand)) : [];
+  if (!candidates.length) candidates = fits(all.filter((t) => !t.brand));
+  if (!candidates.length) return null;
+
+  /*
+   * Median, not the heaviest. An earlier version took the maximum on the theory
+   * that over-stating the spool under-states the filament, which errs towards
+   * checking rather than running out mid-print — but that was written when a
+   * brand had two entries a few grams apart. Against the real spread, Sunlu at
+   * 200 g when the usual spool is 133 g isn't cautious, it's wrong by half a
+   * print. The middle of what people actually measured is the honest guess.
+   */
+  const grams = [...candidates].map((t) => t.grams).sort((a, b) => a - b);
+  const mid = Math.floor(grams.length / 2);
+  const median = grams.length % 2 ? grams[mid] : Math.round((grams[mid - 1] + grams[mid]) / 2);
+
+  return {
+    grams: median,
+    measured: false,
+    spread: grams.length > 1 ? [grams[0], grams.at(-1)] : null,
+  };
 }
 
 function weighHintFor(f) {
   const tare = tareFor(f);
   if (!tare) return 'Weigh it with the spool on, and say what the bare spool weighs.';
 
-  return tare.measured
-    ? `Spool weight saved for this roll. Full, it would read about ${tare.grams + f.spool_weight_g} g.`
-    : `The ${tare.grams} g is what ${esc(f.brand || 'a spool this size')} usually weighs, not this one. `
-      + 'Correct it if you know better and it will be remembered.';
+  if (tare.measured) {
+    return `Spool weight saved for this roll. Full, it would read about ${tare.grams + f.spool_weight_g} g.`;
+  }
+
+  const who = esc(f.brand || 'spools this size');
+  const spread = tare.spread && tare.spread[0] !== tare.spread[1]
+    ? ` Measurements for ${who} run ${tare.spread[0]}–${tare.spread[1]} g, so this is a middling guess.`
+    : '';
+
+  return `The ${tare.grams} g is typical for ${who}, not measured from this spool.${spread}`
+    + ' Correct it and it will be remembered.';
 }
 
 /** Grams on the scale to percentage left, given what the bare spool weighs. */

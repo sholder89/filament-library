@@ -236,44 +236,33 @@ export const COLOR_NAMES = { ...CSS_COLORS, ...FILAMENT_COLORS };
 /** Spool sizes in grams — the weights filament actually ships in. */
 export const SPOOL_WEIGHTS = [250, 500, 750, 1000, 2000, 3000, 5000];
 
+import { SPOOL_TARES as GENERATED_TARES } from './spool-tares.js';
+
 /**
- * What an empty spool weighs, so a spool on a kitchen scale can be turned into
- * how much filament is left: (what the scale says − this) ÷ the spool's capacity.
+ * Hand corrections to the generated spool weights, for things the tool can't
+ * work out from the source text.
  *
- * Treat these as a starting point, not a fact. Published and community-measured
- * figures disagree by more than you would hope — Sunlu is quoted at both 125 g
- * and 220 g, which on a 1 kg spool is a ten-percent error — and one person
- * weighing four spools of a single product got 186, 188, 190 and 191 g. Spool
- * design also changes between product lines and over time.
+ * Bambu is the case that forced this. The database records their 1 kg spool at
+ * 207 g, but the comment on that same row says the cardboard centre is another
+ * 36 g — so a spool on your scale is 243 g of hardware, and 207 would have
+ * claimed 36 g of filament that isn't there. Their other two configurations
+ * come from Printara3D and Start3D.
  *
- * So every spool can carry its own measured weight, which always wins. The right
- * habit is to weigh a spool once when it runs out and save the real number; the
- * app asks for it at that point.
- *
- * `note` is shown beside the figure, because "which of your two Bambu spools is
- * this" is exactly the ambiguity that makes the number wrong.
+ * A refill has no spool at all, which is why the number that ends up mattering
+ * is whatever you wound it onto — the per-spool override, not this table.
  */
+const EXTRA_TARES = [
+  { brand: 'Bambu Lab', grams: 243, capacity: 1000, note: 'Plastic spool including its cardboard centre' },
+  { brand: 'Bambu Lab', grams: 250, capacity: 1000, note: 'Reusable spool' },
+  { brand: 'Bambu Lab', grams: 215, capacity: 1000, note: 'Refill cardboard core only' },
+];
+
+/** Corrections win; the 207 g figure they replace would otherwise skew the median. */
+const corrected = new Set(EXTRA_TARES.map((t) => `${t.brand.toLowerCase()}|${t.capacity}`));
+
 export const SPOOL_TARES = [
-  // A refill has no spool of its own, so what counts is whatever it was wound
-  // onto — which is exactly why the per-spool override exists.
-  { brand: 'Bambu Lab',    grams: 250, note: 'Reusable spool' },
-  { brand: 'Bambu Lab',    grams: 215, note: 'Refill cardboard core only' },
-  { brand: 'Prusament',    grams: 200, note: '' },
-  { brand: 'eSun',         grams: 230, note: 'Ranges 210–242 across product lines' },
-  { brand: 'Sunlu',        grams: 220, note: 'Their lighter spools are nearer 125 g — weigh one' },
-  { brand: 'Overture',     grams: 171, note: '' },
-  { brand: 'Polymaker',    grams: 218, note: 'Plastic spool' },
-  { brand: 'Polymaker',    grams: 140, note: 'Cardboard spool' },
-  { brand: 'Creality',     grams: 220, note: 'Quoted 210–230' },
-  { brand: 'Creality',     grams: 104, note: '200 g spool' },
-  { brand: 'Hatchbox',     grams: 235, note: 'Quoted 225–245' },
-  { brand: '3D-Fuel',      grams: 264, note: '' },
-  { brand: 'Amazon Basics', grams: 231, note: '' },
-  { brand: 'Jayo',         grams: 204, note: 'Cardboard spool' },
-  { brand: 'Anycubic',     grams: 127, note: '' },
-  { brand: 'Eryone',       grams: 104, note: '250 g spool' },
-  { brand: '',             grams: 227, note: 'Typical unbranded 1 kg plastic spool' },
-  { brand: '',             grams: 380, note: 'Typical unbranded 2 kg plastic spool' },
+  ...GENERATED_TARES.filter((t) => !corrected.has(`${t.brand.toLowerCase()}|${t.capacity}`)),
+  ...EXTRA_TARES,
 ];
 
 export const DIAMETERS = [1.75, 2.85, 3.0];
