@@ -1244,6 +1244,21 @@ function tareFor(f) {
   candidates = step(candidates, (t) => t.material === family, (t) => t.material == null);
 
   /*
+   * Several of your own weights can survive the narrowing, and when they do it
+   * means something specific: the brand sells more than one spool and you've
+   * recorded them. Sunlu's three generations are 130, 155 and 222 g.
+   *
+   * There's no averaging that, and no guessing it either — only the person
+   * holding the spool knows which one it is. So they all come back as choices,
+   * with the one you saved most recently offered first, on the grounds that it's
+   * most likely the spool you're buying now.
+   */
+  if (mineOnly && candidates.length > 1) {
+    const options = [...candidates].sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
+    return { grams: options[0].grams, measured: false, mine: true, pick: options[0], options, brandSpread };
+  }
+
+  /*
    * Median, not the heaviest. An earlier version took the maximum on the theory
    * that over-stating the spool under-states the filament, which errs towards
    * checking rather than running out mid-print — but that was written when a
@@ -1259,9 +1274,36 @@ function tareFor(f) {
     grams: median,
     measured: false,
     mine: mineOnly,
+    pick: mineOnly ? candidates[0] : null,
     spread: grams.length > 1 ? [grams[0], grams.at(-1)] : null,
     brandSpread,
   };
+}
+
+/** A saved weight's short label — 'v3', 'PETG', '250 g' — or nothing to say. */
+function tareLabel(t) {
+  return [t.variant, t.material, t.capacity ? `${t.capacity} g` : null].filter(Boolean).join(' · ');
+}
+
+/**
+ * Appears only when you've saved more than one spool for this brand, which is
+ * the only time there's a decision to make. One saved weight, or none, and the
+ * row above is the whole interface.
+ */
+function spoolPickerHTML(f) {
+  const tare = tareFor(f);
+  if (!tare?.options || tare.options.length < 2) return '';
+
+  return `
+    <label class="weigh-pick">
+      <span>Which spool?</span>
+      <select id="weighVariant">
+        ${tare.options.map((t) => `
+          <option value="${t.grams}"${t === tare.pick ? ' selected' : ''}>
+            ${esc(tareLabel(t) || 'Unlabelled')} — ${t.grams} g
+          </option>`).join('')}
+      </select>
+    </label>`;
 }
 
 function weighHintFor(f) {
@@ -1275,9 +1317,16 @@ function weighHintFor(f) {
   const who = esc(f.brand || 'spools this size');
   const [low, high] = tare.brandSpread ?? [];
 
+  if (tare.options?.length > 1) {
+    const label = esc(tareLabel(tare.pick) || 'the first');
+    return `You've saved ${tare.options.length} spools for ${who}. This is ${label}, at ${tare.grams} g — `
+      + 'switch above if this roll is on a different one.';
+  }
+
   if (tare.mine) {
-    return `${tare.grams} g is your own saved weight for ${who}. Change it under Settings if you `
-      + 'reweigh one, or put a figure in below to override it for this roll only.';
+    const label = tareLabel(tare.pick ?? {});
+    return `${tare.grams} g is your own saved weight for ${who}${label ? ` (${esc(label)})` : ''}. Change it `
+      + 'under Settings if you reweigh one, or put a figure in below to override it for this roll only.';
   }
 
   /*
@@ -1405,6 +1454,7 @@ async function showDetail(id, push = false) {
           </span>
           <button type="button" class="btn" id="weighApply">Work it out</button>
         </div>
+        ${spoolPickerHTML(f)}
         <p class="hint" id="weighHint">${weighHintFor(f)}</p>
       </div>
     </div>` : ''}
@@ -1662,6 +1712,10 @@ el.detail.addEventListener('input', (e) => {
 
 el.detail.addEventListener('change', (e) => {
   if (e.target.id === 'remainingRange') saveRemaining(Number(e.target.value));
+
+  // Picking a spool just fills the tare box. Nothing is saved until you press
+  // Work it out, so changing your mind costs nothing.
+  if (e.target.id === 'weighVariant') $('#weighTare').value = e.target.value;
 });
 
 function dismissDetail() {
@@ -2590,7 +2644,11 @@ async function showSettings() {
 
 /** What a saved weight applies to, in the fewest words that stay unambiguous. */
 function tareScope(t) {
-  const bits = [t.capacity ? `${t.capacity} g spools` : null, t.material || null].filter(Boolean);
+  const bits = [
+    t.variant || null,
+    t.capacity ? `${t.capacity} g spools` : null,
+    t.material || null,
+  ].filter(Boolean);
   return bits.length ? bits.join(' · ') : 'any spool';
 }
 

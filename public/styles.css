@@ -1473,6 +1473,26 @@ select {
 .hint.tight { margin: 2px 0 6px; }
 .empty-note { margin: 0 0 12px; font-size: 13px; color: var(--muted); }
 
+/* The fields most people never need. Folded away so the form is two boxes. */
+.tare-more { margin-bottom: 12px; }
+.tare-more > summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 620;
+  color: var(--muted);
+  list-style: none;
+  padding: 2px 0;
+}
+.tare-more > summary::-webkit-details-marker { display: none; }
+.tare-more > summary::after { content: '›'; display: inline-block; margin-left: 6px; transition: transform .15s ease; }
+.tare-more[open] > summary::after { transform: rotate(90deg); }
+.tare-more > summary:hover { color: var(--text); }
+
+/* Only rendered when a brand has more than one spool saved. */
+.weigh-pick { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.weigh-pick > span { font-size: 13px; font-weight: 620; color: var(--muted); white-space: nowrap; }
+.weigh-pick > select { flex: 1; min-width: 0; }
+
 /* Two hundred-odd rows nobody reads top to bottom, so they stay behind a
    disclosure and the sheet stays scrollable. */
 .tare-details > summary {

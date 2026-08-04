@@ -38,6 +38,9 @@ function readBody(body) {
 
   return {
     brand,
+    // Which of the brand's spools this is — 'v3', 'Reusable', 'Cardboard'. Short
+    // because it shows inline next to the weight wherever it appears.
+    variant: str(body.variant).slice(0, 24),
     material: str(body.material),
     capacity_g: Number.isFinite(capacity) && capacity > 0 ? capacity : 0,
     grams,
@@ -47,7 +50,10 @@ function readBody(body) {
 
 const listAll = () =>
   db
-    .prepare('SELECT * FROM spool_tares ORDER BY brand COLLATE NOCASE, capacity_g, material COLLATE NOCASE')
+    .prepare(`
+      SELECT * FROM spool_tares
+      ORDER BY brand COLLATE NOCASE, variant COLLATE NOCASE, capacity_g, material COLLATE NOCASE
+    `)
     .all();
 
 router.get('/', (_req, res) => res.json({ tares: listAll() }));
@@ -58,20 +64,23 @@ router.post('/', (req, res, next) => {
     const now = nowISO();
 
     db.prepare(`
-      INSERT INTO spool_tares (brand, material, capacity_g, grams, note, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT (brand, material, capacity_g) DO UPDATE SET
+      INSERT INTO spool_tares (brand, variant, material, capacity_g, grams, note, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (brand, variant, material, capacity_g) DO UPDATE SET
         grams = excluded.grams,
         -- Correcting a weight shouldn't discard what you wrote about the spool;
         -- the form that sends these has no note field to re-supply it from.
         note = CASE WHEN excluded.note = '' THEN spool_tares.note ELSE excluded.note END,
         updated_at = excluded.updated_at
-    `).run(t.brand, t.material, t.capacity_g, t.grams, t.note, now, now);
+    `).run(t.brand, t.variant, t.material, t.capacity_g, t.grams, t.note, now, now);
 
     res.status(201).json({
       tare: db
-        .prepare('SELECT * FROM spool_tares WHERE brand = ? AND material = ? AND capacity_g = ?')
-        .get(t.brand, t.material, t.capacity_g),
+        .prepare(`
+          SELECT * FROM spool_tares
+          WHERE brand = ? AND variant = ? AND material = ? AND capacity_g = ?
+        `)
+        .get(t.brand, t.variant, t.material, t.capacity_g),
     });
   } catch (err) {
     next(err);
@@ -101,8 +110,8 @@ export function importTares(rows) {
   if (!Array.isArray(rows)) return 0;
 
   const insert = db.prepare(`
-    INSERT OR IGNORE INTO spool_tares (brand, material, capacity_g, grams, note, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT OR IGNORE INTO spool_tares (brand, variant, material, capacity_g, grams, note, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   let added = 0;
@@ -115,7 +124,7 @@ export function importTares(rows) {
     }
     const now = nowISO();
     added += insert.run(
-      t.brand, t.material, t.capacity_g, t.grams, t.note,
+      t.brand, t.variant, t.material, t.capacity_g, t.grams, t.note,
       str(row.created_at) || now, str(row.updated_at) || now,
     ).changes;
   }

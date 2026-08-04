@@ -79,6 +79,13 @@ through — used-up spools stay in the library as a record instead of vanishing.
   weighed against a single roll can be promoted to the whole brand with one
   button.
 
+  Saving one asks for a brand and a weight, and nothing else unless you want it.
+  Behind *More options* it can be narrowed to a spool size, a filament type, or
+  a named variant — because brands revise the spool and keep the name. Sunlu are
+  on their third and the three weigh 130, 155 and 222 g, so all three can be
+  saved side by side. When more than one applies to a roll, the weigh box grows a
+  picker; when one applies, it doesn't.
+
   Worth doing, because the published figures are a moving target: they disagree
   by up to 95 g for one brand, four spools of a single product have been measured
   at 186, 188, 190 and 191 g, and a brand that quietly revises its spool leaves
@@ -335,7 +342,7 @@ and the whole import runs in one transaction, so a bad file leaves no trace.
 | `GET` | `/api/filaments/stats` | Counts and total weight on hand |
 | `GET` | `/api/catalog` | Brands, materials, colors — seed lists merged with your own |
 | `GET` | `/api/tares` | Empty-spool weights you've saved |
-| `POST` | `/api/tares` | Save one. Upserts on `brand` + `material` + `capacity_g` |
+| `POST` | `/api/tares` | Save one. Upserts on `brand` + `variant` + `material` + `capacity_g` |
 | `DELETE` | `/api/tares/:id` | Forget one and fall back to the published figure |
 | `POST` | `/api/print/:id` | Print a QR label |
 | `GET` | `/api/print/qr/:id.svg` | QR code as SVG |

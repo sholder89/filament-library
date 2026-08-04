@@ -109,7 +109,7 @@ db.exec('PRAGMA foreign_keys = ON');
  * Schema is versioned through PRAGMA user_version so upgrades are additive and
  * never lose a spool record. Bump SCHEMA_VERSION and add a migration below.
  */
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 
 function migrate() {
   const current = db.prepare('PRAGMA user_version').get().user_version;
@@ -209,6 +209,50 @@ function migrate() {
       CREATE INDEX IF NOT EXISTS idx_spool_tares_brand ON spool_tares (brand);
     `);
     db.exec(`PRAGMA user_version = 6`);
+  }
+
+  if (current < 7) {
+    /*
+     * Which of a brand's spools this weight is for.
+     *
+     * Brands revise the spool and keep the name: Sunlu are on their third, and
+     * the three weigh 130, 155 and 222 g. Under v6 they collided — brand, type
+     * and capacity were the whole key, so saving the new one overwrote the old.
+     * A free-text label ('v3', 'Reusable', 'Cardboard') separates them, and it
+     * has to join the key rather than sit beside it, which means rebuilding the
+     * table since SQLite can't alter a constraint in place.
+     */
+    db.exec('BEGIN');
+    try {
+      db.exec(`
+        CREATE TABLE spool_tares_v7 (
+          id         INTEGER PRIMARY KEY AUTOINCREMENT,
+          brand      TEXT NOT NULL,
+          variant    TEXT NOT NULL DEFAULT '',
+          material   TEXT NOT NULL DEFAULT '',
+          capacity_g INTEGER NOT NULL DEFAULT 0,
+          grams      INTEGER NOT NULL CHECK (grams > 0 AND grams < 5000),
+          note       TEXT NOT NULL DEFAULT '',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          UNIQUE (brand, variant, material, capacity_g)
+        );
+
+        INSERT INTO spool_tares_v7
+          (id, brand, variant, material, capacity_g, grams, note, created_at, updated_at)
+        SELECT id, brand, '', material, capacity_g, grams, note, created_at, updated_at
+        FROM spool_tares;
+
+        DROP TABLE spool_tares;
+        ALTER TABLE spool_tares_v7 RENAME TO spool_tares;
+        CREATE INDEX IF NOT EXISTS idx_spool_tares_brand ON spool_tares (brand);
+      `);
+      db.exec(`PRAGMA user_version = 7`);
+      db.exec('COMMIT');
+    } catch (err) {
+      db.exec('ROLLBACK');
+      throw err;
+    }
   }
 }
 

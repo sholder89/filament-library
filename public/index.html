@@ -447,17 +447,30 @@
             <input id="t_grams" name="grams" type="number" min="1" max="4999" step="1"
                    required inputmode="numeric" placeholder="222 g">
           </div>
-          <div class="field">
-            <label for="t_capacity">Spool size</label>
-            <select id="t_capacity" name="capacity_g"><option value="0">Any size</option></select>
-          </div>
-          <div class="field">
-            <label for="t_material">Type</label>
-            <input id="t_material" name="material" list="tareMaterials" autocomplete="off"
-                   spellcheck="false" placeholder="Any type">
-            <datalist id="tareMaterials"></datalist>
-          </div>
         </div>
+
+        <details class="tare-more">
+          <summary>More options</summary>
+          <p class="hint tight">Only needed when a brand uses more than one spool.
+            Leave these alone and the weight applies to everything of that brand.</p>
+          <div class="tare-form-grid">
+            <div class="field">
+              <label for="t_variant">Which spool</label>
+              <input id="t_variant" name="variant" maxlength="24" autocomplete="off"
+                     spellcheck="false" placeholder="v3, Reusable, Cardboard…">
+            </div>
+            <div class="field">
+              <label for="t_capacity">Spool size</label>
+              <select id="t_capacity" name="capacity_g"><option value="0">Any size</option></select>
+            </div>
+            <div class="field">
+              <label for="t_material">Type</label>
+              <input id="t_material" name="material" list="tareMaterials" autocomplete="off"
+                     spellcheck="false" placeholder="Any type">
+              <datalist id="tareMaterials"></datalist>
+            </div>
+          </div>
+        </details>
         <button type="submit" class="btn primary wide">Save this weight</button>
       </form>
     </section>

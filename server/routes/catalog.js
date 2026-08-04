@@ -48,13 +48,19 @@ router.get('/', (_req, res) => {
     spool_tares: SPOOL_TARES,
     // Weights you've saved yourself. Same shape as the reference list so both
     // go through one matcher, differing only in which pool is consulted first.
-    my_tares: db.prepare('SELECT * FROM spool_tares ORDER BY brand COLLATE NOCASE').all().map((t) => ({
+    my_tares: db.prepare(`
+      SELECT * FROM spool_tares
+      ORDER BY brand COLLATE NOCASE, variant COLLATE NOCASE
+    `).all().map((t) => ({
       id: t.id,
       brand: t.brand,
+      variant: t.variant,
       grams: t.grams,
       capacity: t.capacity_g || null,
       material: t.material || null,
       note: t.note,
+      // Breaks the tie when a brand has several: the newest is offered first.
+      updated_at: t.updated_at,
     })),
     measured_tares: db.prepare(`
       SELECT brand, empty_spool_g AS grams, COUNT(*) AS spools
