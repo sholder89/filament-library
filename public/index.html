@@ -427,11 +427,46 @@
     </section>
 
     <section class="settings-group">
-      <h3>Empty spool weights</h3>
+      <h3>Your spool weights</h3>
       <p class="hint">Subtracted from what the scale says to work out how much
-        filament is left. Typical figures — spools vary between product lines and
-        between two off the same shelf, so anything you've weighed yourself is
-        listed first and always wins.</p>
+        filament is left. Weigh a bare spool once and every roll of that brand
+        will use it, in place of the published figures below.</p>
+
+      <div id="myTares" class="my-tares"></div>
+
+      <form id="tareForm" class="tare-form">
+        <div class="tare-form-grid">
+          <div class="field">
+            <label for="t_brand">Brand</label>
+            <input id="t_brand" name="brand" list="tareBrands" required autocomplete="off"
+                   autocapitalize="words" spellcheck="false" placeholder="Sunlu">
+            <datalist id="tareBrands"></datalist>
+          </div>
+          <div class="field">
+            <label for="t_grams">Empty spool weighs</label>
+            <input id="t_grams" name="grams" type="number" min="1" max="4999" step="1"
+                   required inputmode="numeric" placeholder="222 g">
+          </div>
+          <div class="field">
+            <label for="t_capacity">Spool size</label>
+            <select id="t_capacity" name="capacity_g"><option value="0">Any size</option></select>
+          </div>
+          <div class="field">
+            <label for="t_material">Type</label>
+            <input id="t_material" name="material" list="tareMaterials" autocomplete="off"
+                   spellcheck="false" placeholder="Any type">
+            <datalist id="tareMaterials"></datalist>
+          </div>
+        </div>
+        <button type="submit" class="btn primary wide">Save this weight</button>
+      </form>
+    </section>
+
+    <section class="settings-group">
+      <h3>Published figures</h3>
+      <p class="hint">Collected from people who weighed their own spools. Useful
+        as a starting point, but they go stale when a brand quietly changes its
+        spool — anything above overrides these.</p>
       <div class="tare-wrap"><table class="tare-table" id="tareTable"></table></div>
     </section>
 

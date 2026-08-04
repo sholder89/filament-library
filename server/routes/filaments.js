@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { db, newId, nowISO } from '../db.js';
+import { importTares } from './tares.js';
 
 export const router = Router();
 
@@ -427,6 +428,9 @@ export function importHandler(req, res, next) {
           if (result.errors.length < 10) result.errors.push(`Row ${i + 1}: ${err.message}`);
         }
       }
+      // Inside the same transaction, so a file that fails partway leaves the
+      // spool weights alone too.
+      result.tares = importTares(body.spool_tares);
       db.exec('COMMIT');
     } catch (err) {
       db.exec('ROLLBACK');

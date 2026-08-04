@@ -109,7 +109,7 @@ db.exec('PRAGMA foreign_keys = ON');
  * Schema is versioned through PRAGMA user_version so upgrades are additive and
  * never lose a spool record. Bump SCHEMA_VERSION and add a migration below.
  */
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 function migrate() {
   const current = db.prepare('PRAGMA user_version').get().user_version;
@@ -175,6 +175,40 @@ function migrate() {
     // figure stands in — a guess the app is careful to label as one.
     db.exec(`ALTER TABLE filaments ADD COLUMN empty_spool_g INTEGER`);
     db.exec(`PRAGMA user_version = 5`);
+  }
+
+  if (current < 6) {
+    /*
+     * Your own spool weights, which outrank the figures shipped in the catalog.
+     *
+     * Those shipped figures are crowdsourced, and they go stale: Sunlu quietly
+     * revised their spool and the published numbers describe the old one, so a
+     * suggestion can be eighty grams out with nothing on screen to suggest it.
+     * Weighing one settles it — but until now the answer could only be recorded
+     * against a single roll, so the next spool of the same stuff asked again.
+     *
+     * Matched the same way as the catalog: brand always, then capacity, then
+     * material, each narrowing only as far as the row actually specifies. The
+     * two "any" cases are 0 and '' rather than NULL so that UNIQUE means what
+     * it looks like it means — in SQLite two NULLs are distinct, and a nullable
+     * key column would happily store the same brand a dozen times over.
+     */
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS spool_tares (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        brand      TEXT NOT NULL,
+        material   TEXT NOT NULL DEFAULT '',
+        capacity_g INTEGER NOT NULL DEFAULT 0,
+        grams      INTEGER NOT NULL CHECK (grams > 0 AND grams < 5000),
+        note       TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE (brand, material, capacity_g)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_spool_tares_brand ON spool_tares (brand);
+    `);
+    db.exec(`PRAGMA user_version = 6`);
   }
 }
 

@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import { db } from './db.js';
 import { router as filamentsRouter, importHandler } from './routes/filaments.js';
 import { router as catalogRouter } from './routes/catalog.js';
+import { router as taresRouter, allTares } from './routes/tares.js';
 import { router as printRouter, printMode } from './routes/print.js';
 import { router as scanRouter, scanEnabled } from './routes/scan.js';
 
@@ -77,6 +78,7 @@ app.get('/api/health', (_req, res) => {
 
 app.use('/api/filaments', filamentsRouter);
 app.use('/api/catalog', catalogRouter);
+app.use('/api/tares', taresRouter);
 app.use('/api/print', printRouter);
 
 /**
@@ -144,6 +146,10 @@ app.get('/api/export', (_req, res) => {
   res.json({
     exported_at: new Date().toISOString(),
     filaments: db.prepare('SELECT * FROM filaments ORDER BY created_at').all(),
+    // Your own spool weights ride along. They're a handful of rows, and they're
+    // the ones that can't be looked up again — a backup without them restores a
+    // library that has quietly gone back to guessing.
+    spool_tares: allTares(),
   });
 });
 

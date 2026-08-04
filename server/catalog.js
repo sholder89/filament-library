@@ -256,12 +256,16 @@ const EXTRA_TARES = [
    * much as old. Every one of those records cites the same photo, captioned
    * "Sunlu Generational Differences", which rather gives the game away.
    *
-   * This entry is a current spool on a kitchen scale: 186 g bare, 222 g with
-   * the cardboard, and the cardboard counts because it's on the spool when you
-   * weigh a part-used roll. It agrees with Printara3D's 220 g and disagrees
-   * with the crowd, and a measurement beats a consensus of guesses.
+   * A current one measures 186 g bare and 222 g with the cardboard, and the
+   * cardboard counts because it's on the spool when you weigh a part-used roll.
+   * That agrees with Printara3D and not with the crowd, which is the whole point
+   * of carrying it: the range this opens up is what the app warns about.
+   *
+   * It stays an ordinary reference row rather than something that overrides the
+   * others. One person's spool isn't a fact about the brand, and anybody who
+   * wants their own figure to win can weigh one and save it under Settings.
    */
-  { brand: 'Sunlu', grams: 222, capacity: 1000, material: null, weighed: true, note: 'Weighed: 186 g bare, 222 g with the cardboard. Older spools were lighter' },
+  { brand: 'Sunlu', grams: 222, capacity: 1000, material: null, note: 'A 2026 spool: 186 g bare, 222 g with the cardboard. Older ones were lighter' },
 ];
 
 export const SPOOL_TARES = [...GENERATED_TARES, ...EXTRA_TARES];

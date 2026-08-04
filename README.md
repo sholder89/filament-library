@@ -70,12 +70,20 @@ through — used-up spools stay in the library as a record instead of vanishing.
   rather than material classes.
 - **Weigh it instead of guessing** — put a spool on a kitchen scale, type in what
   it says, and the app works out what's left: *(scale − empty spool) ÷ capacity*.
-  The slider is still there for when you can't be bothered. Empty-spool weights
-  are suggested per brand and listed under **Settings**, and any spool can carry
-  its own measured weight, which always wins — necessary if you wind a refill
-  onto someone else's spool, and worth doing anyway, since published figures for
-  the same brand disagree by up to 95 g and four spools of one product have been
-  measured at 186, 188, 190 and 191 g.
+  The slider is still there for when you can't be bothered.
+
+  Three sources of empty-spool weight, each beating the one below it: a weight
+  saved against that one roll, a weight you've saved for the brand under
+  **Settings**, and the published figures shipped with the app. Weigh a bare
+  spool once and every roll of that brand uses it; anything you've already
+  weighed against a single roll can be promoted to the whole brand with one
+  button.
+
+  Worth doing, because the published figures are a moving target: they disagree
+  by up to 95 g for one brand, four spools of a single product have been measured
+  at 186, 188, 190 and 191 g, and a brand that quietly revises its spool leaves
+  the old number in circulation for years. Your own weights are also the part a
+  backup can't reconstruct, so they're included in the JSON export.
 - **What's running out** — the fill bar turns amber under 25% and red under 10%,
   and *Least left first* sorts the whole library by it. Ties break on the smaller
   spool, since 20% of a 250 g reel is a lot less filament than 20% of a kilo.
@@ -326,6 +334,9 @@ and the whole import runs in one transaction, so a bad file leaves no trace.
 | `POST` | `/api/filaments/:id/duplicate` | Copy the specs into new sealed spools (`quantity` optional) |
 | `GET` | `/api/filaments/stats` | Counts and total weight on hand |
 | `GET` | `/api/catalog` | Brands, materials, colors — seed lists merged with your own |
+| `GET` | `/api/tares` | Empty-spool weights you've saved |
+| `POST` | `/api/tares` | Save one. Upserts on `brand` + `material` + `capacity_g` |
+| `DELETE` | `/api/tares/:id` | Forget one and fall back to the published figure |
 | `POST` | `/api/print/:id` | Print a QR label |
 | `GET` | `/api/print/qr/:id.svg` | QR code as SVG |
 | `GET` | `/api/export` | Full JSON dump |

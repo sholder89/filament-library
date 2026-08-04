@@ -1183,11 +1183,24 @@ function familyOf(name) {
   return family === 'ASA' ? 'ABS' : family;
 }
 
+/**
+ * What the bare spool weighs, in descending order of how much it deserves to be
+ * believed:
+ *
+ *   1. what this very roll was weighed at, if it was
+ *   2. a weight saved for the brand under Settings — yours, off your scale
+ *   3. the reference figures shipped with the app, which are strangers' spools
+ *
+ * Two and three are matched identically; the only difference is that the first
+ * pool to offer anything for the brand ends the search. A saved weight is a
+ * measurement, so it isn't averaged with published guesses that disagree.
+ */
 function tareFor(f) {
   if (f.empty_spool_g != null) return { grams: f.empty_spool_g, measured: true };
 
-  const all = state.catalog.spool_tares ?? [];
   const brand = String(f.brand ?? '').trim().toLowerCase();
+  const mine = (state.catalog.my_tares ?? []).filter((t) => brand && t.brand.toLowerCase() === brand);
+  const all = mine.length ? mine : (state.catalog.spool_tares ?? []);
 
   /*
    * Narrow on what the source actually recorded, most telling first, and only
@@ -1225,17 +1238,7 @@ function tareFor(f) {
   const known = candidates.map((t) => t.grams).sort((a, b) => a - b);
   const brandSpread = known.length > 1 ? [known[0], known.at(-1)] : null;
 
-  /*
-   * Somebody putting a spool on a scale outranks any amount of crowdsourcing,
-   * so a weighed entry ends the search — no material narrowing, no median with
-   * hearsay. Without this the weighed figure loses to whichever guesses happen
-   * to carry a material tag, which is exactly backwards.
-   */
-  const weighed = candidates.filter((t) => t.weighed);
-  if (weighed.length) {
-    const g = weighed.map((t) => t.grams).sort((a, b) => a - b);
-    return { grams: g[Math.floor(g.length / 2)], measured: false, weighed: true, brandSpread };
-  }
+  const mineOnly = mine.length > 0;
 
   const family = familyOf(f.material);
   candidates = step(candidates, (t) => t.material === family, (t) => t.material == null);
@@ -1255,6 +1258,7 @@ function tareFor(f) {
   return {
     grams: median,
     measured: false,
+    mine: mineOnly,
     spread: grams.length > 1 ? [grams[0], grams.at(-1)] : null,
     brandSpread,
   };
@@ -1271,9 +1275,9 @@ function weighHintFor(f) {
   const who = esc(f.brand || 'spools this size');
   const [low, high] = tare.brandSpread ?? [];
 
-  if (tare.weighed) {
-    return `${tare.grams} g is off a real ${who} spool on a scale, cardboard included. Older ones ran `
-      + `lighter, so check it against yours if this roll has been around a while.`;
+  if (tare.mine) {
+    return `${tare.grams} g is your own saved weight for ${who}. Change it under Settings if you `
+      + 'reweigh one, or put a figure in below to override it for this roll only.';
   }
 
   /*
@@ -1485,11 +1489,20 @@ el.detail.addEventListener('click', async (e) => {
 
     const pct = Math.max(0, Math.min(100, Math.round(((total - tare) / f.spool_weight_g) * 100)));
 
-    // The tare goes back with it. Correcting the number here is the moment you
-    // actually know it — having to go and edit the spool separately is how it
-    // would stay wrong.
+    /*
+     * The tare goes back with it, but only if you actually changed it.
+     *
+     * The field arrives prefilled with whatever the app would have assumed, so
+     * comparing against the roll's stored value would treat every weighing as a
+     * correction and pin the assumption to the roll. That matters now that a
+     * brand weight can be saved under Settings: a pinned copy outranks it, so
+     * reweighing a Sunlu spool and fixing the brand figure would silently fail
+     * to reach the rolls already weighed. Leave it untouched and the roll keeps
+     * following the brand.
+     */
+    const assumed = f.empty_spool_g ?? tareFor({ ...f, empty_spool_g: null })?.grams ?? null;
     const body = { remaining_pct: pct };
-    if (tare !== f.empty_spool_g) body.empty_spool_g = tare;
+    if (tare !== assumed) body.empty_spool_g = tare;
 
     $('#remainingRange').value = pct;
     paintRemaining(pct);
@@ -2550,6 +2563,7 @@ $('#themeBtn').addEventListener('click', () => {
  */
 async function showSettings() {
   openSheet(el.settings);
+  renderMyTares();
   renderTareTable();
   const facts = $('#settingsFacts');
   facts.innerHTML = '<div class="spec"><dt>Loading…</dt><dd></dd></div>';
@@ -2574,6 +2588,70 @@ async function showSettings() {
   }
 }
 
+/** What a saved weight applies to, in the fewest words that stay unambiguous. */
+function tareScope(t) {
+  const bits = [t.capacity ? `${t.capacity} g spools` : null, t.material || null].filter(Boolean);
+  return bits.length ? bits.join(' · ') : 'any spool';
+}
+
+/**
+ * The weights you've saved, and — underneath — an offer to promote anything
+ * you've already weighed against a single roll.
+ *
+ * That offer is the point of the section. Weighing a spool was always possible,
+ * but the answer stayed pinned to the one roll it came from, so the next spool
+ * of the same filament went back to guessing. One button turns a measurement
+ * into the default for the brand.
+ */
+function renderMyTares() {
+  const wrap = $('#myTares');
+  const mine = state.catalog.my_tares ?? [];
+
+  const saved = new Set(mine.map((t) => t.brand.toLowerCase()));
+  const offers = (state.catalog.measured_tares ?? []).filter((m) => !saved.has(m.brand.toLowerCase()));
+
+  const rows = mine.map((t) => `
+    <li class="tare-row">
+      <div class="tare-row-main">
+        <b>${esc(t.brand)}</b>
+        <small>${esc(tareScope(t))}</small>
+      </div>
+      <span class="tare-row-g">${t.grams} g</span>
+      <button type="button" class="icon-btn danger" data-forget="${t.id}"
+              aria-label="Forget the saved weight for ${esc(t.brand)}">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2m-7 0 1 12h8l1-12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </li>`).join('');
+
+  const suggestions = offers.map((m) => `
+    <li class="tare-row is-offer">
+      <div class="tare-row-main">
+        <b>${esc(m.brand)}</b>
+        <small>weighed on ${m.spools} roll${m.spools === 1 ? '' : 's'}</small>
+      </div>
+      <span class="tare-row-g">${m.grams} g</span>
+      <button type="button" class="btn tiny" data-adopt="${esc(m.brand)}" data-grams="${m.grams}">Use for all</button>
+    </li>`).join('');
+
+  wrap.innerHTML = `
+    ${rows ? `<ul class="tare-list">${rows}</ul>` : '<p class="empty-note">Nothing saved yet — the published figures below are being used.</p>'}
+    ${suggestions ? `<p class="hint tight">Weighed against a single roll. Use it for the whole brand?</p><ul class="tare-list">${suggestions}</ul>` : ''}`;
+
+  fillTareForm();
+}
+
+/** Brands, sizes and types come from the same catalog the Add form uses. */
+function fillTareForm() {
+  const brands = state.catalog.brands ?? [];
+  $('#tareBrands').innerHTML = brands.map((b) => `<option value="${esc(b)}"></option>`).join('');
+  $('#tareMaterials').innerHTML = (state.catalog.materials ?? [])
+    .map((m) => `<option value="${esc(m.name)}"></option>`).join('');
+
+  const sizes = state.catalog.spool_weights ?? [];
+  $('#t_capacity').innerHTML = ['<option value="0">Any size</option>']
+    .concat(sizes.map((w) => `<option value="${w}">${w} g</option>`)).join('');
+}
+
 /**
  * Your own measurements first, then the reference figures. Ordered that way on
  * purpose: a weight you took off your own scale is worth more than a number
@@ -2582,23 +2660,66 @@ async function showSettings() {
  */
 function renderTareTable() {
   const table = $('#tareTable');
-  const mine = state.catalog.measured_tares ?? [];
   const reference = state.catalog.spool_tares ?? [];
-
-  const row = (brand, grams, note, mineFlag) => `
-    <tr${mineFlag ? ' class="is-mine"' : ''}>
-      <td>${esc(brand || 'Anything else')}</td>
-      <td class="tare-g">${grams} g</td>
-      <td class="tare-note">${esc(note)}</td>
-    </tr>`;
 
   table.innerHTML = `
     <thead><tr><th>Brand</th><th class="tare-g">Empty</th><th>Notes</th></tr></thead>
     <tbody>
-      ${mine.map((t) => row(t.brand, t.grams, `Your own — ${t.spools} spool${t.spools === 1 ? '' : 's'}`, true)).join('')}
-      ${reference.map((t) => row(t.brand, t.grams, t.note, false)).join('')}
+      ${reference.map((t) => `
+        <tr>
+          <td>${esc(t.brand || 'Anything else')}</td>
+          <td class="tare-g">${t.grams} g</td>
+          <td class="tare-note">${esc(t.note ?? '')}</td>
+        </tr>`).join('')}
     </tbody>`;
 }
+
+/** Re-reads the catalog so a saved weight takes effect without a reload. */
+async function refreshTares() {
+  state.catalog = await api('/api/catalog');
+  renderMyTares();
+  render();
+}
+
+$('#tareForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const body = Object.fromEntries(new FormData(form));
+
+  try {
+    await api('/api/tares', { method: 'POST', body });
+    form.reset();
+    // The size dropdown doesn't reset to "Any" on its own once it has been
+    // touched, and a stale size silently narrows the next weight you save.
+    form.elements.capacity_g.value = '0';
+    await refreshTares();
+    toast(`Saved — ${body.brand} spools will use ${body.grams} g`);
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+
+$('#myTares').addEventListener('click', async (e) => {
+  const forget = e.target.closest('[data-forget]');
+  const adopt = e.target.closest('[data-adopt]');
+
+  try {
+    if (forget) {
+      await api(`/api/tares/${forget.dataset.forget}`, { method: 'DELETE' });
+      await refreshTares();
+      toast('Back to the published figure');
+    } else if (adopt) {
+      await api('/api/tares', {
+        method: 'POST',
+        body: { brand: adopt.dataset.adopt, grams: adopt.dataset.grams, note: 'Weighed here' },
+      });
+      await refreshTares();
+      toast(`Saved — ${adopt.dataset.adopt} spools will use ${adopt.dataset.grams} g`);
+    }
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
 
 $('#settingsBtn').addEventListener('click', showSettings);
 

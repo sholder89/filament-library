@@ -46,6 +46,16 @@ router.get('/', (_req, res) => {
     // Typical empty-spool weights, plus the ones actually measured here — your
     // own numbers are the reliable ones, so they're offered first and labelled.
     spool_tares: SPOOL_TARES,
+    // Weights you've saved yourself. Same shape as the reference list so both
+    // go through one matcher, differing only in which pool is consulted first.
+    my_tares: db.prepare('SELECT * FROM spool_tares ORDER BY brand COLLATE NOCASE').all().map((t) => ({
+      id: t.id,
+      brand: t.brand,
+      grams: t.grams,
+      capacity: t.capacity_g || null,
+      material: t.material || null,
+      note: t.note,
+    })),
     measured_tares: db.prepare(`
       SELECT brand, empty_spool_g AS grams, COUNT(*) AS spools
       FROM filaments
