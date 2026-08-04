@@ -244,6 +244,16 @@
       </div>
     </div>
 
+    <!-- What the bare spool weighs, so putting this on a scale gives how much
+         filament is left. Suggested from the brand, and always overridable —
+         a refill wound onto someone else's spool is a different weight. -->
+    <div class="field">
+      <label for="f_empty_spool_g">Empty spool (g)</label>
+      <input id="f_empty_spool_g" name="empty_spool_g" type="number" inputmode="numeric"
+             min="0" step="1" placeholder="Leave blank to use the usual weight for the brand">
+      <p class="hint" id="emptySpoolHint"></p>
+    </div>
+
     <!-- Only shown when adding an already-opened spool. Once it's in the
          library, how much is left is adjusted on the spool's own page. -->
     <div class="field" id="remainingField" hidden>
@@ -414,6 +424,15 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14V3m0 0 4 4m-4-4-4 4M5 19h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span><b>Restore from a backup</b><small>Adds anything missing, changes nothing that's here</small></span>
       </button>
+    </section>
+
+    <section class="settings-group">
+      <h3>Empty spool weights</h3>
+      <p class="hint">Subtracted from what the scale says to work out how much
+        filament is left. Typical figures — spools vary between product lines and
+        between two off the same shelf, so anything you've weighed yourself is
+        listed first and always wins.</p>
+      <div class="tare-wrap"><table class="tare-table" id="tareTable"></table></div>
     </section>
 
     <section class="settings-group">

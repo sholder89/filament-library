@@ -1440,6 +1440,56 @@ select {
 .settings-row small { font-size: 12.5px; font-weight: 500; color: var(--muted); }
 .settings-row:hover svg { color: var(--accent); }
 
+/* Reference table of empty-spool weights. Scrolls on its own so a long list
+   never pushes the sheet sideways. */
+.tare-wrap { overflow-x: auto; border: 1px solid var(--border-sm); border-radius: var(--radius-sm); }
+.tare-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tare-table th,
+.tare-table td { padding: 8px 11px; text-align: left; border-bottom: 1px solid var(--border-sm); }
+.tare-table tr:last-child td { border-bottom: 0; }
+.tare-table th {
+  position: sticky;
+  top: 0;
+  font-size: 11px;
+  font-weight: 680;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--surface);
+}
+.tare-table .tare-g { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tare-table .tare-note { color: var(--muted); }
+/* Weights you took yourself, which beat any of the reference figures. */
+.tare-table tr.is-mine td { background: color-mix(in srgb, var(--new) 10%, transparent); }
+.tare-table tr.is-mine .tare-note { color: var(--new); }
+
+/* ── Weighing a spool (detail sheet) ─────────────────────────────────────── */
+
+.weigh { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border-sm); }
+.weigh-title { display: block; font-size: 13px; font-weight: 620; color: var(--muted); margin-bottom: 8px; }
+
+/* scale − spool, written out as the sum it is. Aligned on the inputs rather
+   than the labels beneath them, so the minus sits level with the numbers. */
+.weigh-row { display: flex; align-items: flex-start; gap: 8px; }
+.weigh-field { flex: 1 1 0; min-width: 0; display: grid; gap: 4px; }
+.weigh-field input { width: 100%; text-align: right; font-variant-numeric: tabular-nums; }
+.weigh-field small { font-size: 11.5px; color: var(--muted); text-align: right; }
+.weigh-minus {
+  flex: none;
+  font-size: 17px;
+  color: var(--muted);
+  /* Half the input's height, to sit on the numbers and not the captions. */
+  line-height: var(--tap);
+}
+.weigh-row .btn { flex: none; }
+.weigh .hint { margin-top: 9px; }
+
+@media (max-width: 460px) {
+  /* The button drops beneath rather than crushing two number fields. */
+  .weigh-row { flex-wrap: wrap; }
+  .weigh-row .btn { flex: 1 0 100%; margin-top: 2px; }
+}
+
 /* ── Remaining control (detail sheet) ────────────────────────────────────── */
 
 .remaining {

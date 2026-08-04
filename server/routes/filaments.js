@@ -81,6 +81,9 @@ function readBody(body, { partial = false } = {}) {
   if (want('spool_weight_g')) out.spool_weight_g = num(body.spool_weight_g, { min: 1, max: 100000, int: true }) ?? 1000;
   if (want('remaining_pct'))  out.remaining_pct  = num(body.remaining_pct, { min: 0, max: 100, int: true }) ?? 100;
   if (want('price'))          out.price          = num(body.price, { min: 0, max: 100000 });
+  // Null rather than a default: "not weighed" and "weighed at 0 g" are
+  // different, and only the first should fall back to the brand's typical spool.
+  if (want('empty_spool_g'))  out.empty_spool_g  = num(body.empty_spool_g, { min: 0, max: 100000, int: true });
   if (want('nozzle_temp'))    out.nozzle_temp    = num(body.nozzle_temp, { min: 0, max: 600, int: true });
   if (want('bed_temp'))       out.bed_temp       = num(body.bed_temp, { min: 0, max: 300, int: true });
 
@@ -131,9 +134,9 @@ function reconcileLifecycle(row) {
 
 const COLUMNS = [
   'brand', 'material', 'color_name', 'color_hex', 'color_hex2', 'color_hex3',
-  'finish', 'diameter', 'spool_weight_g', 'remaining_pct', 'status', 'loaded',
-  'location', 'notes', 'price', 'nozzle_temp', 'bed_temp', 'purchased_at',
-  'opened_at', 'finished_at',
+  'finish', 'diameter', 'spool_weight_g', 'empty_spool_g', 'remaining_pct',
+  'status', 'loaded', 'location', 'notes', 'price', 'nozzle_temp', 'bed_temp',
+  'purchased_at', 'opened_at', 'finished_at',
 ];
 
 const getStmt = db.prepare('SELECT * FROM filaments WHERE id = ?');
@@ -216,8 +219,9 @@ router.post('/', (req, res) => {
   const row = reconcileLifecycle({
     color_name: '', color_hex: '#808080', color_hex2: '', color_hex3: '',
     finish: '', diameter: 1.75,
-    spool_weight_g: 1000, remaining_pct: 100, status: 'new', loaded: 0,
-    location: '', notes: '', price: null, nozzle_temp: null, bed_temp: null,
+    spool_weight_g: 1000, empty_spool_g: null, remaining_pct: 100,
+    status: 'new', loaded: 0, location: '', notes: '', price: null,
+    nozzle_temp: null, bed_temp: null,
     purchased_at: null, opened_at: null, finished_at: null,
     ...fields,
   });
@@ -392,9 +396,9 @@ export function importHandler(req, res, next) {
           const fields = readBody(raw ?? {});
           const row = reconcileLifecycle({
             color_name: '', color_hex: '#808080', color_hex2: '', color_hex3: '',
-            finish: '', diameter: 1.75, spool_weight_g: 1000, remaining_pct: 100,
-            status: 'new', loaded: 0, location: '', notes: '', price: null,
-            nozzle_temp: null, bed_temp: null, purchased_at: null,
+            finish: '', diameter: 1.75, spool_weight_g: 1000, empty_spool_g: null,
+            remaining_pct: 100, status: 'new', loaded: 0, location: '', notes: '',
+            price: null, nozzle_temp: null, bed_temp: null, purchased_at: null,
             opened_at: null, finished_at: null,
             ...fields,
           });

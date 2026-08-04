@@ -308,9 +308,36 @@ function refreshBrandPicker(value = '') {
     return [['Brands you own', owned], ['All brands', rest]];
   };
 
-  brandCombo ??= wireCombo({ input: form.elements.brand, groups });
+  brandCombo ??= wireCombo({ input: form.elements.brand, groups, onPick: syncEmptySpoolHint });
   brandCombo.close();
   form.elements.brand.value = value || '';
+  syncEmptySpoolHint();
+}
+
+/**
+ * Says what will be assumed if the field is left blank, rather than filling the
+ * number in. Writing it into the box would turn a rough figure for the brand
+ * into something that looks measured, and it's the difference between the two
+ * that decides whether to trust a weight.
+ */
+function syncEmptySpoolHint() {
+  const hint = $('#emptySpoolHint');
+  if (!hint) return;
+
+  const brand = form.elements.brand.value.trim();
+  const matches = (state.catalog.spool_tares ?? []).filter(
+    (t) => brand && t.brand.toLowerCase() === brand.toLowerCase(),
+  );
+
+  if (!matches.length) {
+    const generic = (state.catalog.spool_tares ?? []).find((t) => !t.brand);
+    hint.textContent = generic
+      ? `Nothing on file for ${brand || 'this brand'} — ${generic.grams} g will be assumed. Weigh the empty spool to be sure.`
+      : 'Used to work out how much is left when you weigh the spool.';
+    return;
+  }
+
+  hint.textContent = `Usually ${matches.map((m) => `${m.grams} g${m.note ? ` (${m.note})` : ''}`).join(', or ')}.`;
 }
 
 function refreshMaterialPicker(value = '') {
@@ -1135,6 +1162,50 @@ el.grid.addEventListener('click', (e) => {
   if (card) showDetail(card.dataset.id, true);
 });
 
+// ── Weighing a spool ─────────────────────────────────────────────────────────
+
+/**
+ * What this spool weighs empty.
+ *
+ * Its own measured figure if it has one, otherwise the typical weight for the
+ * brand. Where a brand has several — Bambu's reusable spool and its refill core
+ * are 35 g apart — the heaviest is used, because guessing high understates how
+ * much filament is left, and a spool you think is emptier than it is sends you
+ * to check it rather than leaving you stranded mid-print.
+ */
+function tareFor(f) {
+  if (f.empty_spool_g != null) return { grams: f.empty_spool_g, measured: true };
+
+  const brand = String(f.brand ?? '').trim().toLowerCase();
+  const known = (state.catalog.spool_tares ?? []).filter(
+    (t) => t.brand.toLowerCase() === brand && brand !== '',
+  );
+  if (known.length) {
+    return { grams: Math.max(...known.map((t) => t.grams)), measured: false };
+  }
+
+  const generic = (state.catalog.spool_tares ?? []).find((t) => !t.brand);
+  return generic ? { grams: generic.grams, measured: false } : null;
+}
+
+function weighHintFor(f) {
+  const tare = tareFor(f);
+  if (!tare) return 'Weigh it with the spool on, and say what the bare spool weighs.';
+
+  return tare.measured
+    ? `Spool weight saved for this roll. Full, it would read about ${tare.grams + f.spool_weight_g} g.`
+    : `The ${tare.grams} g is what ${esc(f.brand || 'a spool this size')} usually weighs, not this one. `
+      + 'Correct it if you know better and it will be remembered.';
+}
+
+/** Grams on the scale to percentage left, given what the bare spool weighs. */
+function pctFromTotal(total, f) {
+  const tare = tareFor(f);
+  if (!tare || !(f.spool_weight_g > 0)) return null;
+  const filament = total - tare.grams;
+  return Math.max(0, Math.min(100, Math.round((filament / f.spool_weight_g) * 100)));
+}
+
 // ── Detail ───────────────────────────────────────────────────────────────────
 
 async function showDetail(id, push = false) {
@@ -1219,6 +1290,25 @@ async function showDetail(id, push = false) {
           <button type="button" data-pct="${v}" class="${f.remaining_pct === v ? 'on' : ''}">${v}%</button>
         `).join('')}
       </div>
+
+      <div class="weigh">
+        <span class="weigh-title">Or weigh it</span>
+        <div class="weigh-row">
+          <span class="weigh-field">
+            <input type="number" id="weighTotal" inputmode="numeric" min="0" step="1"
+                   placeholder="0" aria-label="Total weight on the scale">
+            <small>on the scale</small>
+          </span>
+          <span class="weigh-minus" aria-hidden="true">−</span>
+          <span class="weigh-field">
+            <input type="number" id="weighTare" inputmode="numeric" min="0" step="1"
+                   value="${tareFor(f)?.grams ?? ''}" aria-label="Weight of the empty spool">
+            <small>empty spool</small>
+          </span>
+          <button type="button" class="btn" id="weighApply">Work it out</button>
+        </div>
+        <p class="hint" id="weighHint">${weighHintFor(f)}</p>
+      </div>
     </div>` : ''}
 
     <dl class="spec-list">
@@ -1270,6 +1360,58 @@ el.detail.addEventListener('click', async (e) => {
     $('#remainingRange').value = pct;
     paintRemaining(pct);
     saveRemaining(pct);
+    return;
+  }
+
+  if (e.target.closest('#weighApply')) {
+    const totalInput = $('#weighTotal');
+    const tareInput = $('#weighTare');
+    const hint = $('#weighHint');
+    const f = state.currentFilament;
+
+    const total = Number(totalInput.value);
+    const tare = Number(tareInput.value);
+
+    if (!totalInput.value.trim() || !Number.isFinite(total) || total < 0) {
+      hint.textContent = 'Enter what the scale says, with the spool still on it.';
+      totalInput.focus();
+      return;
+    }
+    if (!tareInput.value.trim() || !Number.isFinite(tare) || tare < 0) {
+      hint.textContent = "Enter what the bare spool weighs — there's no working it out without that.";
+      tareInput.focus();
+      return;
+    }
+    if (total < tare) {
+      // Almost always the filament was weighed off the spool, or the tare is wrong.
+      hint.textContent = `That's less than the empty spool on its own. Weigh it with the spool still on, `
+        + `or correct the ${tare} g if that isn't right.`;
+      return;
+    }
+
+    const pct = Math.max(0, Math.min(100, Math.round(((total - tare) / f.spool_weight_g) * 100)));
+
+    // The tare goes back with it. Correcting the number here is the moment you
+    // actually know it — having to go and edit the spool separately is how it
+    // would stay wrong.
+    const body = { remaining_pct: pct };
+    if (tare !== f.empty_spool_g) body.empty_spool_g = tare;
+
+    $('#remainingRange').value = pct;
+    paintRemaining(pct);
+    try {
+      const saved = await api(`/api/filaments/${encodeURIComponent(el.detailBody.dataset.id)}`, {
+        method: 'PATCH', body,
+      });
+      state.currentFilament = saved;
+      totalInput.value = '';
+      hint.textContent = `${total} g less a ${tare} g spool is ${total - tare} g — ${pct}% of a ${f.spool_weight_g} g spool.`
+        + (body.empty_spool_g != null ? ' Spool weight saved for this roll.' : '');
+      loadFilaments();
+      loadStats();
+    } catch (err) {
+      hint.textContent = err.message;
+    }
     return;
   }
 
@@ -1546,6 +1688,7 @@ function openEditor(filament = null) {
   colorPinned = Boolean(f.color_hex);
   setField('status', f.status || 'new');
   setField('spool_weight_g', f.spool_weight_g ?? 1000);
+  setField('empty_spool_g', f.empty_spool_g ?? '');
   // How much is left is adjusted on the spool's own page, not here — but the
   // preview should still show the spool at its real fullness while editing.
   editorRemaining = f.remaining_pct ?? 100;
@@ -2313,6 +2456,7 @@ $('#themeBtn').addEventListener('click', () => {
  */
 async function showSettings() {
   openSheet(el.settings);
+  renderTareTable();
   const facts = $('#settingsFacts');
   facts.innerHTML = '<div class="spec"><dt>Loading…</dt><dd></dd></div>';
 
@@ -2334,6 +2478,32 @@ async function showSettings() {
   } catch (err) {
     facts.innerHTML = row('Could not reach the server', err.message);
   }
+}
+
+/**
+ * Your own measurements first, then the reference figures. Ordered that way on
+ * purpose: a weight you took off your own scale is worth more than a number
+ * averaged from strangers' spools, and the table should say so rather than
+ * mixing the two into one undifferentiated list.
+ */
+function renderTareTable() {
+  const table = $('#tareTable');
+  const mine = state.catalog.measured_tares ?? [];
+  const reference = state.catalog.spool_tares ?? [];
+
+  const row = (brand, grams, note, mineFlag) => `
+    <tr${mineFlag ? ' class="is-mine"' : ''}>
+      <td>${esc(brand || 'Anything else')}</td>
+      <td class="tare-g">${grams} g</td>
+      <td class="tare-note">${esc(note)}</td>
+    </tr>`;
+
+  table.innerHTML = `
+    <thead><tr><th>Brand</th><th class="tare-g">Empty</th><th>Notes</th></tr></thead>
+    <tbody>
+      ${mine.map((t) => row(t.brand, t.grams, `Your own — ${t.spools} spool${t.spools === 1 ? '' : 's'}`, true)).join('')}
+      ${reference.map((t) => row(t.brand, t.grams, t.note, false)).join('')}
+    </tbody>`;
 }
 
 $('#settingsBtn').addEventListener('click', showSettings);

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db.js';
-import { BRANDS, MATERIALS, COLORS, COLOR_NAMES, FINISHES, SPOOL_WEIGHTS, DIAMETERS } from '../catalog.js';
+import { BRANDS, MATERIALS, COLORS, COLOR_NAMES, FINISHES, SPOOL_WEIGHTS, SPOOL_TARES, DIAMETERS } from '../catalog.js';
 
 export const router = Router();
 
@@ -43,6 +43,16 @@ router.get('/', (_req, res) => {
         .map((name) => ({ name, effect: '', blurb: '' })),
     ],
     spool_weights: SPOOL_WEIGHTS,
+    // Typical empty-spool weights, plus the ones actually measured here — your
+    // own numbers are the reliable ones, so they're offered first and labelled.
+    spool_tares: SPOOL_TARES,
+    measured_tares: db.prepare(`
+      SELECT brand, empty_spool_g AS grams, COUNT(*) AS spools
+      FROM filaments
+      WHERE empty_spool_g IS NOT NULL AND brand != ''
+      GROUP BY brand, empty_spool_g
+      ORDER BY brand COLLATE NOCASE, spools DESC
+    `).all(),
     diameters: DIAMETERS,
     locations: used('location'),
   });

@@ -236,4 +236,44 @@ export const COLOR_NAMES = { ...CSS_COLORS, ...FILAMENT_COLORS };
 /** Spool sizes in grams — the weights filament actually ships in. */
 export const SPOOL_WEIGHTS = [250, 500, 750, 1000, 2000, 3000, 5000];
 
+/**
+ * What an empty spool weighs, so a spool on a kitchen scale can be turned into
+ * how much filament is left: (what the scale says − this) ÷ the spool's capacity.
+ *
+ * Treat these as a starting point, not a fact. Published and community-measured
+ * figures disagree by more than you would hope — Sunlu is quoted at both 125 g
+ * and 220 g, which on a 1 kg spool is a ten-percent error — and one person
+ * weighing four spools of a single product got 186, 188, 190 and 191 g. Spool
+ * design also changes between product lines and over time.
+ *
+ * So every spool can carry its own measured weight, which always wins. The right
+ * habit is to weigh a spool once when it runs out and save the real number; the
+ * app asks for it at that point.
+ *
+ * `note` is shown beside the figure, because "which of your two Bambu spools is
+ * this" is exactly the ambiguity that makes the number wrong.
+ */
+export const SPOOL_TARES = [
+  // A refill has no spool of its own, so what counts is whatever it was wound
+  // onto — which is exactly why the per-spool override exists.
+  { brand: 'Bambu Lab',    grams: 250, note: 'Reusable spool' },
+  { brand: 'Bambu Lab',    grams: 215, note: 'Refill cardboard core only' },
+  { brand: 'Prusament',    grams: 200, note: '' },
+  { brand: 'eSun',         grams: 230, note: 'Ranges 210–242 across product lines' },
+  { brand: 'Sunlu',        grams: 220, note: 'Their lighter spools are nearer 125 g — weigh one' },
+  { brand: 'Overture',     grams: 171, note: '' },
+  { brand: 'Polymaker',    grams: 218, note: 'Plastic spool' },
+  { brand: 'Polymaker',    grams: 140, note: 'Cardboard spool' },
+  { brand: 'Creality',     grams: 220, note: 'Quoted 210–230' },
+  { brand: 'Creality',     grams: 104, note: '200 g spool' },
+  { brand: 'Hatchbox',     grams: 235, note: 'Quoted 225–245' },
+  { brand: '3D-Fuel',      grams: 264, note: '' },
+  { brand: 'Amazon Basics', grams: 231, note: '' },
+  { brand: 'Jayo',         grams: 204, note: 'Cardboard spool' },
+  { brand: 'Anycubic',     grams: 127, note: '' },
+  { brand: 'Eryone',       grams: 104, note: '250 g spool' },
+  { brand: '',             grams: 227, note: 'Typical unbranded 1 kg plastic spool' },
+  { brand: '',             grams: 380, note: 'Typical unbranded 2 kg plastic spool' },
+];
+
 export const DIAMETERS = [1.75, 2.85, 3.0];

@@ -109,7 +109,7 @@ db.exec('PRAGMA foreign_keys = ON');
  * Schema is versioned through PRAGMA user_version so upgrades are additive and
  * never lose a spool record. Bump SCHEMA_VERSION and add a migration below.
  */
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 function migrate() {
   const current = db.prepare('PRAGMA user_version').get().user_version;
@@ -167,6 +167,14 @@ function migrate() {
     db.exec(`ALTER TABLE filaments ADD COLUMN loaded INTEGER NOT NULL DEFAULT 0`);
     db.exec(`CREATE INDEX IF NOT EXISTS idx_filaments_loaded ON filaments (loaded)`);
     db.exec(`PRAGMA user_version = 4`);
+  }
+
+  if (current < 5) {
+    // What this particular spool weighs empty, so putting it on a scale gives
+    // how much is left. NULL means "no measurement", and the brand's typical
+    // figure stands in — a guess the app is careful to label as one.
+    db.exec(`ALTER TABLE filaments ADD COLUMN empty_spool_g INTEGER`);
+    db.exec(`PRAGMA user_version = 5`);
   }
 }
 
