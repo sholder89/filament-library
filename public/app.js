@@ -2663,13 +2663,12 @@ function renderTareTable() {
   const reference = state.catalog.spool_tares ?? [];
 
   table.innerHTML = `
-    <thead><tr><th>Brand</th><th class="tare-g">Empty</th><th>Notes</th></tr></thead>
+    <thead><tr><th>Brand</th><th class="tare-g">Empty</th></tr></thead>
     <tbody>
       ${reference.map((t) => `
         <tr>
           <td>${esc(t.brand || 'Anything else')}</td>
           <td class="tare-g">${t.grams} g</td>
-          <td class="tare-note">${esc(t.note ?? '')}</td>
         </tr>`).join('')}
     </tbody>`;
 }

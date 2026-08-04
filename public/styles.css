@@ -1491,10 +1491,6 @@ select {
   background: var(--surface);
 }
 .tare-table .tare-g { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.tare-table .tare-note { color: var(--muted); }
-/* Weights you took yourself, which beat any of the reference figures. */
-.tare-table tr.is-mine td { background: color-mix(in srgb, var(--new) 10%, transparent); }
-.tare-table tr.is-mine .tare-note { color: var(--new); }
 
 /* ── Weighing a spool (detail sheet) ─────────────────────────────────────── */
 
