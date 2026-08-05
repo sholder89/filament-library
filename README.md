@@ -91,6 +91,10 @@ through — used-up spools stay in the library as a record instead of vanishing.
   at 186, 188, 190 and 191 g, and a brand that quietly revises its spool leaves
   the old number in circulation for years. Your own weights are also the part a
   backup can't reconstruct, so they're included in the JSON export.
+- **Undo** — marking a spool used up, sealing one you'd opened, moving the
+  slider: each says what it did and offers to take it back for a few seconds.
+  It restores the old values rather than replaying the opposite action, so the
+  percentage and the dates come back as they were, not as a fresh guess.
 - **What's running out** — the fill bar turns amber under 25% and red under 10%,
   and *Least left first* sorts the whole library by it. Ties break on the smaller
   spool, since 20% of a 250 g reel is a lot less filament than 20% of a kilo.

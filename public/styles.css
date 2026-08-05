@@ -2000,6 +2000,31 @@ input[type="range"] {
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 .toast.err { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, transparent); }
 
+/* A toast carrying an Undo has to be reachable, where an ordinary one stays out
+   of the way of whatever is beneath it. */
+.toast.has-action {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+  padding-right: 8px;
+}
+.toast.has-action > span { min-width: 0; }
+.toast-undo {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 14px;
+  font: inherit;
+  font-weight: 640;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.toast-undo:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+
 /* ── Wider screens ──────────────────────────────────────────────────────── */
 
 @media (min-width: 760px) {

@@ -59,12 +59,65 @@ async function api(path, { method = 'GET', body } = {}) {
 }
 
 let toastTimer;
-function toast(message, isError = false) {
-  el.toast.textContent = message;
+let pendingUndo = null;
+
+/**
+ * `opts` is `true` for an error, or `{ error, undo }`. The bare boolean is kept
+ * because most calls are still `toast(msg, true)`.
+ *
+ * An `undo` function turns the toast into the one chance to take a change back,
+ * so it stays up roughly twice as long — long enough to read what happened and
+ * reach for it, short enough not to sit over the grid.
+ */
+function toast(message, opts = false) {
+  const isError = opts === true || (opts && opts.error === true);
+  const undo = opts && typeof opts === 'object' ? opts.undo : null;
+
+  el.toast.innerHTML = `<span>${esc(message)}</span>`
+    + (undo ? '<button type="button" class="toast-undo">Undo</button>' : '');
   el.toast.classList.toggle('err', isError);
+  el.toast.classList.toggle('has-action', Boolean(undo));
   el.toast.classList.add('show');
+
+  pendingUndo = undo ?? null;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.toast.classList.remove('show'), 3200);
+  toastTimer = setTimeout(() => {
+    el.toast.classList.remove('show');
+    pendingUndo = null;
+  }, undo ? 7000 : 3200);
+}
+
+el.toast.addEventListener('click', async (e) => {
+  if (!e.target.closest('.toast-undo') || !pendingUndo) return;
+  const run = pendingUndo;
+  pendingUndo = null;
+  el.toast.classList.remove('show');
+  clearTimeout(toastTimer);
+  try {
+    await run();
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+
+/*
+ * Undo restores the fields a one-click action can move, rather than replaying
+ * the opposite action — there isn't always an opposite. Marking a spool used up
+ * stamps a date and zeroes what's left; "put it back" doesn't know what was
+ * left before. Putting the old values back does.
+ */
+const UNDO_FIELDS = ['status', 'loaded', 'remaining_pct', 'opened_at', 'finished_at', 'empty_spool_g'];
+
+const snapshot = (f) => Object.fromEntries(UNDO_FIELDS.map((k) => [k, f[k]]));
+
+/** Hands back a function that puts `before` back, for passing to toast(). */
+function undoer(id, before, done) {
+  return async () => {
+    await api(`/api/filaments/${encodeURIComponent(id)}`, { method: 'PATCH', body: before });
+    await refresh();
+    if (el.detail.open && el.detailBody.dataset.id === id) await showDetail(id);
+    toast(done);
+  };
 }
 
 const STATUS_LABEL = { new: 'Sealed', opened: 'Opened', empty: 'Used up' };
@@ -1243,20 +1296,29 @@ el.cardMenu.addEventListener('click', async (e) => {
 
   const id = el.cardMenu.dataset.id;
   const act = btn.dataset.cardAct;
+  const f = state.filaments.find((x) => x.id === id);
   closeCardMenu();
+
+  // Taken before the write, since that's the only moment the old values exist.
+  const before = f ? snapshot(f) : null;
+  const what = f ? nameOf(f) : 'That spool';
 
   try {
     if (act === 'load' || act === 'unload') {
       await api(`/api/filaments/${encodeURIComponent(id)}`, {
         method: 'PATCH', body: { loaded: act === 'load' ? 1 : 0 },
       });
-      toast(act === 'load' ? 'Marked as loaded in a printer' : 'Taken out of the printer');
     } else {
       await api(`/api/filaments/${encodeURIComponent(id)}/${act}`, { method: 'POST' });
-      toast({ open: 'Marked as opened', empty: 'Marked as used up',
-              unopen: 'Back to sealed', restore: 'Put back in the library' }[act]);
     }
     await refresh();
+
+    const said = {
+      load: 'loaded in a printer', unload: 'taken out of the printer',
+      open: 'marked as opened', empty: 'marked as used up',
+      unopen: 'back to sealed', restore: 'back in the library',
+    }[act];
+    toast(`${what} — ${said}`, before ? { undo: undoer(id, before, `${what} — change undone`) } : false);
   } catch (err) {
     toast(err.message, true);
   }
@@ -1664,18 +1726,21 @@ el.detail.addEventListener('click', async (e) => {
     const body = { remaining_pct: pct };
     if (tare !== assumed) body.empty_spool_g = tare;
 
+    const before = snapshot(f);
     $('#remainingRange').value = pct;
     paintRemaining(pct);
     try {
-      const saved = await api(`/api/filaments/${encodeURIComponent(el.detailBody.dataset.id)}`, {
-        method: 'PATCH', body,
-      });
+      const id = el.detailBody.dataset.id;
+      const saved = await api(`/api/filaments/${encodeURIComponent(id)}`, { method: 'PATCH', body });
       state.currentFilament = saved;
       totalInput.value = '';
       hint.textContent = `${total} g less a ${tare} g spool is ${total - tare} g — ${pct}% of a ${f.spool_weight_g} g spool.`
         + (body.empty_spool_g != null ? ' Spool weight saved for this roll.' : '');
       loadFilaments();
       loadStats();
+      // The weighing also writes the spool's own tare, so undo has to put that
+      // back too — which is why it restores fields rather than just the figure.
+      toast(`${pct}% left`, { undo: undoer(id, before, 'Back to where it was') });
     } catch (err) {
       hint.textContent = err.message;
     }
@@ -1731,13 +1796,15 @@ el.detail.addEventListener('click', async (e) => {
   if (act === 'loaded') {
     btn.disabled = true;
     const now = !state.currentFilament?.loaded;
+    const before = state.currentFilament ? snapshot(state.currentFilament) : null;
     try {
       await api(`/api/filaments/${encodeURIComponent(id)}`, {
         method: 'PATCH', body: { loaded: now ? 1 : 0 },
       });
       await refresh();
       await showDetail(id);
-      toast(now ? 'Marked as loaded in a printer' : 'Taken out of the printer');
+      toast(now ? 'Marked as loaded in a printer' : 'Taken out of the printer',
+        before ? { undo: undoer(id, before, 'Change undone') } : false);
     } catch (err) {
       toast(err.message, true);
       btn.disabled = false;
@@ -1761,6 +1828,8 @@ el.detail.addEventListener('click', async (e) => {
   const endpoint = { open: 'open', empty: 'empty', restore: 'restore', unopen: 'unopen' }[act];
   if (!endpoint) return;
 
+  const before = state.currentFilament ? snapshot(state.currentFilament) : null;
+
   try {
     await api(`/api/filaments/${encodeURIComponent(id)}/${endpoint}`, { method: 'POST', body: {} });
     await refresh();
@@ -1770,7 +1839,7 @@ el.detail.addEventListener('click', async (e) => {
       empty: 'Marked as used up — the record is kept',
       restore: 'Back in the library',
       unopen: 'Marked as sealed again',
-    }[act]);
+    }[act], before ? { undo: undoer(id, before, 'Change undone') } : false);
   } catch (err) {
     toast(err.message, true);
   }
@@ -1802,6 +1871,10 @@ function paintRemaining(pct) {
 let remainingSaveTimer;
 function saveRemaining(pct) {
   clearTimeout(remainingSaveTimer);
+  // Taken here rather than inside the timer: state.currentFilament still holds
+  // what the spool read before the drag, and the timer runs after the write.
+  const before = state.currentFilament ? snapshot(state.currentFilament) : null;
+
   // Dragging fires continuously; only the value you settle on is worth a write.
   remainingSaveTimer = setTimeout(async () => {
     const id = el.detailBody.dataset.id;
@@ -1810,6 +1883,9 @@ function saveRemaining(pct) {
         method: 'PATCH', body: { remaining_pct: pct },
       });
       await Promise.all([loadFilaments(), loadStats()]);
+      if (before && before.remaining_pct !== pct) {
+        toast(`${pct}% left`, { undo: undoer(id, before, 'Back to where it was') });
+      }
     } catch (err) {
       toast(err.message, true);
     }
