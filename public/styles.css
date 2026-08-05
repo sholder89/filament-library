@@ -1978,27 +1978,36 @@ input[type="range"] {
 
 /* ── Toast ──────────────────────────────────────────────────────────────── */
 
+/* Reparented into whichever sheet is open, so it must not depend on anything
+   from its surroundings — `position: fixed` against the viewport either way. */
 .toast {
   position: fixed;
   left: 50%;
   bottom: calc(88px + var(--safe-b));
   z-index: 60;
-  transform: translate(-50%, 14px);
-  max-width: min(440px, calc(100vw - 32px));
-  padding: 13px 18px;
+  transform: translate(-50%, 14px) scale(.97);
+  width: max-content;
+  max-width: min(460px, calc(100vw - 32px));
+  margin: 0;
+  padding: 14px 20px;
   border-radius: 14px;
   background: var(--elevated);
+  color: var(--text);
   border: 1px solid var(--border);
-  box-shadow: var(--shadow);
-  font-size: 14.5px;
-  font-weight: 550;
+  box-shadow: 0 18px 44px rgb(0 0 0 / .42), 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+  font-size: 15px;
+  font-weight: 560;
   text-align: center;
   opacity: 0;
   pointer-events: none;
-  transition: opacity .2s, transform .2s;
+  transition: opacity .2s ease, transform .2s ease;
 }
-.toast.show { opacity: 1; transform: translate(-50%, 0); }
-.toast.err { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, transparent); }
+.toast.show { opacity: 1; transform: translate(-50%, 0) scale(1); }
+.toast.err {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+  box-shadow: 0 18px 44px rgb(0 0 0 / .42), 0 0 0 1px color-mix(in srgb, var(--danger) 30%, transparent);
+}
 
 /* A toast carrying an Undo has to be reachable, where an ordinary one stays out
    of the way of whatever is beneath it. */
@@ -2011,19 +2020,24 @@ input[type="range"] {
   padding-right: 8px;
 }
 .toast.has-action > span { min-width: 0; }
+
+/* Filled rather than outlined. This is the whole point of the toast appearing —
+   it should read as the thing to press, not as decoration on a notice. */
 .toast-undo {
   flex: 0 0 auto;
-  min-height: 36px;
-  padding: 0 14px;
+  min-height: 38px;
+  padding: 0 18px;
   font: inherit;
-  font-weight: 640;
-  color: var(--accent);
-  background: transparent;
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  font-weight: 680;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border: 0;
   border-radius: 10px;
   cursor: pointer;
+  transition: filter .15s;
 }
-.toast-undo:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.toast-undo:hover { filter: brightness(1.1); }
+.toast-undo:active { filter: brightness(.95); }
 
 /* ── Wider screens ──────────────────────────────────────────────────────── */
 

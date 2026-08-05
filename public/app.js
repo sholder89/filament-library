@@ -69,6 +69,26 @@ let pendingUndo = null;
  * so it stays up roughly twice as long — long enough to read what happened and
  * reach for it, short enough not to sit over the grid.
  */
+/*
+ * Where the toast has to live to be seen and used.
+ *
+ * A sheet is a <dialog> opened with showModal(), which does two things to
+ * everything outside it: paints over it, and makes it inert. So a toast on the
+ * body was both hidden behind the spool you were looking at and unclickable —
+ * and being in the browser's top layer doesn't help, since inertness applies
+ * there too. Undo was unreachable at exactly the moment it was wanted.
+ *
+ * Moving it inside the open dialog fixes both at once. The dialog itself has no
+ * transform, so `position: fixed` still means the viewport; `.sheet-inner`
+ * does, which is why this attaches to the dialog and not to the panel.
+ */
+const toastHost = () => SHEETS.find((d) => d.open) ?? document.body;
+
+function hideToast() {
+  el.toast.classList.remove('show');
+  pendingUndo = null;
+}
+
 function toast(message, opts = false) {
   const isError = opts === true || (opts && opts.error === true);
   const undo = opts && typeof opts === 'object' ? opts.undo : null;
@@ -77,22 +97,26 @@ function toast(message, opts = false) {
     + (undo ? '<button type="button" class="toast-undo">Undo</button>' : '');
   el.toast.classList.toggle('err', isError);
   el.toast.classList.toggle('has-action', Boolean(undo));
-  el.toast.classList.add('show');
+
+  const host = toastHost();
+  if (el.toast.parentNode !== host) {
+    el.toast.classList.remove('show');
+    host.append(el.toast);
+  }
+  // A frame between being placed and being told to move, or there's nothing for
+  // the transition to run from and it simply appears.
+  requestAnimationFrame(() => el.toast.classList.add('show'));
 
   pendingUndo = undo ?? null;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    el.toast.classList.remove('show');
-    pendingUndo = null;
-  }, undo ? 7000 : 3200);
+  toastTimer = setTimeout(hideToast, undo ? 8000 : 3200);
 }
 
 el.toast.addEventListener('click', async (e) => {
   if (!e.target.closest('.toast-undo') || !pendingUndo) return;
   const run = pendingUndo;
-  pendingUndo = null;
-  el.toast.classList.remove('show');
   clearTimeout(toastTimer);
+  hideToast();
   try {
     await run();
   } catch (err) {
@@ -170,6 +194,11 @@ function releaseScrollLock() {
 
 for (const dialog of SHEETS) {
   dialog.addEventListener('close', releaseScrollLock);
+  // A toast living inside this sheet would be closed along with it, taking an
+  // Undo with it. Hand it back to the page so it plays out where it can be seen.
+  dialog.addEventListener('close', () => {
+    if (el.toast.parentNode === dialog) document.body.append(el.toast);
+  });
   // Tapping the backdrop dismisses.
   dialog.addEventListener('click', (e) => {
     if (e.target === dialog) closeSheet(dialog);

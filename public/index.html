@@ -565,6 +565,8 @@
   </div>
 </dialog>
 
+<!-- Moved inside whichever sheet is open — see toastHost() in app.js. Left on
+     the body it would be both painted under an open <dialog> and inert. -->
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script type="module" src="/app.js"></script>
