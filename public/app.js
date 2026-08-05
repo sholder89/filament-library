@@ -1027,7 +1027,7 @@ function cardHTML(f, stack = 0) {
   <button class="card ${f.status === 'empty' ? 'is-empty' : ''}${f.loaded ? ' is-loaded' : ''}"
           style="--fc:${colorCSS(f)}" data-id="${esc(f.id)}">
     ${f.status === 'empty' ? '' : `<span class="loaded-flag ${f.loaded ? 'is-on' : 'is-off'}" data-menu="printer"
-      title="${f.loaded ? 'In a printer' : 'Put in a printer'}"
+      title="${f.loaded ? 'Unload' : 'Load'}"
       ${f.loaded
         ? 'role="img" aria-label="Loaded in a printer"'
         // Nothing to announce when it's only an affordance — the same action is
@@ -1195,7 +1195,7 @@ const CARD_ACTIONS = {
     opened: [['unopen', "It's still sealed"], ['empty', 'Mark as used up']],
     empty:  [['restore', 'Put back in the library']],
   }[f.status] ?? []),
-  printer: (f) => [[f.loaded ? 'unload' : 'load', f.loaded ? 'Take out of the printer' : 'Put in a printer']],
+  printer: (f) => [[f.loaded ? 'unload' : 'load', f.loaded ? 'Unload' : 'Load']],
 };
 
 let cardMenuFor = null;
