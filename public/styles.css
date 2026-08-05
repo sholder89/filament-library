@@ -516,6 +516,28 @@ select {
   border-radius: 7px;
 }
 .loaded-flag svg { width: 14px; height: 14px; }
+.loaded-flag[data-menu] { cursor: pointer; }
+
+/* The mark for a spool that isn't in a printer. Kept out of the way until the
+   pointer is on the card, so the grid doesn't gain a symbol on every tile just
+   to make one action reachable. */
+.loaded-flag.is-off {
+  opacity: 0;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  transition: opacity .14s ease, color .14s ease;
+}
+.card:hover .loaded-flag.is-off,
+.card:focus-visible .loaded-flag.is-off { opacity: 1; }
+.loaded-flag.is-off:hover { color: var(--loaded); border-color: var(--loaded); }
+
+/* No pointer, no hover — a phone reaches this from the spool's own page, where
+   the same action is a labelled button, rather than from a mark it can never
+   be shown. */
+@media (hover: none) {
+  .loaded-flag.is-off { display: none; }
+}
 .grid.view-small .loaded-flag,
 .grid.view-list .loaded-flag { width: 19px; height: 19px; border-radius: 6px; }
 .grid.view-small .loaded-flag svg,
@@ -608,6 +630,36 @@ select {
   color: var(--muted);
 }
 .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.badge[data-menu] { cursor: pointer; }
+.badge[data-menu]:hover { background: var(--surface); }
+
+/* ── Card quick-action menu ──────────────────────────────────────────────── */
+
+.card-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 190px;
+  padding: 5px;
+  display: grid;
+  gap: 2px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 12px 30px rgb(0 0 0 / .28);
+}
+.card-menu button {
+  min-height: var(--tap);
+  padding: 0 12px;
+  text-align: left;
+  font-size: 14px;
+  border: 0;
+  border-radius: calc(var(--radius-sm) - 3px);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.card-menu button:hover,
+.card-menu button:focus-visible { background: var(--elevated); outline: none; }
 .badge.new    { color: var(--new);    border-color: color-mix(in srgb, var(--new) 40%, transparent); }
 .badge.opened { color: var(--opened); border-color: color-mix(in srgb, var(--opened) 40%, transparent); }
 .badge.empty  { color: var(--empty); }

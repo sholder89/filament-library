@@ -29,6 +29,7 @@ const el = {
   sortBy: $('#sortBy'),
   clearFilters: $('#clearFilters'),
   picker: $('#picker'),
+  cardMenu: $('#cardMenu'),
   scanner: $('#scanner'),
   labelScanner: $('#labelScanner'),
   settings: $('#settings'),
@@ -1025,10 +1026,17 @@ function cardHTML(f, stack = 0) {
   return `
   <button class="card ${f.status === 'empty' ? 'is-empty' : ''}${f.loaded ? ' is-loaded' : ''}"
           style="--fc:${colorCSS(f)}" data-id="${esc(f.id)}">
-    ${f.loaded ? `<span class="loaded-flag" title="Loaded in a printer" role="img" aria-label="Loaded in a printer">
+    ${f.status === 'empty' ? '' : `<span class="loaded-flag ${f.loaded ? 'is-on' : 'is-off'}" data-menu="printer"
+      title="${f.loaded ? 'In a printer' : 'Put in a printer'}"
+      ${f.loaded
+        ? 'role="img" aria-label="Loaded in a printer"'
+        // Nothing to announce when it's only an affordance — the same action is
+        // a labelled button on the spool's own page, which is the route a
+        // keyboard or a screen reader takes anyway.
+        : 'aria-hidden="true"'}>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V4h10v4M7 17H6a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-1M7 14h10v6H7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
-    </span>` : ''}
-    <span class="badge ${esc(f.status)}">${esc(STATUS_LABEL[f.status])}</span>
+    </span>`}
+    <span class="badge ${esc(f.status)}" data-menu="status">${esc(STATUS_LABEL[f.status])}</span>
     <div class="card-spool">
       ${spoolSVG(f)}
       <span class="card-overlay">
@@ -1158,9 +1166,111 @@ el.grid.addEventListener('click', (e) => {
     return;
   }
 
+  // The status badge and the printer mark act on the spool instead of opening
+  // it. Checked before the card, since both sit inside one.
+  const mark = e.target.closest('[data-menu]');
+  if (mark) {
+    e.stopPropagation();
+    openCardMenu(mark, mark.closest('.card')?.dataset.id, mark.dataset.menu);
+    return;
+  }
+
   const card = e.target.closest('.card');
   if (card) showDetail(card.dataset.id, true);
 });
+
+// ── Quick actions on a card ──────────────────────────────────────────────────
+
+/*
+ * Two taps, not one.
+ *
+ * These marks sit in the corners of a card, which is exactly where a thumb
+ * lands while scrolling, and what they change isn't cosmetic — marking a spool
+ * used up drops it out of the default view. So the mark opens a menu naming
+ * what will happen, and the second tap is the one that does it.
+ */
+const CARD_ACTIONS = {
+  status: (f) => ({
+    new:    [['open', 'Mark as opened'], ['empty', 'Mark as used up']],
+    opened: [['unopen', "It's still sealed"], ['empty', 'Mark as used up']],
+    empty:  [['restore', 'Put back in the library']],
+  }[f.status] ?? []),
+  printer: (f) => [[f.loaded ? 'unload' : 'load', f.loaded ? 'Take out of the printer' : 'Put in a printer']],
+};
+
+let cardMenuFor = null;
+
+function openCardMenu(anchor, id, kind) {
+  const f = state.filaments.find((x) => x.id === id);
+  // Reopening from the same mark closes it, the way the filter dropdowns behave.
+  if (!f || (cardMenuFor === anchor && !el.cardMenu.hidden)) return closeCardMenu();
+  closeCardMenu();
+
+  const actions = CARD_ACTIONS[kind](f);
+  if (!actions.length) return;
+
+  el.cardMenu.innerHTML = actions
+    .map(([act, label]) => `<button type="button" role="menuitem" data-card-act="${act}">${esc(label)}</button>`)
+    .join('');
+  el.cardMenu.dataset.id = id;
+  el.cardMenu.hidden = false;
+  cardMenuFor = anchor;
+
+  /*
+   * Anchored in viewport coordinates and pinned to the document, rather than
+   * positioned inside the card: a card is `overflow: hidden` so the colour bar
+   * can be clipped to its corners, and a menu inside one would be clipped too.
+   */
+  const box = anchor.getBoundingClientRect();
+  const menu = el.cardMenu.getBoundingClientRect();
+  const left = Math.min(Math.max(8, box.left), innerWidth - menu.width - 8);
+  const below = box.bottom + 6;
+  const fits = below + menu.height < innerHeight - 8;
+
+  el.cardMenu.style.left = `${left}px`;
+  el.cardMenu.style.top = `${fits ? below : box.top - menu.height - 6}px`;
+  el.cardMenu.querySelector('button')?.focus();
+}
+
+function closeCardMenu() {
+  el.cardMenu.hidden = true;
+  cardMenuFor = null;
+}
+
+el.cardMenu.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-card-act]');
+  if (!btn) return;
+
+  const id = el.cardMenu.dataset.id;
+  const act = btn.dataset.cardAct;
+  closeCardMenu();
+
+  try {
+    if (act === 'load' || act === 'unload') {
+      await api(`/api/filaments/${encodeURIComponent(id)}`, {
+        method: 'PATCH', body: { loaded: act === 'load' ? 1 : 0 },
+      });
+      toast(act === 'load' ? 'Marked as loaded in a printer' : 'Taken out of the printer');
+    } else {
+      await api(`/api/filaments/${encodeURIComponent(id)}/${act}`, { method: 'POST' });
+      toast({ open: 'Marked as opened', empty: 'Marked as used up',
+              unopen: 'Back to sealed', restore: 'Put back in the library' }[act]);
+    }
+    await refresh();
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+
+// Anything else dismisses it, including a scroll — the menu is pinned to the
+// viewport, so leaving it up would strand it away from the card it belongs to.
+document.addEventListener('click', (e) => {
+  if (!el.cardMenu.hidden && !e.target.closest('#cardMenu') && !e.target.closest('[data-menu]')) {
+    closeCardMenu();
+  }
+});
+addEventListener('scroll', () => { if (!el.cardMenu.hidden) closeCardMenu(); }, { passive: true });
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && !el.cardMenu.hidden) closeCardMenu(); });
 
 // ── Weighing a spool ─────────────────────────────────────────────────────────
 
