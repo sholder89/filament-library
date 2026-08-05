@@ -660,6 +660,10 @@ select {
 }
 .card-menu button:hover,
 .card-menu button:focus-visible { background: var(--elevated); outline: none; }
+/* Setting `display` above outranks the browser's own [hidden] rule, so hiding
+   it has to be said here — the same line every other popover in this file
+   carries. Without it the menu never goes away. */
+.card-menu[hidden] { display: none; }
 .badge.new    { color: var(--new);    border-color: color-mix(in srgb, var(--new) 40%, transparent); }
 .badge.opened { color: var(--opened); border-color: color-mix(in srgb, var(--opened) 40%, transparent); }
 .badge.empty  { color: var(--empty); }
