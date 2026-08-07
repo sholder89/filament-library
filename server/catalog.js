@@ -13,6 +13,7 @@ import { GENERATED_BRANDS } from './catalog-generated.js';
  * manufacturer that filamentcolors.xyz hasn't catalogued yet.
  */
 const EXTRA_BRANDS = [
+  'Colourbing',
   'Fiberon',
   'Flashforge',
   'GizmoDorks',
