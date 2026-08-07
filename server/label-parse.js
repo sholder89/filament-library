@@ -71,14 +71,36 @@ function findMaterial(text) {
   return match?.name ?? '';
 }
 
+/** The finishes that decide where colour goes; only one can apply. */
+const PATTERN_EFFECTS = new Set(['gradient', 'dual', 'marble', 'wood']);
+
+/**
+ * All of them, not just the longest.
+ *
+ * "PLA Silk Tricolor Gradient" names two, and returning one meant the label
+ * read correctly and was recorded as half of itself. Longest-first so a pattern
+ * like "Dual color" wins over a stray word inside it, and only one pattern is
+ * kept — two would fight over the same pixels on the graphic.
+ */
 function findFinish(text, colorName) {
-  const match = longestMatch(text, FINISHES, (f) => f.name);
-  if (match) return match.name;
+  const found = [...FINISHES]
+    .sort((a, b) => b.name.length - a.name.length)
+    .filter((f) => containsPhrase(text, f.name));
+
+  const names = [];
+  let pattern = false;
+  for (const f of found) {
+    if (PATTERN_EFFECTS.has(f.effect)) {
+      if (pattern) continue;
+      pattern = true;
+    }
+    names.push(f.name);
+  }
 
   // A colour called "Transparent" or "Clear" is stating the finish too, and
   // see-through spools are the ones worth being able to pick out of a shelf.
-  if (/\b(transparent|translucent|clear)\b/i.test(colorName)) return 'Translucent';
-  return '';
+  if (!names.length && /\b(transparent|translucent|clear)\b/i.test(colorName)) return 'Translucent';
+  return names.join(', ');
 }
 
 /**
@@ -186,6 +208,81 @@ function hexForColor(name) {
   return '';
 }
 
+/**
+ * Every colour named in the phrase, in the order they're written.
+ *
+ * A tri-colour spool says so on the box — "Purple Orange Teal" — and resolving
+ * that to the single closest hex throws away two thirds of what it told you.
+ * Those are exactly the spools where the extra tones matter, since the graphic
+ * blends them.
+ *
+ * Returns nothing for a single colour, however many words its name runs to:
+ * "Snow Mountain Blue" is one colour, and the exact-name check below is what
+ * keeps it from being read as snow plus blue.
+ */
+function tonesForColor(name, text = '') {
+  if (!name) return [];
+
+  /*
+   * Two colour words next to each other usually qualify one another —
+   * "Burgundy Red", "Light Blue" — rather than listing two colours. So a split
+   * needs evidence: either the name separates them itself, or the label says
+   * somewhere that the spool is multi-tone. Without that check "Transparent
+   * Burgundy Red" came out as burgundy *and* red, on a spool that is neither.
+   */
+  const separated = /[,/&]|\band\b/i.test(name);
+  const declared = /\b(gradient|tri[\s-]?colou?r|dual|two[\s-]?tone|multi[\s-]?colou?r|rainbow|co[\s-]?extru)/i
+    .test(`${name} ${text}`);
+  if (!separated && !declared) return [];
+
+  const target = name.toLowerCase().replace(/[\s_,/&-]+/g, ' ').trim();
+
+  for (const known of Object.keys(COLOR_NAMES)) {
+    if (known.toLowerCase() === target) return [];
+  }
+
+  const hits = [];
+  for (const [known, hex] of Object.entries(COLOR_NAMES)) {
+    const k = known.toLowerCase();
+    // Modifiers ("clear", "light") qualify a colour rather than being one.
+    if (MODIFIERS.has(k)) continue;
+    const m = new RegExp(`(^| )${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}( |$)`).exec(target);
+    if (m) hits.push({ at: m.index, end: m.index + k.length, hex });
+  }
+
+  // Longest first, so "light blue orange" takes the light blue and not the blue
+  // sitting inside it; overlapping shorter matches are then discarded.
+  hits.sort((a, b) => (b.end - b.at) - (a.end - a.at));
+  const taken = [];
+  for (const h of hits) {
+    if (taken.some((t) => h.at < t.end && t.at < h.end)) continue;
+    taken.push(h);
+  }
+
+  /*
+   * Every word has to be part of a colour, or this isn't a list of them.
+   *
+   * "Snow Mountain Blue" contains two known colours and is plainly one colour
+   * with a poetic name — "Mountain" is the tell. "Purple Orange Teal" has no
+   * word left over. Without this check the evocative names filament companies
+   * love get shredded into their ingredients.
+   */
+  const covered = new Array(target.length).fill(false);
+  for (const h of taken) for (let i = h.at; i < h.end; i++) covered[i] = true;
+
+  let at = 0;
+  for (const word of target.split(' ')) {
+    const start = target.indexOf(word, at);
+    at = start + word.length;
+    if (MODIFIERS.has(word)) continue;
+    if (!covered[start]) return [];
+  }
+
+  const ordered = taken.sort((a, b) => a.at - b.at).map((h) => h.hex);
+  const unique = [...new Set(ordered)].slice(0, 3);
+  return unique.length > 1 ? unique : [];
+}
+
 function findDiameter(text) {
   const m = /(\d\.\d{1,2})\s*MM/i.exec(text);
   if (!m) return null;
@@ -242,13 +339,29 @@ export function parseLabel(text) {
   const flat = upper(raw);
 
   const colorName = findColor(raw);
+  const tones = tonesForColor(colorName, raw);
+  const finish = findFinish(flat, colorName);
+
+  /*
+   * A colour that names several colours is a multi-tone spool, and the graphic
+   * only blends them when a pattern finish says to. Boxes usually say "gradient"
+   * or "tri-colour" somewhere and findFinish catches it — this is for the ones
+   * that only say it in the colour, and it's added rather than replacing, so a
+   * silk tri-colour keeps its silk.
+   */
+  const hasPattern = /gradient|dual|marble|wood|rainbow/i.test(`${finish} ${flat}`);
+  const withPattern = tones.length > 1 && !hasPattern
+    ? [finish, 'Gradient'].filter(Boolean).join(', ')
+    : finish;
 
   const out = {
     brand: findBrand(flat),
     material: findMaterial(flat),
     color_name: colorName,
-    color_hex: hexForColor(colorName),
-    finish: findFinish(flat, colorName),
+    color_hex: tones[0] ?? hexForColor(colorName),
+    color_hex2: tones[1] ?? '',
+    color_hex3: tones[2] ?? '',
+    finish: withPattern,
     diameter: findDiameter(flat),
     spool_weight_g: findWeightGrams(flat),
     nozzle_temp: findTemp(raw, /print\s*temp|extruder|hot\s*end|打印温度|nozzle/i, [150, 400]),

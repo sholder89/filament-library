@@ -2760,6 +2760,10 @@ function applyScannedFields(fields) {
       // Read off the label, so typing a nicer name for it shouldn't repaint it.
       colorPinned = true;
     }
+    // "Purple Orange Teal" is three colours, and the label said so — filling
+    // only the first would lose what makes the spool worth a photo.
+    if (fields.color_hex2) setField('color_hex2', fields.color_hex2);
+    if (fields.color_hex3) setField('color_hex3', fields.color_hex3);
   });
   fill('finish', 'finish', () => {
     setField('finish', fields.finish);

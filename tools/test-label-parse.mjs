@@ -102,6 +102,36 @@ RoHS`,
     },
     absent: ['brand'],
   },
+
+  {
+    name: 'Tri-colour silk (two finishes, three tones from the colour name)',
+    text: [
+      'COLOURBING',
+      'PLA Silk Tricolor Gradient Filament',
+      'Color: Purple Orange Teal',
+      '1.75mm  1KG',
+    ].join('\n'),
+    expect: {
+      brand: 'Colourbing',
+      material: 'PLA Silk',
+      color_name: 'Purple Orange Teal',
+      color_hex: '#800080',
+      color_hex2: '#FFA500',
+      color_hex3: '#008080',
+      finish: 'Gradient, Silk',
+      diameter: 1.75,
+      spool_weight_g: 1000,
+    },
+  },
+
+  {
+    name: 'A colour with a poetic name is one colour, not its ingredients',
+    text: 'Elegoo PLA\nColor: Snow Mountain Blue\n1.75mm 1KG',
+    expect: { brand: 'Elegoo', color_name: 'Snow Mountain Blue' },
+    // "Snow" and "Blue" are both known colours; "Mountain" is what says this is
+    // a name rather than a list, and nothing extra should be invented from it.
+    absent: ['color_hex2', 'color_hex3', 'finish'],
+  },
 ];
 
 let failures = 0;
