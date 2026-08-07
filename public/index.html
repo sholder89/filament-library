@@ -196,10 +196,11 @@
     </div>
 
     <div class="field">
-      <label for="f_finish">Finish</label>
-      <select id="f_finish" name="finish">
-        <option value="">Standard — no special finish</option>
-      </select>
+      <label id="finishLabel">Finish</label>
+      <!-- The real field stays a single comma-separated value, so everything
+           that reads form.elements.finish is unaffected. -->
+      <input type="hidden" id="f_finish" name="finish">
+      <div class="chip-picker" id="finishChips" role="group" aria-labelledby="finishLabel"></div>
       <p class="hint" id="finishHint"></p>
     </div>
 

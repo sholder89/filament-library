@@ -37,9 +37,15 @@ router.get('/', (_req, res) => {
     color_names: COLOR_NAMES,
     finishes: [
       ...FINISHES,
-      // Anything typed in before a finish was removed from the seed list.
-      ...used('finish')
-        .filter((f) => !FINISHES.some((s) => s.name.toLowerCase() === f.toLowerCase()))
+      /*
+       * Anything typed in before a finish was removed from the seed list. A
+       * spool can carry several as one comma-separated value, so the stored
+       * strings are split apart first — otherwise "Silk, Gradient" would show
+       * up in the filter as a third option alongside Silk and Gradient.
+       */
+      ...[...new Set(used('finish').flatMap((f) => f.split(',').map((s) => s.trim())))]
+        .filter((f) => f && !FINISHES.some((s) => s.name.toLowerCase() === f.toLowerCase()))
+        .sort((a, b) => a.localeCompare(b))
         .map((name) => ({ name, effect: '', blurb: '' })),
     ],
     spool_weights: SPOOL_WEIGHTS,

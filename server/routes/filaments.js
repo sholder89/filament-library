@@ -160,7 +160,18 @@ router.get('/', (req, res) => {
   multi(req.query.status, 'status');
   multi(req.query.brand, 'brand');
   multi(req.query.material, 'material');
-  multi(req.query.finish, 'finish');
+
+  /*
+   * Finish is a set — "Silk, Gradient" is one spool with two of them — so an
+   * exact match would hide it from both the Silk filter and the Gradient one.
+   * Matched against the comma-separated list instead, with separators added at
+   * each end so "Silk" can't match "Silk Screen" halfway through a longer name.
+   */
+  const finishes = str(req.query.finish).split(',').map((s) => s.trim()).filter(Boolean).slice(0, 12);
+  if (finishes.length) {
+    where.push(`(${finishes.map(() => `(', ' || finish || ', ') LIKE ? ESCAPE '\\'`).join(' OR ')})`);
+    params.push(...finishes.map((f) => `%, ${f.replace(/[\\%_]/g, '\\$&')}, %`));
+  }
 
   // Default view hides used-up spools; the record is still there behind
   // ?status=empty or ?include_empty=1.

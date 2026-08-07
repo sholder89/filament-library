@@ -218,14 +218,48 @@ async function loadCatalog() {
   renderSwatches();
 }
 
+/*
+ * Finish is a set, not a choice. "PLA Silk Tricolor Gradient" is one spool with
+ * two finishes on the label, and a <select> could only ever record half of it.
+ * The chips write back into a hidden comma-separated field, so everything that
+ * reads form.elements.finish still sees one value.
+ */
+const finishList = (value) => String(value || '').split(',').map((s) => s.trim()).filter(Boolean);
+
 function fillFinishSelect() {
-  const select = form.elements.finish;
-  const current = select.value;
-  select.innerHTML = '<option value="">Standard — no special finish</option>'
-    + (state.catalog.finishes ?? []).map((f) =>
-      `<option value="${esc(f.name)}">${esc(f.name)}</option>`).join('');
-  select.value = current;
+  const chosen = finishList(form.elements.finish.value).map((s) => s.toLowerCase());
+  $('#finishChips').innerHTML = (state.catalog.finishes ?? []).map((f) => `
+    <button type="button" class="chip-toggle${chosen.includes(f.name.toLowerCase()) ? ' on' : ''}"
+            data-finish="${esc(f.name)}" aria-pressed="${chosen.includes(f.name.toLowerCase())}"
+            ${f.blurb ? `title="${esc(f.blurb)}"` : ''}>${esc(f.name)}</button>`).join('');
 }
+
+/** Writes the set back to the hidden field and lets the usual listeners run. */
+function setFinish(names) {
+  form.elements.finish.value = names.join(', ');
+  fillFinishSelect();
+  form.elements.finish.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+$('#finishChips').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-finish]');
+  if (!btn) return;
+
+  const name = btn.dataset.finish;
+  const current = finishList(form.elements.finish.value);
+  const has = current.some((n) => n.toLowerCase() === name.toLowerCase());
+
+  if (has) return setFinish(current.filter((n) => n.toLowerCase() !== name.toLowerCase()));
+
+  /*
+   * Two patterns would fight over the same pixels — a marbled gradient isn't a
+   * thing the graphic can draw, and isn't a thing you can buy. Picking a second
+   * replaces the first. Surfaces just stack.
+   */
+  const isPattern = (n) => PATTERN_FINISHES.has(effectFor(n));
+  const kept = isPattern(name) ? current.filter((n) => !isPattern(n)) : current;
+  setFinish([...kept, name]);
+});
 
 // ── Brand / type pickers ─────────────────────────────────────────────────────
 
@@ -2051,8 +2085,9 @@ function openEditor(filament = null) {
   refreshBrandPicker(f.brand ?? '');
   refreshMaterialPicker(f.material ?? '');
   $('#materialHint').textContent = '';
-  fillFinishSelect();
+  // Value first: the chips are drawn from it, not the other way round.
   setField('finish', f.finish ?? '');
+  fillFinishSelect();
   setField('color_hex2', f.color_hex2 ?? '');
   setField('color_hex3', f.color_hex3 ?? '');
   syncFinishHint();
@@ -2283,14 +2318,19 @@ form.elements.status.addEventListener('change', () => {
 // field has its own listener that also resolves the swatch.
 
 function syncFinishHint() {
-  const match = (state.catalog.finishes ?? []).find((f) => f.name === form.elements.finish.value);
-  $('#finishHint').textContent = match?.blurb ?? '';
+  const blurbs = finishList(form.elements.finish.value)
+    .map((n) => (state.catalog.finishes ?? []).find((f) => f.name.toLowerCase() === n.toLowerCase())?.blurb)
+    .filter(Boolean);
+  $('#finishHint').textContent = blurbs.join(' · ');
 }
 
 // ── Extra colors ─────────────────────────────────────────────────────────────
 
 /** Finishes that actually do something with more than one tone. */
 const MULTI_TONE = new Set(['gradient', 'dual']);
+
+/** The ones that decide where colour goes, as opposed to what sits on top. */
+const PATTERN_FINISHES = new Set(['gradient', 'dual', 'marble', 'wood']);
 
 function currentEffect() {
   return effectFor(form.elements.finish.value);
@@ -2722,8 +2762,8 @@ function applyScannedFields(fields) {
     }
   });
   fill('finish', 'finish', () => {
-    fillFinishSelect();
     setField('finish', fields.finish);
+    fillFinishSelect();
     syncFinishHint();
     syncExtraColors();
   });

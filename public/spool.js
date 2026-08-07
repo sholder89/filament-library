@@ -247,22 +247,44 @@ export const RAINBOW_CSS =
   `linear-gradient(135deg, ${RAINBOW_STOPS.map(([o, c]) => `${c} ${Math.round(o * 100)}%`).join(', ')})`;
 
 /** Effect keyword for a finish name, or '' when it's a plain spool. */
-export function effectFor(finish) {
+/*
+ * A spool can have more than one finish, and they aren't all the same kind of
+ * thing. A pattern decides where the colour goes; a surface is what sits on top
+ * of it. Silk Tricolor Gradient is one of each, and drawing only the first one
+ * found — which is what this used to do — threw away half of what was on the
+ * label.
+ *
+ * At most one pattern, since two would fight over the same pixels, and any
+ * number of surfaces, which merely stack.
+ */
+const PATTERNS = ['gradient', 'dual', 'marble', 'wood'];
+
+const MATCHERS = [
+  ['gradient',    (k) => k.includes('gradient') || k.includes('rainbow')],
+  ['dual',        (k) => k.includes('dual') || k.includes('two')],
+  ['marble',      (k) => k.includes('marble')],
+  ['wood',        (k) => k.includes('wood')],
+  ['silk',        (k) => k.includes('silk')],
+  ['matte',       (k) => k.includes('matte')],
+  ['glitter',     (k) => k.includes('glitter') || k.includes('sparkle')],
+  ['translucent', (k) => k.includes('translucent') || k.includes('transparent') || k.includes('clear')],
+  ['glow',        (k) => k.includes('glow')],
+  ['carbon',      (k) => k.includes('carbon') || k.includes('cf')],
+  ['metallic',    (k) => k.includes('metal')],
+];
+
+/** Every effect named in the finish, pattern first so surfaces layer over it. */
+export function effectsFor(finish) {
   const key = String(finish || '').trim().toLowerCase();
-  if (!key) return '';
-  if (key.includes('silk')) return 'silk';
-  if (key.includes('matte')) return 'matte';
-  if (key.includes('glitter') || key.includes('sparkle')) return 'glitter';
-  if (key.includes('translucent') || key.includes('transparent') || key.includes('clear')) return 'translucent';
-  if (key.includes('marble')) return 'marble';
-  if (key.includes('wood')) return 'wood';
-  if (key.includes('glow')) return 'glow';
-  if (key.includes('carbon') || key.includes('cf')) return 'carbon';
-  if (key.includes('metal')) return 'metallic';
-  if (key.includes('gradient') || key.includes('rainbow')) return 'gradient';
-  if (key.includes('dual') || key.includes('two')) return 'dual';
-  return '';
+  if (!key) return [];
+
+  const found = MATCHERS.filter(([, test]) => test(key)).map(([name]) => name);
+  const pattern = found.find((n) => PATTERNS.includes(n));
+  return [...(pattern ? [pattern] : []), ...found.filter((n) => !PATTERNS.includes(n))];
 }
+
+/** The one that defines the look, for anything that can only show a single hint. */
+export const effectFor = (finish) => effectsFor(finish)[0] ?? '';
 
 export function spoolSVG(filament, { title = true } = {}) {
   const color = /^#[0-9a-fA-F]{6}$/.test(filament.color_hex || '') ? filament.color_hex : '#808080';
@@ -296,10 +318,20 @@ export function spoolSVG(filament, { title = true } = {}) {
   const colors = [filament.color_hex, filament.color_hex2, filament.color_hex3]
     .filter((c) => /^#[0-9a-fA-F]{6}$/.test(String(c ?? '')));
 
-  const effectKey = hasFilament ? effectFor(filament.finish) : '';
-  const effect = EFFECTS[effectKey]?.({
-    id, color, colors, deep, light, wound, hub: HUB,
-  }) ?? {};
+  // Each layer contributes to the same handful of slots, so they're collected
+  // in order and concatenated. fillOpacity is the exception — it's one number,
+  // so the last layer that asks for one wins.
+  const layers = (hasFilament ? effectsFor(filament.finish) : [])
+    .map((key) => EFFECTS[key]?.({ id: `${id}${key}`, color, colors, deep, light, wound, hub: HUB }))
+    .filter(Boolean);
+
+  const effect = {
+    defs:  layers.map((l) => l.defs ?? '').join(''),
+    outer: layers.map((l) => l.outer ?? '').join(''),
+    under: layers.map((l) => l.under ?? '').join(''),
+    body:  layers.map((l) => l.body ?? '').join(''),
+    fillOpacity: layers.reduce((acc, l) => (l.fillOpacity != null ? l.fillOpacity : acc), null),
+  };
 
   const label = title
     ? `<title>${escapeXML([filament.brand, filament.material, filament.color_name, filament.finish]

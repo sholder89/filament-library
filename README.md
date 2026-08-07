@@ -38,7 +38,10 @@ through — used-up spools stay in the library as a record instead of vanishing.
   and pick one.
 - **Special finishes** — silk, glitter, matte, translucent, marble, wood, glow,
   carbon fiber, metallic, gradient and dual-color, each with its own treatment on
-  the spool graphic. **Translucent** shows a checker grid through the filament,
+  the spool graphic. A spool can have several: *Silk Tricolor Gradient* is a
+  pattern and a surface, and both are drawn. Gradient, dual-color, marble and
+  wood decide where the color goes, so only one applies at a time; everything
+  else layers on top of it. **Translucent** shows a checker grid through the filament,
   the way image editors show transparency, so see-through spools are obvious at a
   glance. Glitter twinkles across 34 flecks, glow breathes a halo past the rim,
   and metallic catches a highlight that sweeps across it. Gradient and dual-color
@@ -342,7 +345,7 @@ and the whole import runs in one transaction, so a bad file leaves no trace.
 
 | Method | Path | |
 |---|---|---|
-| `GET` | `/api/filaments` | List. Filters: `status`, `brand`, `material`, `finish`, `q`, `sort`, `include_empty`. `brand`, `material` and `finish` accept comma-separated values and match any of them |
+| `GET` | `/api/filaments` | List. Filters: `status`, `brand`, `material`, `finish`, `q`, `sort`, `include_empty`. `brand`, `material` and `finish` accept comma-separated values and match any of them; a spool matches a `finish` filter if it carries that finish among its own |
 | `POST` | `/api/filaments` | Create. `quantity` adds several identical spools at once |
 | `GET` | `/api/filaments/:id` | One spool |
 | `PATCH` | `/api/filaments/:id` | Update any subset of fields |
