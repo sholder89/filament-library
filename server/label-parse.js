@@ -168,6 +168,10 @@ function findColor(rawText) {
      */
     if (value.split(/[\s-]+/).filter(Boolean).length > 5) continue;
 
+    // Kept as printed as well as split: the grouping is information. "SkyBlue
+    // RoseRed LightGreen" is three colours precisely because it's three words,
+    // and that's lost the moment the capitals become spaces.
+    const printed = value.split(/[\s-]+/).filter(Boolean);
     value = norm(splitCamel(value));
     const words = value.split(/[\s-]+/).filter(Boolean);
 
@@ -177,10 +181,10 @@ function findColor(rawText) {
     if (!known) continue;
 
     const score = candidate.weight * 10 + known * 4 - words.length;
-    if (!best || score > best.score) best = { value, score };
+    if (!best || score > best.score) best = { value, score, printed };
   }
 
-  return best ? titleCase(best.value) : '';
+  return best ? { name: titleCase(best.value), printed: best.printed } : { name: '', printed: [] };
 }
 
 function titleCase(s) {
@@ -241,25 +245,29 @@ function hexForColor(name) {
  * "Snow Mountain Blue" is one colour, and the exact-name check below is what
  * keeps it from being read as snow plus blue.
  */
-function tonesForColor(name, text = '') {
+function tonesForColor(name, text = '', tokens = []) {
   if (!name) return [];
-
-  /*
-   * Two colour words next to each other usually qualify one another —
-   * "Burgundy Red", "Light Blue" — rather than listing two colours. So a split
-   * needs evidence: either the name separates them itself, or the label says
-   * somewhere that the spool is multi-tone. Without that check "Transparent
-   * Burgundy Red" came out as burgundy *and* red, on a spool that is neither.
-   */
-  const separated = /[,/&]|\band\b/i.test(name);
-  const declared = /\b(gradient|tri[\s-]?colou?r|dual|two[\s-]?tone|multi[\s-]?colou?r|rainbow|co[\s-]?extru)/i
-    .test(`${name} ${text}`);
-  if (!separated && !declared) return [];
 
   const target = name.toLowerCase().replace(/[\s_,/&-]+/g, ' ').trim();
 
   for (const known of Object.keys(COLOR_NAMES)) {
     if (known.toLowerCase() === target) return [];
+  }
+
+  /*
+   * Sellers write each colour as one run-together word — "SkyBlue RoseRed
+   * LightGreen". Two or more of those side by side is a list by construction:
+   * the capital *is* the separator, and no single colour is named that way.
+   *
+   * Resolved a token at a time, which is also what copes with halves that
+   * aren't in the vocabulary at all. "Rose" and "Emerald" are not colours this
+   * app knows, and the whole-phrase matching below discards any phrase holding
+   * a word it can't place — so RoseRed and EmeraldGreen took their spools'
+   * other two colours down with them.
+   */
+  if (tokens.filter((t) => /[a-z][A-Z]/.test(t)).length >= 2) {
+    const perToken = [...new Set(tokens.map((t) => hexForColor(splitCamel(t))).filter(Boolean))];
+    if (perToken.length > 1) return perToken.slice(0, 3);
   }
 
   const hits = [];
@@ -299,9 +307,29 @@ function tonesForColor(name, text = '') {
     if (!covered[start]) return [];
   }
 
-  const ordered = taken.sort((a, b) => a.at - b.at).map((h) => h.hex);
-  const unique = [...new Set(ordered)].slice(0, 3);
-  return unique.length > 1 ? unique : [];
+  const distinct = [...new Set(taken.sort((a, b) => a.at - b.at).map((h) => h.hex))];
+  if (distinct.length < 2) return [];
+
+  /*
+   * Two colour words next to each other usually qualify one another —
+   * "Burgundy Red", "Light Blue" — rather than listing two. So a pair needs
+   * evidence: the name separating them itself, or the label saying somewhere
+   * that the spool is multi-tone. Without that, "Transparent Burgundy Red"
+   * came out as burgundy *and* red, on a spool that is neither.
+   *
+   * Three in a row is its own evidence. Nobody qualifies a colour twice, and
+   * requiring the keyword failed as soon as the camera started cropping to the
+   * viewfinder — "Purple Orange Teal" is on the swatch, "Tricolor" is in a
+   * heading two inches away and no longer in the photograph.
+   */
+  if (distinct.length === 2) {
+    const separated = /[,/&]|\band\b/i.test(name);
+    const declared = /\b(gradient|tri[\s-]?colou?r|dual|two[\s-]?tone|multi[\s-]?colou?r|rainbow|co[\s-]?extru)/i
+      .test(`${name} ${text}`);
+    if (!separated && !declared) return [];
+  }
+
+  return distinct.slice(0, 3);
 }
 
 function findDiameter(text) {
@@ -359,8 +387,8 @@ export function parseLabel(text) {
   const raw = String(text ?? '');
   const flat = upper(raw);
 
-  const colorName = findColor(raw);
-  const tones = tonesForColor(colorName, raw);
+  const { name: colorName, printed } = findColor(raw);
+  const tones = tonesForColor(colorName, raw, printed);
   const finish = findFinish(flat, colorName);
 
   /*

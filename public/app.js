@@ -2766,9 +2766,16 @@ function applyScannedFields(scanned, fresh = {}) {
   const fields = { ...scanned };
   for (const name of replaces) fields[name] = fresh[name];
 
-  // The tones belong to whichever colour won, so they travel with it — and are
-  // cleared rather than left over when the new colour has fewer of them.
-  if (replaces.has('color_name')) {
+  /*
+   * The tones belong to whichever colour won, so they travel with it — and are
+   * cleared rather than left over when the new colour has fewer of them.
+   *
+   * Only when the colour actually changed. Where both parses named the same
+   * colour, the combined one is the better source: it has seen more of the box,
+   * and a word that justifies splitting into tones may have been in an earlier
+   * photo rather than this one.
+   */
+  if (replaces.has('color_name') && fresh.color_name !== scanned.color_name) {
     fields.color_hex = fresh.color_hex ?? '';
     fields.color_hex2 = fresh.color_hex2 ?? '';
     fields.color_hex3 = fresh.color_hex3 ?? '';

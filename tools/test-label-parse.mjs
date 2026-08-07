@@ -125,6 +125,20 @@ RoHS`,
   },
 
   {
+    // The camera crops to the viewfinder, so "Tricolor" up in the heading is
+    // often not in the photograph — the three colours have to speak for
+    // themselves, including the halves the vocabulary doesn't know ("Rose").
+    name: 'Run-together colour names on a tightly framed swatch',
+    text: 'SkyBlue RoseRed LightGreen',
+    expect: {
+      color_name: 'Sky Blue Rose Red Light Green',
+      color_hex: '#87CEEB',
+      color_hex2: '#FF0000',
+      color_hex3: '#90EE90',
+    },
+  },
+
+  {
     name: 'A colour with a poetic name is one colour, not its ingredients',
     text: 'Elegoo PLA\nColor: Snow Mountain Blue\n1.75mm 1KG',
     expect: { brand: 'Elegoo', color_name: 'Snow Mountain Blue' },
