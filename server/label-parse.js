@@ -161,8 +161,15 @@ function findColor(rawText) {
     value = norm(value).replace(/^[^A-Za-z]+|[^A-Za-z)]+$/g, '');
     if (!value || value.length < 3) continue;
 
+    /*
+     * The cap counts what's printed, not what the split produced. "SkyBlue
+     * RoseRed LightGreen" is three things on the label and six words after
+     * splitting, and counting the latter threw out the whole phrase.
+     */
+    if (value.split(/[\s-]+/).filter(Boolean).length > 5) continue;
+
+    value = norm(splitCamel(value));
     const words = value.split(/[\s-]+/).filter(Boolean);
-    if (words.length > 5) continue;
 
     // How many words are actual colour vocabulary?
     const known = words.filter((w) => Object.keys(COLOR_NAMES)
@@ -178,6 +185,20 @@ function findColor(rawText) {
 
 function titleCase(s) {
   return s.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase());
+}
+
+/**
+ * Splits run-together colour names: SkyBlue, RoseRed, LightGreen, OrangeRed.
+ *
+ * Sellers write them exactly like that — the vocabulary is all there, just
+ * without the spaces, so none of it matched and a photo of the label came back
+ * with no colour at all. Applied only to colour phrases, where a capital in the
+ * middle of a word means a word boundary rather than a product code.
+ *
+ * Runs of capitals are left alone, so CF, PLA and 3DFuel survive intact.
+ */
+function splitCamel(s) {
+  return String(s).replace(/([a-z])([A-Z])/g, '$1 $2');
 }
 
 /** Resolves a colour phrase to a hex, reusing the same vocabulary the UI does. */

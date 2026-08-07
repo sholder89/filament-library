@@ -96,7 +96,17 @@ export class StillCamera {
   }
 
   /**
-   * JPEG data URL of the current frame, long edge capped.
+   * JPEG data URL of what the viewfinder is showing, long edge capped.
+   *
+   * Only what the viewfinder is showing. The preview is square and the camera
+   * frame is 16:9, and `object-fit: cover` means the sides are cropped away on
+   * screen — so a photo of the whole frame contains things you deliberately
+   * aimed away from. On a box with four colour variants printed side by side
+   * that is not a subtle difference: you frame one panel, and the text of the
+   * neighbouring panel is in the picture and wins.
+   *
+   * Cropping to the visible region also spends the resolution budget on the
+   * part you meant, which OCR only benefits from.
    *
    * Small text needs resolution, but the whole thing is base64'd into a JSON
    * body — 1600px is the point where label text is still comfortably legible
@@ -106,11 +116,22 @@ export class StillCamera {
     const { videoWidth: w, videoHeight: h } = this.video;
     if (!w || !h) return null;
 
-    const scale = Math.min(1, maxEdge / Math.max(w, h));
+    const box = this.video.getBoundingClientRect();
+    const shown = box.width > 0 && box.height > 0 ? box.width / box.height : w / h;
+
+    // The same centre crop `cover` performs: trim whichever axis overflows.
+    let sw = w;
+    let sh = h;
+    if (w / h > shown) sw = Math.round(h * shown);
+    else sh = Math.round(w / shown);
+    const sx = Math.round((w - sw) / 2);
+    const sy = Math.round((h - sh) / 2);
+
+    const scale = Math.min(1, maxEdge / Math.max(sw, sh));
     const canvas = document.createElement('canvas');
-    canvas.width = Math.round(w * scale);
-    canvas.height = Math.round(h * scale);
-    canvas.getContext('2d').drawImage(this.video, 0, 0, canvas.width, canvas.height);
+    canvas.width = Math.round(sw * scale);
+    canvas.height = Math.round(sh * scale);
+    canvas.getContext('2d').drawImage(this.video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
     return canvas.toDataURL('image/jpeg', 0.85);
   }
 

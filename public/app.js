@@ -2727,9 +2727,10 @@ let scanContext = '';
  * missed, but nothing already on the form is overwritten — not by a second
  * scan, and not over something typed by hand.
  */
-function applyScannedFields(fields) {
+function applyScannedFields(scanned, fresh = {}) {
   const added = [];
   const known = [];
+  const changed = [];
 
   /*
    * Taken before anything is written, for two reasons. Filling in the material
@@ -2746,8 +2747,36 @@ function applyScannedFields(fields) {
     untouched[name] = !value || value === String(input?.defaultValue ?? '').trim();
   }
 
+  /*
+   * A value this photo read for itself replaces what's on the form, where a
+   * value merely still inferred from an earlier photo does not.
+   *
+   * Pointing the camera at a different colour on a four-variant box is a
+   * correction, and the old reading is still sitting in the accumulated text
+   * where it goes on winning. Deciding by what *this* picture saw is the only
+   * thing that tells those two cases apart.
+   */
+  const replaces = new Set();
+  for (const [name, value] of Object.entries(fresh)) {
+    if (value === '' || value == null || untouched[name]) continue;
+    const current = String(form.elements[name]?.value ?? '').trim();
+    if (current && String(value) !== current) replaces.add(name);
+  }
+
+  const fields = { ...scanned };
+  for (const name of replaces) fields[name] = fresh[name];
+
+  // The tones belong to whichever colour won, so they travel with it — and are
+  // cleared rather than left over when the new colour has fewer of them.
+  if (replaces.has('color_name')) {
+    fields.color_hex = fresh.color_hex ?? '';
+    fields.color_hex2 = fresh.color_hex2 ?? '';
+    fields.color_hex3 = fresh.color_hex3 ?? '';
+  }
+
   const fill = (name, label, apply) => {
     if (fields[name] == null || fields[name] === '') return;
+    if (replaces.has(name)) { apply(); changed.push(label); return; }
     if (untouched[name]) { apply(); added.push(label); } else known.push(label);
   };
 
@@ -2761,9 +2790,11 @@ function applyScannedFields(fields) {
       colorPinned = true;
     }
     // "Purple Orange Teal" is three colours, and the label said so — filling
-    // only the first would lose what makes the spool worth a photo.
-    if (fields.color_hex2) setField('color_hex2', fields.color_hex2);
-    if (fields.color_hex3) setField('color_hex3', fields.color_hex3);
+    // only the first would lose what makes the spool worth a photo. Written
+    // even when blank on a replacement, so a two-tone spool doesn't inherit a
+    // third tone from the colour it just displaced.
+    if (fields.color_hex2 || replaces.has('color_name')) setField('color_hex2', fields.color_hex2 ?? '');
+    if (fields.color_hex3 || replaces.has('color_name')) setField('color_hex3', fields.color_hex3 ?? '');
   });
   fill('finish', 'finish', () => {
     setField('finish', fields.finish);

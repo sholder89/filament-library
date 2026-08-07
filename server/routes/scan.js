@@ -104,11 +104,23 @@ router.post('/', async (req, res, next) => {
       return res.json({ fields: {}, text: '', message: 'No text found in that photo.' });
     }
 
-    // `text` goes back too so the UI can show what was read when the parse
-    // comes up short — otherwise a miss is indistinguishable from a bad photo.
-    // `fields` covers this photo and everything before it; `text` is only what
-    // this one added, so the client can tell whether the photo was any use.
-    res.json({ fields: parseLabel([context, text].filter(Boolean).join('\n')), text });
+    /*
+     * Three things go back, and the difference between them matters.
+     *
+     * `fields` is everything read so far, this photo and the ones before it, so
+     * a shot of the brand and a shot of the spec panel add up to a filled form.
+     * `fresh` is this photo alone — which is how the client can tell a value it
+     * is still inferring from an earlier picture from one you have just pointed
+     * the camera at. Re-aiming at a different colour on a multi-variant box
+     * would otherwise never take, since the first reading is still in context
+     * and still wins. `text` is the raw read, for saying what happened when
+     * nothing matched.
+     */
+    res.json({
+      fields: parseLabel([context, text].filter(Boolean).join('\n')),
+      fresh: text.trim() ? parseLabel(text) : {},
+      text,
+    });
   } catch (err) {
     if (err.name === 'TimeoutError' || err.name === 'AbortError') {
       return res.status(504).json({ error: 'Vision took too long to respond.' });
