@@ -22,7 +22,9 @@ through — used-up spools stay in the library as a record instead of vanishing.
   delete removes it.
 - **Filter and search** — by state, and by any combination of brands, types and
   finishes (Sunlu *or* Creality, in PLA *or* PETG). Plus free-text search across
-  brand, color, location and notes.
+  brand, type, color, finish, location and notes — every word has to appear
+  somewhere on the spool but not all in the same field, so "purple translucent"
+  and "Sunlu yellow" both find what you meant, and each extra word narrows it.
 - **Grouped views** — sorting by brand, type or color also groups the library
   under collapsible headings with a count on each, so you can fold away the
   PLA and see what PETG you have. Type headings use the base material, so PLA+,

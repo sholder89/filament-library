@@ -171,14 +171,33 @@ router.get('/', (req, res) => {
   const q = str(req.query.q);
   if (q) {
     /*
-     * % and _ are LIKE's own wildcards, so a search for either matched every
-     * row — and any brand or location containing one, "100% Cotton" or
-     * "shelf_a", could not be found at all. Escaped so they mean themselves.
+     * Every word has to appear somewhere on the spool, but not all in the same
+     * field. "purple translucent" is a colour and a finish, "Sunlu yellow" a
+     * brand and a colour — matching each word against one column at a time
+     * found neither, even though both words were plainly there.
+     *
+     * So the fields are joined into one string per row and each word tested
+     * against that, ANDed together. Searching stays additive: every word you
+     * add narrows the result, which is what typing more into a search box is
+     * supposed to do.
+     *
+     * The columns are all NOT NULL — worth keeping that way, since one NULL
+     * would make the whole concatenation NULL and the spool unfindable by any
+     * of its other fields.
      */
-    const like = `%${q.replace(/[\\%_]/g, '\\$&')}%`;
-    const cols = ['brand', 'material', 'color_name', 'finish', 'location', 'notes'];
-    where.push(`(${cols.map((c) => `${c} LIKE ? ESCAPE '\\'`).join(' OR ')} OR id = ?)`);
-    params.push(...cols.map(() => like), q.toUpperCase());
+    const HAYSTACK = "(brand || ' ' || material || ' ' || color_name || ' ' || finish || ' ' || location || ' ' || notes)";
+
+    // Capped so a pasted paragraph can't turn into hundreds of scans.
+    const words = q.split(/\s+/).filter(Boolean).slice(0, 8);
+
+    // % and _ are LIKE's own wildcards: searching for either matched every row,
+    // and "100% Cotton" or "shelf_a" could not be found at all.
+    const like = (w) => `%${w.replace(/[\\%_]/g, '\\$&')}%`;
+
+    // The id stays an exact whole-query match, so scanning a QR still lands on
+    // the one spool rather than anything whose notes mention the code.
+    where.push(`((${words.map(() => `${HAYSTACK} LIKE ? ESCAPE '\\'`).join(' AND ')}) OR id = ?)`);
+    params.push(...words.map(like), q.toUpperCase());
   }
 
   const order = SORTS[str(req.query.sort)] || SORTS.newest;
