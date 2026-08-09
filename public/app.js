@@ -2340,7 +2340,17 @@ function syncExtraColors() {
   const effect = currentEffect();
   const multi = MULTI_TONE.has(effect);
   $('#extraColorsField').hidden = !multi;
-  if (!multi) return;
+
+  /*
+   * Emptied on the way out, not just hidden. Leaving the swatches in place
+   * meant the next spool's form opened carrying the last one's extra colours —
+   * invisible while the field was hidden, and then plainly wrong the moment
+   * anything unhid it without re-rendering first.
+   */
+  if (!multi) {
+    $('#extraColors').innerHTML = '';
+    return;
+  }
 
   $('#extraColorsHint').textContent = effect === 'gradient'
     ? 'The spool blends between these, in order.'
@@ -2802,6 +2812,9 @@ function applyScannedFields(scanned, fresh = {}) {
     // third tone from the colour it just displaced.
     if (fields.color_hex2 || replaces.has('color_name')) setField('color_hex2', fields.color_hex2 ?? '');
     if (fields.color_hex3 || replaces.has('color_name')) setField('color_hex3', fields.color_hex3 ?? '');
+    // The swatches are drawn from those, and the finish — which is what usually
+    // redraws them — may be a field this photo didn't change.
+    syncExtraColors();
   });
   fill('finish', 'finish', () => {
     setField('finish', fields.finish);

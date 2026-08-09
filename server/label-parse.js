@@ -173,7 +173,9 @@ function findColor(rawText) {
     // and that's lost the moment the capitals become spaces.
     const printed = value.split(/[\s-]+/).filter(Boolean);
     value = norm(splitCamel(value));
-    const words = value.split(/[\s-]+/).filter(Boolean);
+    // Separators count as spaces here: "Turquoiso/Coral/Gold" is three words,
+    // and scoring it as one matched nothing and threw the whole line away.
+    const words = value.split(/[\s/,&-]+/).filter(Boolean);
 
     // How many words are actual colour vocabulary?
     const known = words.filter((w) => Object.keys(COLOR_NAMES)
@@ -203,6 +205,57 @@ function titleCase(s) {
  */
 function splitCamel(s) {
   return String(s).replace(/([a-z])([A-Z])/g, '$1 $2');
+}
+
+/** Edit distance, abandoned once it can't come in under `limit`. */
+function editDistance(a, b, limit) {
+  if (Math.abs(a.length - b.length) > limit) return limit + 1;
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const row = [i];
+    let best = i;
+    for (let j = 1; j <= b.length; j++) {
+      row[j] = a[i - 1] === b[j - 1]
+        ? prev[j - 1]
+        : 1 + Math.min(prev[j - 1], prev[j], row[j - 1]);
+      best = Math.min(best, row[j]);
+    }
+    if (best > limit) return limit + 1;
+    prev = row;
+  }
+  return prev[b.length];
+}
+
+/**
+ * The nearest colour name, for words that are nearly one.
+ *
+ * Labels are printed by the same people who wrote "Turquoiso", and OCR adds its
+ * own. Guessing beats dropping the colour on the floor: the cost of being wrong
+ * is a shade that's slightly off on a graphic, and it's a guess about a word
+ * that plainly meant to be a colour.
+ *
+ * Deliberately tight. Short words are left alone — three letters from "gold"
+ * is half the word — and a tie between two colours is no answer at all.
+ */
+function nearestColorName(word) {
+  const w = String(word).toLowerCase().trim();
+  if (w.length < 5) return '';
+
+  const limit = w.length >= 8 ? 2 : 1;
+  let best = '';
+  let bestAt = limit + 1;
+  let tied = false;
+
+  for (const known of Object.keys(COLOR_NAMES)) {
+    const k = known.toLowerCase();
+    if (Math.abs(k.length - w.length) > limit) continue;
+    const d = editDistance(w, k, limit);
+    if (d > limit) continue;
+    if (d < bestAt) { bestAt = d; best = known; tied = false; }
+    else if (d === bestAt && known !== best) tied = true;
+  }
+
+  return tied ? '' : best;
 }
 
 /** Resolves a colour phrase to a hex, reusing the same vocabulary the UI does. */
@@ -274,7 +327,13 @@ function tonesForColor(name, text = '', tokens = []) {
     : (tokens.filter((t) => /[a-z][A-Z]/.test(t)).length >= 2 ? tokens : []);
 
   if (units.length > 1) {
-    const perUnit = [...new Set(units.map((u) => hexForColor(splitCamel(u))).filter(Boolean))];
+    const resolve = (u) => {
+      const spaced = splitCamel(u);
+      // Only once the word itself fails: a misspelling shouldn't cost the
+      // spool its other two colours.
+      return hexForColor(spaced) || COLOR_NAMES[nearestColorName(spaced)] || '';
+    };
+    const perUnit = [...new Set(units.map(resolve).filter(Boolean))];
     if (perUnit.length > 1) return perUnit.slice(0, 3);
   }
 
