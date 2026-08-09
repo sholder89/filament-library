@@ -255,19 +255,27 @@ function tonesForColor(name, text = '', tokens = []) {
   }
 
   /*
-   * Sellers write each colour as one run-together word — "SkyBlue RoseRed
-   * LightGreen". Two or more of those side by side is a list by construction:
-   * the capital *is* the separator, and no single colour is named that way.
+   * Where the label has already divided the colours up, believe it.
    *
-   * Resolved a token at a time, which is also what copes with halves that
-   * aren't in the vocabulary at all. "Rose" and "Emerald" are not colours this
-   * app knows, and the whole-phrase matching below discards any phrase holding
-   * a word it can't place — so RoseRed and EmeraldGreen took their spools'
-   * other two colours down with them.
+   * Two ways it does that: a real separator — "Sky Blue/Rose Red/Light Green"
+   * off the spool tag — or running each colour into one word, "SkyBlue RoseRed
+   * LightGreen", where the capital is the separator and no single colour is
+   * named that way.
+   *
+   * Either way each piece is resolved on its own, which is what copes with
+   * halves that aren't in the vocabulary at all. "Rose" and "Emerald" are not
+   * colours this app knows, and the whole-phrase matching below discards any
+   * phrase holding a word it can't place — so Rose Red and EmeraldGreen took
+   * their spools' other two colours down with them.
    */
-  if (tokens.filter((t) => /[a-z][A-Z]/.test(t)).length >= 2) {
-    const perToken = [...new Set(tokens.map((t) => hexForColor(splitCamel(t))).filter(Boolean))];
-    if (perToken.length > 1) return perToken.slice(0, 3);
+  const split = String(name).split(/\s*[/|+&]\s*|\s*,\s*|\s+and\s+/i).map((s) => s.trim()).filter(Boolean);
+  const units = split.length > 1
+    ? split
+    : (tokens.filter((t) => /[a-z][A-Z]/.test(t)).length >= 2 ? tokens : []);
+
+  if (units.length > 1) {
+    const perUnit = [...new Set(units.map((u) => hexForColor(splitCamel(u))).filter(Boolean))];
+    if (perUnit.length > 1) return perUnit.slice(0, 3);
   }
 
   const hits = [];

@@ -125,6 +125,30 @@ RoHS`,
   },
 
   {
+    name: 'Colourbing spool tag (colours divided by slashes)',
+    text: [
+      'Tricolor filament Silk PLA+ 1.75mm',
+      'Color:Sky Blue/Rose Red/Light Green',
+      'N.W.:250g',
+      'Print Temp:200-220°C',
+      'Bed Temp:0-60°C',
+      'Lot:H0515PR6D',
+    ].join('\n'),
+    expect: {
+      material: 'PLA+',
+      color_name: 'Sky Blue/Rose Red/Light Green',
+      color_hex: '#87CEEB',
+      color_hex2: '#FF0000',
+      color_hex3: '#90EE90',
+      finish: 'Silk, Gradient',
+      diameter: 1.75,
+      spool_weight_g: 250,
+      nozzle_temp: 200,
+      bed_temp: 60,
+    },
+  },
+
+  {
     // The camera crops to the viewfinder, so "Tricolor" up in the heading is
     // often not in the photograph — the three colours have to speak for
     // themselves, including the halves the vocabulary doesn't know ("Rose").
