@@ -73,14 +73,39 @@ function sparkles(count, inner, outer) {
 }
 
 const EFFECTS = {
+  /*
+   * Silk is the one finish people buy for how it looks, so it gets three
+   * layers rather than one wash of white: a broad diagonal gloss, a dark band
+   * on its far side to give the bright side something to be brighter than, and
+   * a narrow specular streak that slides with the page and the phone.
+   *
+   * The streak is positioned from --sheen, a single number on the root element
+   * that everything on screen shares — see the sheen block in app.js.
+   */
   silk: ({ id }) => ({
-    defs: `<linearGradient id="${id}sk" x1="0" y1="0" x2="1" y2="1">
-             <stop offset="0%"   stop-color="#fff" stop-opacity="0"/>
-             <stop offset="42%"  stop-color="#fff" stop-opacity=".55"/>
-             <stop offset="58%"  stop-color="#fff" stop-opacity=".55"/>
-             <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
-           </linearGradient>`,
-    body: `<circle cx="100" cy="100" r="90" fill="url(#${id}sk)"/>`,
+    defs: `
+      <linearGradient id="${id}sk" x1="0" y1="0" x2=".85" y2="1">
+        <stop offset="0%"   stop-color="#fff" stop-opacity="0"/>
+        <stop offset="24%"  stop-color="#fff" stop-opacity=".26"/>
+        <stop offset="43%"  stop-color="#fff" stop-opacity=".88"/>
+        <stop offset="53%"  stop-color="#fff" stop-opacity=".72"/>
+        <stop offset="70%"  stop-color="#fff" stop-opacity=".14"/>
+        <stop offset="86%"  stop-color="#000" stop-opacity=".22"/>
+        <stop offset="100%" stop-color="#000" stop-opacity=".05"/>
+      </linearGradient>
+      <linearGradient id="${id}skm" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%"   stop-color="#fff" stop-opacity="0"/>
+        <stop offset="38%"  stop-color="#fff" stop-opacity=".55"/>
+        <stop offset="50%"  stop-color="#fff" stop-opacity=".95"/>
+        <stop offset="62%"  stop-color="#fff" stop-opacity=".55"/>
+        <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+      </linearGradient>`,
+    body: `
+      <circle cx="100" cy="100" r="90" fill="url(#${id}sk)"/>
+      <g class="silk-sheen">
+        <rect x="62" y="-48" width="46" height="296" fill="url(#${id}skm)"
+              transform="rotate(15 100 100)"/>
+      </g>`,
   }),
 
   /** Brushed banding plus a highlight that sweeps across, so it reads as metal. */

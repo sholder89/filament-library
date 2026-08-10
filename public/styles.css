@@ -703,6 +703,14 @@ select {
   50%      { opacity: 1;   transform: scale(1.03); }
 }
 
+/* The silk streak. Not animated on a timer like the metallic one — it's placed
+   from --sheen, which follows the scroll and the phone's tilt, so every spool
+   on screen catches the light from the same direction at the same moment. */
+.silk-sheen {
+  transform-box: fill-box;
+  transform: translateX(calc(var(--sheen, 0) * 86px));
+}
+
 /* A highlight travelling across the winding, so metal catches the light. */
 .sheen {
   transform-box: fill-box;
@@ -718,6 +726,8 @@ select {
   .sparkle { animation: none; opacity: .8; transform: none; }
   .glow-halo { animation: none; opacity: .85; }
   .sheen { animation: none; transform: translateX(130px); }
+  /* Parked slightly off centre — still a highlight, just not a moving one. */
+  .silk-sheen { transform: translateX(-18px); }
 }
 
 /* ── Stacked duplicates ──────────────────────────────────────────────────── */

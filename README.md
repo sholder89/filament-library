@@ -43,7 +43,12 @@ through — used-up spools stay in the library as a record instead of vanishing.
   wood decide where the color goes, so only one applies at a time; everything
   else layers on top of it. **Translucent** shows a checker grid through the filament,
   the way image editors show transparency, so see-through spools are obvious at a
-  glance. Glitter twinkles across 34 flecks, glow breathes a halo past the rim,
+  glance. **Silk** gets a real gloss — a broad diagonal sweep, a dark band
+  behind it, and a specular streak that slides as you scroll, so a shelf of
+  silk spools catches the light together like they're under one lamp. On a
+  phone it can follow the tilt as well; that needs the motion sensor, so it's a
+  button under Settings rather than a prompt on launch. Glitter twinkles across
+  34 flecks, glow breathes a halo past the rim,
   and metallic catches a highlight that sweeps across it. Gradient and dual-color
   take up to three colors. Anything named *rainbow* or *multicolor* is painted as
   a hue sweep.
