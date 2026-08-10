@@ -102,9 +102,11 @@ const EFFECTS = {
       </linearGradient>`,
     body: `
       <circle cx="100" cy="100" r="90" fill="url(#${id}sk)"/>
-      <g class="silk-sheen">
-        <rect x="62" y="-48" width="46" height="296" fill="url(#${id}skm)"
-              transform="rotate(15 100 100)"/>
+      <g class="silk-tilt">
+        <g class="silk-sheen">
+          <rect x="62" y="-48" width="46" height="296" fill="url(#${id}skm)"
+                transform="rotate(15 100 100)"/>
+        </g>
       </g>`,
   }),
 

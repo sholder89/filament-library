@@ -2903,50 +2903,39 @@ el.labelScanner.addEventListener('cancel', (e) => { e.preventDefault(); closeShe
 // ── Sheen ────────────────────────────────────────────────────────────────────
 
 /**
- * Where the light is coming from, as one number from -1 to 1.
+ * How far the phone's tilt displaces the highlight, from -1 to 1.
  *
- * Written to a single custom property on the root element and read by every
- * silk spool on screen, so a hundred cards cost one style write per frame
- * rather than a hundred. Scrolling swings it, and tilting the phone swings it
- * further, which together read as a light source that stays put while the
- * spools move under it.
+ * The travelling part is a CSS animation on the spools themselves, which costs
+ * nothing to run and needs no help from here. This only adds the tilt on top,
+ * through a single custom property on the root element that every spool reads
+ * — so a hundred cards cost one style write per frame rather than a hundred,
+ * and they all lean the same way at the same moment, which is what makes it
+ * read as one light source rather than a hundred animations.
  */
-const sheen = { scroll: 0, tilt: 0 };
+let sheenTilt = 0;
 let sheenQueued = false;
 
 const stillness = matchMedia('(prefers-reduced-motion: reduce)');
 
 function paintSheen() {
   sheenQueued = false;
-  const value = Math.max(-1, Math.min(1, sheen.scroll + sheen.tilt));
-  document.documentElement.style.setProperty('--sheen', value.toFixed(3));
+  document.documentElement.style.setProperty('--sheen', sheenTilt.toFixed(3));
 }
 
 function queueSheen() {
-  // Coalesced to one write per frame: scroll and orientation both fire far
-  // faster than anything can be drawn.
+  // Coalesced to one write per frame: the sensor fires far faster than
+  // anything can be drawn.
   if (sheenQueued || stillness.matches) return;
   sheenQueued = true;
   requestAnimationFrame(paintSheen);
 }
-
-/*
- * A slow swing rather than a scroll percentage. Mapped to the page position it
- * would creep imperceptibly through a long library and race through a short
- * one; on a fixed distance it always moves at the same rate, and a wrap means
- * it keeps going rather than pinning at the bottom.
- */
-addEventListener('scroll', () => {
-  sheen.scroll = Math.sin(scrollY / 240) * 0.75;
-  queueSheen();
-}, { passive: true });
 
 function listenForTilt() {
   addEventListener('deviceorientation', (e) => {
     // gamma is the left-right tilt, ±90°. Divided well short of that so an
     // ordinary wrist movement covers the whole travel.
     if (e.gamma == null) return;
-    sheen.tilt = Math.max(-1, Math.min(1, e.gamma / 38));
+    sheenTilt = Math.max(-1, Math.min(1, e.gamma / 38));
     queueSheen();
   });
 }

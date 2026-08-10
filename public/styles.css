@@ -703,12 +703,22 @@ select {
   50%      { opacity: 1;   transform: scale(1.03); }
 }
 
-/* The silk streak. Not animated on a timer like the metallic one — it's placed
-   from --sheen, which follows the scroll and the phone's tilt, so every spool
-   on screen catches the light from the same direction at the same moment. */
+/* The silk streak: always travelling, and displaced further by the phone's
+   tilt. Two nested groups because one element can't carry both — an animated
+   transform replaces a declared one outright, so the sweep and the tilt would
+   fight over the same property. */
 .silk-sheen {
   transform-box: fill-box;
-  transform: translateX(calc(var(--sheen, 0) * 86px));
+  animation: silk-sweep 6.5s ease-in-out infinite alternate;
+}
+.silk-tilt {
+  transform-box: fill-box;
+  transform: translateX(calc(var(--sheen, 0) * 46px));
+}
+
+@keyframes silk-sweep {
+  from { transform: translateX(-74px); }
+  to   { transform: translateX(74px); }
 }
 
 /* A highlight travelling across the winding, so metal catches the light. */
@@ -727,7 +737,8 @@ select {
   .glow-halo { animation: none; opacity: .85; }
   .sheen { animation: none; transform: translateX(130px); }
   /* Parked slightly off centre — still a highlight, just not a moving one. */
-  .silk-sheen { transform: translateX(-18px); }
+  .silk-sheen { animation: none; transform: translateX(-18px); }
+  .silk-tilt { transform: none; }
 }
 
 /* ── Stacked duplicates ──────────────────────────────────────────────────── */
