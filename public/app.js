@@ -3209,79 +3209,28 @@ $('#cpSwatches').addEventListener('click', (e) => {
  * of it. It's the better tool when the colour you want is already on screen and
  * no use at all when it isn't, which is why it can't be the only way in.
  */
-const canSampleScreen = () =>
-  Boolean(window.EyeDropper) || Boolean(navigator.mediaDevices?.getDisplayMedia);
-
-/**
- * Sampling a colour off the screen, the long way round.
+/*
+ * Screen sampling, where the browser has it.
  *
- * Only Chromium has the EyeDropper API. Firefox can still get there through
- * screen capture: ask for a screen, keep one frame of it, and let a pixel be
- * clicked out of that. Clunkier — it asks you to pick a window first, and what
- * you're clicking is a photograph rather than the live screen — but it's the
- * difference between the button working and not existing.
+ * Only Chromium does — Firefox has never shipped the EyeDropper API and shows
+ * no sign of doing so, and Safari hasn't either, on the desktop or the phone.
+ * There is no way round that: reading a pixel outside the page is a security
+ * boundary, and the only sanctioned route through it is a screen share, whose
+ * prompt is the permission and can't be skipped or remembered. A version built
+ * on that was tried here and thrown out for being exactly as tiresome as it
+ * sounds.
  *
- * Needs a secure context, same as the camera. Over plain HTTP on the LAN it
- * won't be offered at all, which is the same rule the label scanner follows.
+ * So the button simply isn't offered elsewhere, and the picker above is what
+ * everyone gets. Lifting a colour out of a photo would serve the same need
+ * without any of this, and works everywhere — a job for another day.
  */
-async function sampleViaCapture() {
-  const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
-  const video = document.createElement('video');
-  video.srcObject = stream;
-  video.muted = true;
-  await video.play();
-
-  // One frame is all that's wanted; the share stops immediately so there's no
-  // window quietly being watched while a colour is chosen.
-  const canvas = $('#cpShotCanvas');
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  canvas.getContext('2d').drawImage(video, 0, 0);
-  for (const track of stream.getTracks()) track.stop();
-
-  $('#cpShot').hidden = false;
-
-  return new Promise((resolve) => {
-    const finish = (hex) => {
-      $('#cpShot').hidden = true;
-      canvas.removeEventListener('click', onClick);
-      removeEventListener('keydown', onKey);
-      resolve(hex);
-    };
-
-    const onClick = (e) => {
-      const box = canvas.getBoundingClientRect();
-      // The canvas is displayed scaled to fit, so the click has to be mapped
-      // back to the pixel it actually landed on.
-      const x = Math.round((e.clientX - box.left) * (canvas.width / box.width));
-      const y = Math.round((e.clientY - box.top) * (canvas.height / box.height));
-      const [r, g, b] = canvas.getContext('2d').getImageData(x, y, 1, 1).data;
-      finish(`#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`.toUpperCase());
-    };
-
-    const onKey = (e) => { if (e.key === 'Escape') finish(null); };
-
-    canvas.addEventListener('click', onClick);
-    addEventListener('keydown', onKey);
-  });
-}
-
 $('#cpScreen').addEventListener('click', async () => {
   try {
-    if (window.EyeDropper) {
-      const { sRGBHex } = await new EyeDropper().open();
-      if (sRGBHex) setPickerColor(sRGBHex);
-      return;
-    }
-    const hex = await sampleViaCapture();
-    if (hex) setPickerColor(hex);
+    const { sRGBHex } = await new EyeDropper().open();
+    if (sRGBHex) setPickerColor(sRGBHex);
   } catch (err) {
-    // Escape and "no thanks" on the share prompt both reject, and neither is a
-    // failure worth reporting. Anything else is — swallowing it is what made
-    // this look like a dead button rather than a missing feature.
-    if (err?.name !== 'AbortError' && err?.name !== 'NotAllowedError') {
-      toast(`Couldn't sample the screen: ${err.message}`, true);
-    }
+    // Escape rejects too, and that isn't a failure worth reporting.
+    if (err?.name !== 'AbortError') toast(`Couldn't sample the screen: ${err.message}`, true);
   }
 });
 
@@ -3302,8 +3251,7 @@ el.picker2.addEventListener('click', (e) => {
  * it would run off the side.
  */
 function openPicker2() {
-  $('#cpScreen').hidden = !canSampleScreen();
-  $('#cpScreen').textContent = window.EyeDropper ? 'Pick from screen' : 'Pick from a shared screen';
+  $('#cpScreen').hidden = !window.EyeDropper;
 
   // The colours already in the library, as a shortcut past the square.
   $('#cpSwatches').innerHTML = (state.catalog.colors ?? []).slice(0, 18)

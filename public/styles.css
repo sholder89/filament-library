@@ -859,35 +859,6 @@ select {
 }
 .cp-swatches button:hover { border-color: var(--accent); }
 
-/* The held frame, for browsers without a native eyedropper. */
-.cp-shot {
-  position: fixed;
-  inset: 0;
-  z-index: 90;
-  display: grid;
-  place-items: center;
-  padding: 20px;
-  background: rgba(0, 0, 0, .85);
-}
-.cp-shot[hidden] { display: none; }
-.cp-shot canvas {
-  max-width: 100%;
-  max-height: calc(100dvh - 90px);
-  /* A crosshair, because what's under it is the thing being chosen. */
-  cursor: crosshair;
-  border-radius: var(--radius-sm);
-}
-.cp-shot-hint {
-  position: absolute;
-  bottom: 22px;
-  margin: 0;
-  padding: 8px 16px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, .6);
-  color: #fff;
-  font-size: 14px;
-}
-
 .cp-actions { display: grid; grid-template-columns: 1fr 1.6fr; gap: 8px; }
 .cp-actions .btn { padding: 0 10px; font-size: 14px; }
 #cpScreen { margin-bottom: 10px; }

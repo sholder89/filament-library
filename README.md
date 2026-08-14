@@ -41,9 +41,17 @@ through — used-up spools stay in the library as a record instead of vanishing.
 - **What have I got that's this color?** — the eyedropper in the header opens a
   color picker, and the shelf reorders by how close each spool is to what you
   chose, nearest first, with a verdict on the best one. Pick from the spectrum,
-  type a hex, or tap one of the catalog swatches. Where the browser can sample
-  the screen (Chrome and Edge on desktop) there's also a **Pick from screen**
-  button, for lifting a color straight off a photo or a model.
+  type a hex, or tap one of the catalog swatches. On Chrome and Edge there's
+  also a **Pick from screen** button, for lifting a color straight off whatever
+  you're looking at.
+
+  That button is Chromium-only and will stay that way. Firefox has never
+  shipped the EyeDropper API — the request has sat unconfirmed for four years,
+  blocked on Mozilla's standards position — and Safari hasn't either, on the
+  desktop or the phone. It can't be polyfilled: reading a pixel outside the page
+  is a security boundary, and the one sanctioned route through it is a screen
+  share, whose prompt *is* the permission and can't be skipped. A version built
+  on `getDisplayMedia` was tried and dropped for being too tedious to use.
 
   The picker is built into the page rather than being the browser's own. The
   native `<input type="color">` opens the operating system's picker, which
