@@ -12,6 +12,7 @@
  */
 
 import { BRANDS, MATERIALS, COLOR_NAMES, FINISHES } from './catalog.js';
+import { editDistance } from './text.js';
 
 /**
  * Manufacturer prefixes and product-line words that sit around the real value.
@@ -205,25 +206,6 @@ function titleCase(s) {
  */
 function splitCamel(s) {
   return String(s).replace(/([a-z])([A-Z])/g, '$1 $2');
-}
-
-/** Edit distance, abandoned once it can't come in under `limit`. */
-function editDistance(a, b, limit) {
-  if (Math.abs(a.length - b.length) > limit) return limit + 1;
-  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
-  for (let i = 1; i <= a.length; i++) {
-    const row = [i];
-    let best = i;
-    for (let j = 1; j <= b.length; j++) {
-      row[j] = a[i - 1] === b[j - 1]
-        ? prev[j - 1]
-        : 1 + Math.min(prev[j - 1], prev[j], row[j - 1]);
-      best = Math.min(best, row[j]);
-    }
-    if (best > limit) return limit + 1;
-    prev = row;
-  }
-  return prev[b.length];
 }
 
 /**

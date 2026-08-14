@@ -11,7 +11,7 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
-    "test": "node tools/test-label-parse.mjs",
+    "test": "node tools/test-label-parse.mjs && node tools/test-search.mjs",
     "icons": "node tools/build-icons.mjs",
     "catalog": "node tools/fetch-catalog.mjs"
   },

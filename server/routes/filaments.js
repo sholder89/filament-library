@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { db, newId, nowISO } from '../db.js';
 import { importTares } from './tares.js';
+import { expandTerm, vocabularyFrom, normaliseQuery } from '../search-terms.js';
 
 export const router = Router();
 
@@ -196,19 +197,66 @@ router.get('/', (req, res) => {
      * would make the whole concatenation NULL and the spool unfindable by any
      * of its other fields.
      */
-    const HAYSTACK = "(brand || ' ' || material || ' ' || color_name || ' ' || finish || ' ' || location || ' ' || notes)";
+    /*
+     * The spool as one string, including things that aren't columns you can
+     * read. "Sealed", "used up" and "in a printer" are all states people type
+     * into a search box and none of them were findable; nor was the spool size,
+     * though "sunlu 250" is an obvious thing to want. The words are spelled out
+     * several ways because the search is what somebody typed, not what the
+     * schema calls it.
+     */
+    const HAYSTACK = `(
+      brand || ' ' || material || ' ' || color_name || ' ' || finish
+      || ' ' || location || ' ' || notes
+      || ' ' || spool_weight_g || 'g'
+      || CASE status
+           -- No "unopened" here, and no "unused" below: the search matches on
+           -- substrings, so either would make every sealed spool answer to
+           -- "opened" and "used".
+           WHEN 'new'    THEN ' sealed new'
+           WHEN 'opened' THEN ' opened open started'
+           ELSE ' used up empty finished gone'
+         END
+      || CASE loaded WHEN 1 THEN ' loaded in a printer ams' ELSE '' END
+    )`;
 
     // Capped so a pasted paragraph can't turn into hundreds of scans.
-    const words = q.split(/\s+/).filter(Boolean).slice(0, 8);
+    const words = normaliseQuery(q).split(/\s+/).filter(Boolean).slice(0, 8);
 
     // % and _ are LIKE's own wildcards: searching for either matched every row,
     // and "100% Cotton" or "shelf_a" could not be found at all.
     const like = (w) => `%${w.replace(/[\\%_]/g, '\\$&')}%`;
 
+    /*
+     * Each word is widened before it's matched: "gray" also looks for "grey",
+     * "flexible" also looks for TPU, and a misspelling also looks for whatever
+     * it was nearly. Any of a word's forms will do, but every word must still
+     * find something — so adding words keeps narrowing the result.
+     *
+     * The vocabulary for the typo pass is read out of the library itself, which
+     * is what keeps it honest: a word can only be corrected towards something
+     * a spool actually says.
+     */
+    const vocabulary = vocabularyFrom(
+      db.prepare('SELECT brand, material, color_name, finish, location FROM filaments').all(),
+    );
+
+    const clauses = [];
+    for (const word of words) {
+      // A leading minus excludes instead of requiring — "petg -black". Widened
+      // the same way, so excluding "gray" also excludes the ones spelled grey.
+      const negated = word.length > 1 && word.startsWith('-');
+      const forms = expandTerm(negated ? word.slice(1) : word, vocabulary);
+      const any = `(${forms.map(() => `${HAYSTACK} LIKE ? ESCAPE '\\'`).join(' OR ')})`;
+
+      clauses.push(negated ? `NOT ${any}` : any);
+      params.push(...forms.map(like));
+    }
+
     // The id stays an exact whole-query match, so scanning a QR still lands on
     // the one spool rather than anything whose notes mention the code.
-    where.push(`((${words.map(() => `${HAYSTACK} LIKE ? ESCAPE '\\'`).join(' AND ')}) OR id = ?)`);
-    params.push(...words.map(like), q.toUpperCase());
+    where.push(`((${clauses.join(' AND ')}) OR id = ?)`);
+    params.push(q.toUpperCase());
   }
 
   const order = SORTS[str(req.query.sort)] || SORTS.newest;

@@ -25,6 +25,14 @@ through — used-up spools stay in the library as a record instead of vanishing.
   brand, type, color, finish, location and notes — every word has to appear
   somewhere on the spool but not all in the same field, so "purple translucent"
   and "Sunlu yellow" both find what you meant, and each extra word narrows it.
+
+  Words are widened before they're matched. **Spellings** find each other, so
+  *gray* returns the ones labelled *Grey*. **Descriptions** find materials, so
+  *flexible blue* returns blue TPU and *shiny* returns silk. **Typos** are
+  corrected towards words that are actually on your shelf — *polymker* finds
+  Polymaker, while *red* is too short to be corrected into anything. **States
+  and sizes** are searchable too: *sealed*, *used up*, *in the printer*, *250g*.
+  A leading minus excludes, as in `petg -black`.
 - **Grouped views** — sorting by brand, type or color also groups the library
   under collapsible headings with a count on each, so you can fold away the
   PLA and see what PETG you have. Type headings use the base material, so PLA+,
