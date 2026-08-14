@@ -599,10 +599,35 @@ function tally(field) {
 
 const filterBtn = (kind) => document.getElementById(FILTER_KINDS[kind].btn);
 
+/**
+ * "PLA (3)" when the selection is exactly one whole family.
+ *
+ * Picking PLA sends three values, so the button read "3 types" — which is true
+ * and useless, since what you did was pick PLA. Only for a complete family and
+ * nothing besides: a partial selection really is a handful of types and should
+ * say so.
+ */
+function familyLabel(selected) {
+  const families = new Map();
+  for (const { value } of tally('material')) {
+    const base = baseMaterial(value);
+    if (!families.has(base)) families.set(base, []);
+    families.get(base).push(value);
+  }
+
+  const bases = [...new Set(selected.map(baseMaterial))];
+  if (bases.length !== 1) return '';
+
+  const whole = families.get(bases[0]) ?? [];
+  if (whole.length !== selected.length) return '';
+  return whole.every((v) => selected.includes(v)) ? `${bases[0]} (${whole.length})` : '';
+}
+
 function filterLabel(kind, selected) {
   const { noun } = FILTER_KINDS[kind];
   if (!selected.length) return `All ${noun}`;
   if (selected.length === 1) return selected[0];
+  if (kind === 'material') return familyLabel(selected) || `${selected.length} ${noun}`;
   return `${selected.length} ${noun}`;
 }
 
