@@ -51,9 +51,6 @@
     <button class="icon-btn bare" id="matchBtn" title="Find the closest color" aria-label="Find filaments closest to a color">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.66 5.41l.92.92-2.69 2.69-.92-.92 2.69-2.69M17.67 3c-.26 0-.51.1-.71.29l-3.12 3.12-1.93-1.91-1.41 1.41 1.42 1.42L3 16.25V21h4.75l8.92-8.92 1.42 1.42 1.41-1.41-1.92-1.92 3.12-3.12c.4-.4.4-1.03.01-1.42l-2.34-2.34c-.2-.19-.45-.29-.7-.29zM6.92 19L5 17.08l8.06-8.06 1.92 1.92L6.92 19z" fill="currentColor"/></svg>
     </button>
-    <!-- The picker itself. Opened by the button above, so it never has to be
-         seen — a bare colour input can't be styled to match anything. -->
-    <input type="color" id="matchColor" hidden>
     <button class="icon-btn" id="themeBtn" title="Toggle theme" aria-label="Toggle light or dark theme">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z" fill="currentColor"/></svg>
     </button>
@@ -129,6 +126,43 @@
     </div>
   </div>
 </section>
+
+<!-- ── Colour picker ─────────────────────────────────────────────────────── -->
+<!-- Built rather than borrowed: the native input opens the operating system's
+     picker, which looks like someone else's app, and can't be opened at all
+     from a hidden input on iOS. -->
+<dialog id="picker2" class="sheet">
+  <div class="sheet-inner">
+    <div class="sheet-head">
+      <h2>Pick a colour</h2>
+      <button type="button" class="icon-btn" data-close aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+
+    <div class="cp-area" id="cpArea" role="application" aria-label="Saturation and brightness" tabindex="0">
+      <span class="cp-dot" id="cpDot"></span>
+    </div>
+
+    <div class="cp-hue" id="cpHue" role="application" aria-label="Hue" tabindex="0">
+      <span class="cp-dot" id="cpHueDot"></span>
+    </div>
+
+    <div class="cp-foot">
+      <span class="cp-preview" id="cpPreview"></span>
+      <input type="text" id="cpHex" class="cp-hex" spellcheck="false" autocomplete="off"
+             maxlength="7" aria-label="Colour as a hex code">
+      <button type="button" class="btn" id="cpScreen" hidden>Pick from screen</button>
+    </div>
+
+    <div class="cp-swatches" id="cpSwatches"></div>
+
+    <div class="cp-actions">
+      <button type="button" class="btn" data-close>Cancel</button>
+      <button type="button" class="btn primary" id="cpUse">Find the closest</button>
+    </div>
+  </div>
+</dialog>
 
 <div class="match-bar" id="matchBar" hidden>
   <span class="match-swatch" id="matchSwatch"></span>

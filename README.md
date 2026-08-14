@@ -40,9 +40,16 @@ through — used-up spools stay in the library as a record instead of vanishing.
   variant. Date orders stay flat.
 - **What have I got that's this color?** — the eyedropper in the header opens a
   color picker, and the shelf reorders by how close each spool is to what you
-  chose, nearest first, with a verdict on the best one. Where the browser can
-  sample the screen (Chrome and Edge on desktop) it does, so you can lift the
-  exact color straight off a photo or a model. Distance is measured in CIE Lab
+  chose, nearest first, with a verdict on the best one. Pick from the spectrum,
+  type a hex, or tap one of the catalog swatches. Where the browser can sample
+  the screen (Chrome and Edge on desktop) there's also a **Pick from screen**
+  button, for lifting a color straight off a photo or a model.
+
+  The picker is built into the page rather than being the browser's own. The
+  native `<input type="color">` opens the operating system's picker, which
+  arrives looking like a different application — and since the input has to be
+  hidden, it can't be opened by script at all on iOS, where a `display:none`
+  element ignores `.click()`. Distance is measured in CIE Lab
   rather than RGB, because RGB will happily rank a green further from another
   green than from a grey. A spool with several colors is matched on whichever
   of them is closest, so a tri-color counts as an answer to any of its tones.

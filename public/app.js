@@ -33,6 +33,7 @@ const el = {
   sortBy: $('#sortBy'),
   clearFilters: $('#clearFilters'),
   picker: $('#picker'),
+  picker2: $('#picker2'),
   cardMenu: $('#cardMenu'),
   scanner: $('#scanner'),
   labelScanner: $('#labelScanner'),
@@ -169,7 +170,7 @@ function ago(iso) {
 }
 
 // The filter popover isn't a <dialog> — it's dismissed by closePicker instead.
-const SHEETS = [el.detail, el.editor, el.scanner, el.labelScanner, el.settings];
+const SHEETS = [el.detail, el.editor, el.scanner, el.labelScanner, el.settings, el.picker2];
 
 /** Locks background scrolling while a sheet is up — iOS ignores <dialog>'s own lock. */
 function openSheet(dialog) {
@@ -3075,27 +3076,166 @@ function clearMatch() {
   renderGrid();
 }
 
+$('#matchClear').addEventListener('click', clearMatch);
+
+// ── Colour picker ────────────────────────────────────────────────────────────
+
 /*
- * Where the browser can sample the screen, sample the screen — it's what the
- * icon draws, and picking the exact orange off a photo of a print beats
- * hunting for it on a colour wheel. Everywhere else, the ordinary colour input,
- * which on a phone is a perfectly good picker anyway.
+ * Hand-built, and worth the hundred lines.
+ *
+ * <input type="color"> hands the job to the operating system, which arrives
+ * looking like a different application, can't be themed, and — because the
+ * input has to be hidden to keep it from being seen — cannot be opened by
+ * script at all on iOS, where a display:none element ignores .click(). One
+ * control that doesn't fit anywhere and doesn't work in one place.
+ *
+ * Saturation and brightness on the square, hue underneath. Both are plain
+ * elements with a gradient and a dot on top, which is all a picker is.
  */
-$('#matchBtn').addEventListener('click', async () => {
-  if (window.EyeDropper) {
-    try {
-      const { sRGBHex } = await new EyeDropper().open();
-      if (sRGBHex) applyMatch(sRGBHex);
-    } catch { /* dismissed with Escape */ }
-    return;
+const cp = { h: 0, s: 0.7, v: 0.9 };
+
+function hsvToHex(h, s, v) {
+  const ch = (n) => {
+    const k = (n + h / 60) % 6;
+    return Math.round(255 * (v - v * s * Math.max(0, Math.min(k, 4 - k, 1))));
+  };
+  return `#${[ch(5), ch(3), ch(1)].map((x) => x.toString(16).padStart(2, '0')).join('')}`.toUpperCase();
+}
+
+function hexToHsv(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex ?? ''));
+  const n = parseInt(m ? m[1] : '808080', 16);
+  const [r, g, b] = [(n >> 16) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+  const max = Math.max(r, g, b);
+  const span = max - Math.min(r, g, b);
+
+  let h = 0;
+  if (span) {
+    if (max === r) h = (g - b) / span + (g < b ? 6 : 0);
+    else if (max === g) h = (b - r) / span + 2;
+    else h = (r - g) / span + 4;
+    h *= 60;
   }
-  const input = $('#matchColor');
-  input.value = state.matchColor ?? '#808080';
-  input.click();
+  return { h, s: max ? span / max : 0, v: max };
+}
+
+const cpHex = () => hsvToHex(cp.h, cp.s, cp.v);
+
+function paintPicker() {
+  const hex = cpHex();
+  // The square's own hue, at full strength — the white and black gradients
+  // over it supply the saturation and brightness.
+  $('#cpArea').style.setProperty('--cp-hue', hsvToHex(cp.h, 1, 1));
+  $('#cpDot').style.left = `${cp.s * 100}%`;
+  $('#cpDot').style.top = `${(1 - cp.v) * 100}%`;
+  $('#cpDot').style.background = hex;
+  $('#cpHueDot').style.left = `${(cp.h / 360) * 100}%`;
+  $('#cpPreview').style.background = hex;
+  if (document.activeElement !== $('#cpHex')) $('#cpHex').value = hex;
+}
+
+function setPickerColor(hex) {
+  Object.assign(cp, hexToHsv(hex));
+  paintPicker();
+}
+
+/**
+ * Drag handling for both strips.
+ *
+ * Pointer events rather than mouse or touch ones: it's the same code for a
+ * finger and a mouse, and capture means a drag that wanders off the edge of the
+ * square keeps working, which is exactly what happens when you chase a colour
+ * into a corner.
+ */
+function draggable(el, onMove) {
+  const report = (e) => {
+    const box = el.getBoundingClientRect();
+    onMove(
+      Math.min(1, Math.max(0, (e.clientX - box.left) / box.width)),
+      Math.min(1, Math.max(0, (e.clientY - box.top) / box.height)),
+    );
+    paintPicker();
+  };
+
+  el.addEventListener('pointerdown', (e) => {
+    el.setPointerCapture(e.pointerId);
+    report(e);
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (el.hasPointerCapture(e.pointerId)) report(e);
+  });
+  // Dragging the square shouldn't also scroll the sheet under it.
+  el.style.touchAction = 'none';
+}
+
+draggable($('#cpArea'), (x, y) => { cp.s = x; cp.v = 1 - y; });
+draggable($('#cpHue'), (x) => { cp.h = x * 360; });
+
+// Arrow keys, so the picker isn't pointer-only.
+$('#cpArea').addEventListener('keydown', (e) => {
+  const step = e.shiftKey ? 0.1 : 0.02;
+  const moves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] };
+  if (!moves[e.key]) return;
+  e.preventDefault();
+  cp.s = Math.min(1, Math.max(0, cp.s + moves[e.key][0]));
+  cp.v = Math.min(1, Math.max(0, cp.v + moves[e.key][1]));
+  paintPicker();
 });
 
-$('#matchColor').addEventListener('change', (e) => applyMatch(e.target.value));
-$('#matchClear').addEventListener('click', clearMatch);
+$('#cpHue').addEventListener('keydown', (e) => {
+  const step = e.shiftKey ? 30 : 5;
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  e.preventDefault();
+  cp.h = (cp.h + (e.key === 'ArrowLeft' ? -step : step) + 360) % 360;
+  paintPicker();
+});
+
+// Typing a hex is the fastest route when you already know the number.
+$('#cpHex').addEventListener('input', (e) => {
+  const value = e.target.value.trim();
+  if (/^#?[0-9a-f]{6}$/i.test(value)) {
+    Object.assign(cp, hexToHsv(value));
+    paintPicker();
+  }
+});
+
+$('#cpSwatches').addEventListener('click', (e) => {
+  const swatch = e.target.closest('[data-hex]');
+  if (swatch) setPickerColor(swatch.dataset.hex);
+});
+
+/*
+ * Screen sampling stays, as one option inside the picker rather than instead
+ * of it. It's the better tool when the colour you want is already on screen and
+ * no use at all when it isn't, which is why it can't be the only way in.
+ */
+$('#cpScreen').addEventListener('click', async () => {
+  try {
+    const { sRGBHex } = await new EyeDropper().open();
+    if (sRGBHex) setPickerColor(sRGBHex);
+  } catch { /* dismissed */ }
+});
+
+$('#cpUse').addEventListener('click', () => {
+  applyMatch(cpHex());
+  closeSheet(el.picker2);
+});
+
+el.picker2.addEventListener('click', (e) => {
+  if (e.target.closest('[data-close]')) closeSheet(el.picker2);
+});
+
+$('#matchBtn').addEventListener('click', () => {
+  $('#cpScreen').hidden = !window.EyeDropper;
+
+  // The colours already in the library, as a shortcut past the square.
+  $('#cpSwatches').innerHTML = (state.catalog.colors ?? []).slice(0, 24)
+    .map((c) => `<button type="button" data-hex="${esc(c.hex)}" title="${esc(c.name)}"
+                   style="background:${esc(c.hex)}" aria-label="${esc(c.name)}"></button>`).join('');
+
+  setPickerColor(state.matchColor ?? '#D32029');
+  openSheet(el.picker2);
+});
 
 // ── Sheen ────────────────────────────────────────────────────────────────────
 

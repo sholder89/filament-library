@@ -770,6 +770,81 @@ select {
   .silk-tilt { transform: none; }
 }
 
+/* ── Colour picker ───────────────────────────────────────────────────────── */
+
+/* Saturation left to right over the hue, brightness top to bottom over that.
+   Two gradients and a dot — the whole control is these nine lines. */
+.cp-area {
+  position: relative;
+  height: 190px;
+  margin-bottom: 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  cursor: crosshair;
+  background:
+    linear-gradient(to top, #000, rgba(0, 0, 0, 0)),
+    linear-gradient(to right, #fff, var(--cp-hue, #f00));
+}
+
+.cp-hue {
+  position: relative;
+  height: 22px;
+  margin-bottom: 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  background: linear-gradient(to right,
+    #f00 0%, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00 100%);
+}
+
+.cp-dot {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .45), 0 1px 4px rgba(0, 0, 0, .4);
+  pointer-events: none;
+}
+/* The hue dot rides the middle of its strip whatever height it is. */
+#cpHueDot { top: 50%; }
+
+.cp-area:focus-visible,
+.cp-hue:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.cp-foot { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.cp-preview {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+.cp-hex {
+  flex: 1 1 110px;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-transform: uppercase;
+}
+
+.cp-swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(34px, 1fr));
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.cp-swatches button {
+  aspect-ratio: 1;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  padding: 0;
+}
+.cp-swatches button:hover { border-color: var(--accent); }
+
+.cp-actions { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; }
+
 /* ── Closest colour ──────────────────────────────────────────────────────── */
 
 .match-bar {
