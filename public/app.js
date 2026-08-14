@@ -676,35 +676,148 @@ function renderPickerOptions() {
   }
   syncPickerHint();
 
-  $('#pickerOptions').innerHTML = options.map(({ value, count }) => `
-    <button type="button" class="option-row" data-value="${esc(value)}"
-            aria-pressed="${selected.includes(value)}">
-      <span class="tick"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 13 4 4L19 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-      <span>${esc(value)}</span>
-      <span class="count">${count}</span>
-    </button>
-  `).join('');
+  $('#pickerOptions').innerHTML = pickerKind === 'material'
+    ? materialTreeHTML(options, selected)
+    : options.map(({ value, count }) => optionRowHTML(value, count, selected.includes(value))).join('');
+}
+
+const TICK = `<span class="tick"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 13 4 4L19 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>`;
+
+const optionRowHTML = (value, count, pressed, extra = '') => `
+  <button type="button" class="option-row${extra ? ` ${extra}` : ''}" data-value="${esc(value)}"
+          aria-pressed="${pressed}">
+    ${TICK}
+    <span>${esc(value)}</span>
+    <span class="count">${count}</span>
+  </button>`;
+
+/**
+ * Types, as families rather than a flat list.
+ *
+ * A shelf of any size ends up with PETG, PETG HF, PETG-CF and PLA, PLA+, PLA
+ * Silk, PLA Meta — and wanting "any PETG" is far commoner than wanting one
+ * particular formulation. So the list opens as the families, each expanding to
+ * the exact types under it, and choosing a family is choosing all of them.
+ *
+ * What goes to the server is unchanged: a family selection is just its variants
+ * listed out, so the filter stays an exact match on the values that are really
+ * in the column.
+ */
+function materialTreeHTML(options, selected) {
+  const families = new Map();
+  for (const { value, count } of options) {
+    const base = baseMaterial(value);
+    if (!families.has(base)) families.set(base, { total: 0, kids: [] });
+    const family = families.get(base);
+    family.total += count;
+    family.kids.push({ value, count });
+  }
+
+  return [...families.entries()].map(([base, { total, kids }]) => {
+    // A family of one that's already called by its own name has nothing to
+    // expand into — "ASA" on its own is just a row.
+    if (kids.length === 1 && kids[0].value === base) {
+      return optionRowHTML(base, total, selected.includes(base));
+    }
+
+    const values = kids.map((k) => k.value);
+    const chosen = values.filter((v) => selected.includes(v)).length;
+    const open = expandedFamilies.has(base);
+
+    return `
+      <div class="option-family" data-family="${esc(base)}">
+        <div class="option-parent">
+          <button type="button" class="option-row${chosen && chosen < values.length ? ' is-mixed' : ''}"
+                  data-values="${esc(JSON.stringify(values))}"
+                  aria-pressed="${chosen === values.length}">
+            ${TICK}
+            <span>${esc(base)}</span>
+            <span class="count">${total}</span>
+          </button>
+          <button type="button" class="option-expand" data-expand="${esc(base)}"
+                  aria-expanded="${open}" aria-label="Show every ${esc(base)} type">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        <div class="option-children"${open ? '' : ' hidden'}>
+          ${kids.map((k) => optionRowHTML(k.value, k.count, selected.includes(k.value), 'is-child')).join('')}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+/** Which families are open. Kept between openings, so it stays where you left it. */
+const expandedFamilies = new Set();
+
+/**
+ * Repaints one family's ticks from the current selection.
+ *
+ * In place, never by re-rendering: replacing the markup would detach the row
+ * mid-click and the outside-click handler would then see no #picker ancestor
+ * and shut the whole popover — see the note on the click handler below.
+ */
+function refreshFamily(familyEl) {
+  const selected = state.filters.material;
+  const parent = familyEl.querySelector('.option-parent .option-row');
+  const values = JSON.parse(parent.dataset.values);
+  const chosen = values.filter((v) => selected.includes(v)).length;
+
+  parent.setAttribute('aria-pressed', String(chosen === values.length));
+  parent.classList.toggle('is-mixed', chosen > 0 && chosen < values.length);
+
+  for (const kid of familyEl.querySelectorAll('.option-children .option-row')) {
+    kid.setAttribute('aria-pressed', String(selected.includes(kid.dataset.value)));
+  }
 }
 
 $('#pickerOptions').addEventListener('click', (e) => {
-  const row = e.target.closest('.option-row');
-  if (!row || !pickerKind) return;
+  if (!pickerKind) return;
 
-  const value = row.dataset.value;
+  // Opening a family isn't choosing it, so this is checked first and stops
+  // there — the chevron sits inside the row's own container.
+  const expander = e.target.closest('[data-expand]');
+  if (expander) {
+    const family = expander.closest('.option-family');
+    const open = family.querySelector('.option-children').hidden;
+    family.querySelector('.option-children').hidden = !open;
+    expander.setAttribute('aria-expanded', String(open));
+    if (open) expandedFamilies.add(expander.dataset.expand);
+    else expandedFamilies.delete(expander.dataset.expand);
+    return;
+  }
+
+  const row = e.target.closest('.option-row');
+  if (!row) return;
+
   const selected = state.filters[pickerKind];
-  const at = selected.indexOf(value);
-  if (at === -1) selected.push(value); else selected.splice(at, 1);
 
   /*
    * Toggled in place rather than by re-rendering the list. Replacing the HTML
    * would detach the row mid-click, and the outside-click handler below would
    * then find no #picker ancestor on the event target and close the popover —
-   * so picking one option dismissed the whole thing. Editing the row also keeps
-   * the list from scrolling back to the top on every tap.
+   * so picking one option dismissed the whole thing. Editing the rows also
+   * keeps the list from scrolling back to the top on every tap.
    */
-  row.setAttribute('aria-pressed', String(at === -1));
-  syncPickerHint();
+  if (row.dataset.values !== undefined) {
+    // A family: all of it on, or all of it off.
+    const values = JSON.parse(row.dataset.values);
+    const all = values.every((v) => selected.includes(v));
+    for (const v of values) {
+      const at = selected.indexOf(v);
+      if (all && at !== -1) selected.splice(at, 1);
+      else if (!all && at === -1) selected.push(v);
+    }
+    refreshFamily(row.closest('.option-family'));
+  } else {
+    const at = selected.indexOf(row.dataset.value);
+    if (at === -1) selected.push(row.dataset.value); else selected.splice(at, 1);
+    row.setAttribute('aria-pressed', String(at === -1));
+    // One variant changing can complete or break its family's set.
+    const family = row.closest('.option-family');
+    if (family) refreshFamily(family);
+  }
 
+  syncPickerHint();
   syncFilterButtons();
   saveFilters();
   loadFilaments();

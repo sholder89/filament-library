@@ -458,6 +458,48 @@ select {
 }
 .option-row .count { margin-left: auto; color: var(--muted); font-size: 13px; font-weight: 500; }
 
+/* ── Type families ──────────────────────────────────────────────────────── */
+
+.option-family { display: grid; gap: 6px; }
+.option-parent { display: flex; gap: 6px; }
+.option-parent .option-row { flex: 1; min-width: 0; }
+
+.option-expand {
+  flex: none;
+  width: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border-sm);
+  border-radius: var(--radius-sm);
+  background: var(--elevated);
+  color: var(--muted);
+  cursor: pointer;
+}
+.option-expand svg { width: 18px; height: 18px; transition: transform .15s ease; }
+.option-expand[aria-expanded="true"] svg { transform: rotate(90deg); }
+.option-expand:hover { color: var(--text); border-color: var(--accent); }
+
+/* Indented so the variants read as belonging to the family above them. */
+.option-children { display: grid; gap: 6px; padding-left: 20px; }
+.option-children[hidden] { display: none; }
+.option-row.is-child { font-size: 14px; background: var(--surface); }
+
+/* Some of the family, not all — a filled box would claim you'd picked the lot,
+   an empty one that you'd picked none. */
+.option-row.is-mixed { border-color: var(--accent); }
+.option-row.is-mixed .tick {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: transparent;
+}
+.option-row.is-mixed .tick::after {
+  content: "";
+  width: 10px;
+  height: 2.5px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
 /* ── Grid ───────────────────────────────────────────────────────────────── */
 
 .grid {

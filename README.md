@@ -21,7 +21,12 @@ through — used-up spools stay in the library as a record instead of vanishing.
   automatically. Marking a spool used up keeps the record; only an explicit
   delete removes it.
 - **Filter and search** — by state, and by any combination of brands, types and
-  finishes (Sunlu *or* Creality, in PLA *or* PETG). Plus free-text search across
+  finishes (Sunlu *or* Creality, in PLA *or* PETG). The type filter opens as
+  families — PLA, PETG, ABS, TPU — each expanding to the exact formulations
+  under it, so *any PETG* is one tap and *PETG HF only* is two. Picking a family
+  picks everything in it; unticking one variant leaves the family showing a
+  partial mark. A type with nothing to expand into is just a row. Plus free-text
+  search across
   brand, type, color, finish, location and notes — every word has to appear
   somewhere on the spool but not all in the same field, so "purple translucent"
   and "Sunlu yellow" both find what you meant, and each extra word narrows it.
