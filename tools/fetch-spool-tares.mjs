@@ -68,7 +68,7 @@ function readGrams(text) {
 }
 
 /**
- * The weight including the cardboard centre, where a contributor separated the
+ * The weight including the cardboard center, where a contributor separated the
  * two.
  *
  * Several spools are a plastic reel around a cardboard core, and some people

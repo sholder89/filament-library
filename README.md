@@ -32,7 +32,7 @@ through — used-up spools stay in the library as a record instead of vanishing.
   and "Sunlu yellow" both find what you meant, and each extra word narrows it.
 
   Words are widened before they're matched. **Spellings** find each other, so
-  *gray* returns the ones labelled *Grey*. **Descriptions** find materials, so
+  *gray* returns the ones labeled *Gray*. **Descriptions** find materials, so
   *flexible blue* returns blue TPU and *shiny* returns silk. **Typos** are
   corrected towards words that are actually on your shelf — *polymker* finds
   Polymaker, while *red* is too short to be corrected into anything. **States
@@ -64,12 +64,12 @@ through — used-up spools stay in the library as a record instead of vanishing.
   hidden, it can't be opened by script at all on iOS, where a `display:none`
   element ignores `.click()`. Distance is measured in CIE Lab
   rather than RGB, because RGB will happily rank a green further from another
-  green than from a grey. A spool with several colors is matched on whichever
+  green than from a gray. A spool with several colors is matched on whichever
   of them is closest, so a tri-color counts as an answer to any of its tones.
 - **Color rainbow** — sorts the shelf into a spectrum, red through pink, by the
   hue of each spool's color rather than the spelling of its name. Deliberately
-  ungrouped: it's one unbroken run of colour, and headings would chop up the
-  thing you sorted for. Blacks, whites and greys have no place in a spectrum so
+  ungrouped: it's one unbroken run of color, and headings would chop up the
+  thing you sorted for. Blacks, whites and grays have no place in a spectrum so
   they follow it, ordered light to dark, and spools with more than one color
   come last, since no single hue can place them.
 - **Remembers how you left it** — status, brand/type/finish filters and the sort
@@ -151,7 +151,7 @@ through — used-up spools stay in the library as a record instead of vanishing.
   and *Least left first* sorts the whole library by it. Ties break on the smaller
   spool, since 20% of a 250 g reel is a lot less filament than 20% of a kilo.
 - **In the printer** — mark a spool as loaded in a printer or AMS from its page.
-  Loaded spools get a coloured ring and sort to the top of every list, with a
+  Loaded spools get a colored ring and sort to the top of every list, with a
   section of their own under the grouped sorts.
 - **Add a batch at once** — bought five of the same spool? Set the quantity and
   each one gets its own record, so you can open and use them up individually.
@@ -209,10 +209,10 @@ itself — so it runs on a normal desktop with no container runtime at all.
 #### 1. Install Node.js
 
 1. Go to **[nodejs.org](https://nodejs.org)**.
-2. Click the big green button labelled **LTS**. It downloads an installer
+2. Click the big green button labeled **LTS**. It downloads an installer
    (`node-v22.x.x-x64.msi` or similar) — around 30 MB.
 3. Open the downloaded file and click **Next** through the installer. Accept the
-   licence when asked. **Leave every option as it comes.**
+   license when asked. **Leave every option as it comes.**
 4. On the screen offering *"Tools for Native Modules"*, leave the box
    **unticked**. This app doesn't need it, and ticking it starts a long extra
    download.
@@ -529,7 +529,7 @@ home-screen icon, because iOS pins one icon and can't switch it by theme.
 
 Transparency is handled per target: favicons and manifest icons keep it, so the
 rounded artwork sits on the browser or launcher background rather than in a
-box. The `apple-touch-icon` sizes are flattened onto a colour sampled from
+box. The `apple-touch-icon` sizes are flattened onto a color sampled from
 inside the artwork — iOS composites alpha against black, so a transparent icon
 shows up blacked-out or not at all.
 
@@ -560,9 +560,9 @@ and nothing crosses the network at all.
 MIT — see [LICENSE](LICENSE). Do what you like with it; no warranty.
 
 That covers the code in this repository. The three libraries in `public/vendor/`
-keep their own licences and are shipped unmodified:
+keep their own licenses and are shipped unmodified:
 
-| File | Licence |
+| File | License |
 |---|---|
 | `jsqr.js` | Apache-2.0 |
 | `vanta.trunk.min.js` | MIT |
@@ -595,7 +595,7 @@ npm install jsqr && cp node_modules/jsqr/dist/jsQR.js public/vendor/jsqr.js
 ## Ambient background
 
 A decorative touch: a faint Vanta.js "trunk" pattern drifts behind the app,
-coloured from the theme's own accent (`--bgfx-color` / `--bgfx-opacity` in
+colored from the theme's own accent (`--bgfx-color` / `--bgfx-opacity` in
 `public/styles.css`) so it reads as part of the design rather than a bolt-on.
 
 It's loaded lazily — after the page finishes loading and goes idle — and skips
@@ -664,5 +664,5 @@ node tools/test-label-parse.mjs
 Those fixtures cover the cases that actually turn up: product codes standing in
 for brand names (`CR-PETG` is Creality), values printed on the line below their
 heading with a Chinese translation in between, `℃` as a single character, and
-colour run together with the weight as `LIGHT BLUE-1KG(N.W)`. If a label of
+color run together with the weight as `LIGHT BLUE-1KG(N.W)`. If a label of
 yours reads wrong, adding it there is the quickest way to pin down why.

@@ -44,7 +44,7 @@ function loadJsQR() {
   jsQRPromise ??= new Promise((resolve, reject) => {
     const script = document.createElement('script');
     script.src = '/vendor/jsqr.js';
-    script.onload = () => (window.jsQR ? resolve(window.jsQR) : reject(new Error('jsQR failed to initialise')));
+    script.onload = () => (window.jsQR ? resolve(window.jsQR) : reject(new Error('jsQR failed to initialize')));
     script.onerror = () => reject(new Error('Could not load the QR decoder'));
     document.head.appendChild(script);
   });
@@ -101,7 +101,7 @@ export class StillCamera {
    * Only what the viewfinder is showing. The preview is square and the camera
    * frame is 16:9, and `object-fit: cover` means the sides are cropped away on
    * screen — so a photo of the whole frame contains things you deliberately
-   * aimed away from. On a box with four colour variants printed side by side
+   * aimed away from. On a box with four color variants printed side by side
    * that is not a subtle difference: you frame one panel, and the text of the
    * neighbouring panel is in the picture and wins.
    *
@@ -119,7 +119,7 @@ export class StillCamera {
     const box = this.video.getBoundingClientRect();
     const shown = box.width > 0 && box.height > 0 ? box.width / box.height : w / h;
 
-    // The same centre crop `cover` performs: trim whichever axis overflows.
+    // The same center crop `cover` performs: trim whichever axis overflows.
     let sw = w;
     let sh = h;
     if (w / h > shown) sw = Math.round(h * shown);
@@ -193,7 +193,7 @@ export class QrScanner {
       if (this.capabilities.focusMode?.includes('continuous')) {
         await this.track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
       }
-    } catch { /* camera kept its own focus behaviour */ }
+    } catch { /* camera kept its own focus behavior */ }
 
     await this.setZoom(this.defaultZoom);
   }

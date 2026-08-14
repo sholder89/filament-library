@@ -6,7 +6,7 @@
  * that's too generous turns a search into "show me everything", and nobody
  * notices a search that returns too much.
  */
-import { expandTerm, normaliseQuery } from '../server/search-terms.js';
+import { expandTerm, normalizeQuery } from '../server/search-terms.js';
 
 // Stands in for what's written on the spools in a library.
 const SHELF = ['sunlu', 'elegoo', 'overture', 'polymaker', 'creality', 'bambu',
@@ -59,7 +59,7 @@ const PHRASES = [
 ];
 
 for (const [input, expected] of PHRASES) {
-  const got = normaliseQuery(input);
+  const got = normalizeQuery(input);
   const ok = got === expected;
   console.log(`${ok ? 'PASS' : 'FAIL'}  phrase "${input}" -> "${got}"`);
   if (!ok) { console.log(`      !! expected "${expected}"`); failures++; }

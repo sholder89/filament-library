@@ -27,13 +27,13 @@ const BRAND_HINTS = [
 const COLOR_LABEL_LINE = /^\s*(?:colou?r|颜色)\s*[:：]?\s*(.*)$/i;
 
 /**
- * Colour words that describe opacity or sheen rather than a hue. They belong in
+ * Color words that describe opacity or sheen rather than a hue. They belong in
  * the stored name — "Transparent Burgundy Red" is what the label says — but must
  * not win when picking the swatch, or a wine-red spool renders pale blue.
  */
 const MODIFIERS = new Set(['clear', 'transparent', 'translucent', 'natural']);
 
-/** Label words that end a colour value when they run onto the same line. */
+/** Label words that end a color value when they run onto the same line. */
 const VALUE_STOP = /\b(?:diameter|直径|n\.?w\.?|weight|重量|print\s*temp|打印温度|extruder|hot\s*end|heated\s*bed|speed|made\s+in|rohs|s\/n)\b/i;
 
 const norm = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
@@ -72,7 +72,7 @@ function findMaterial(text) {
   return match?.name ?? '';
 }
 
-/** The finishes that decide where colour goes; only one can apply. */
+/** The finishes that decide where color goes; only one can apply. */
 const PATTERN_EFFECTS = new Set(['gradient', 'dual', 'marble', 'wood']);
 
 /**
@@ -98,16 +98,16 @@ function findFinish(text, colorName) {
     names.push(f.name);
   }
 
-  // A colour called "Transparent" or "Clear" is stating the finish too, and
+  // A color called "Transparent" or "Clear" is stating the finish too, and
   // see-through spools are the ones worth being able to pick out of a shelf.
   if (!names.length && /\b(transparent|translucent|clear)\b/i.test(colorName)) return 'Translucent';
   return names.join(', ');
 }
 
 /**
- * Colour is the messiest field: it shows up after a "Color" label, inside
+ * Color is the messiest field: it shows up after a "Color" label, inside
  * parentheses, or as a bare line. Candidates are gathered from all three and
- * scored by how much of the phrase is recognisable colour vocabulary.
+ * scored by how much of the phrase is recognisable color vocabulary.
  */
 function findColor(rawText) {
   const text = rawText.replace(/\r/g, '');
@@ -157,7 +157,7 @@ function findColor(rawText) {
     // Trim at a label word and drop trailing size/weight noise like "-1KG(N.W)".
     let value = candidate.value.split(VALUE_STOP)[0];
     value = value.replace(/[-–]\s*\d.*$/, '');
-    // Drop non-Latin script — labels repeat the colour in Chinese right after.
+    // Drop non-Latin script — labels repeat the color in Chinese right after.
     value = value.replace(/[^\x20-\x7E]/g, ' ');
     value = norm(value).replace(/^[^A-Za-z]+|[^A-Za-z)]+$/g, '');
     if (!value || value.length < 3) continue;
@@ -170,7 +170,7 @@ function findColor(rawText) {
     if (value.split(/[\s-]+/).filter(Boolean).length > 5) continue;
 
     // Kept as printed as well as split: the grouping is information. "SkyBlue
-    // RoseRed LightGreen" is three colours precisely because it's three words,
+    // RoseRed LightGreen" is three colors precisely because it's three words,
     // and that's lost the moment the capitals become spaces.
     const printed = value.split(/[\s-]+/).filter(Boolean);
     value = norm(splitCamel(value));
@@ -178,7 +178,7 @@ function findColor(rawText) {
     // and scoring it as one matched nothing and threw the whole line away.
     const words = value.split(/[\s/,&-]+/).filter(Boolean);
 
-    // How many words are actual colour vocabulary?
+    // How many words are actual color vocabulary?
     const known = words.filter((w) => Object.keys(COLOR_NAMES)
       .some((n) => n.toLowerCase() === w.toLowerCase())).length;
     if (!known) continue;
@@ -195,11 +195,11 @@ function titleCase(s) {
 }
 
 /**
- * Splits run-together colour names: SkyBlue, RoseRed, LightGreen, OrangeRed.
+ * Splits run-together color names: SkyBlue, RoseRed, LightGreen, OrangeRed.
  *
  * Sellers write them exactly like that — the vocabulary is all there, just
  * without the spaces, so none of it matched and a photo of the label came back
- * with no colour at all. Applied only to colour phrases, where a capital in the
+ * with no color at all. Applied only to color phrases, where a capital in the
  * middle of a word means a word boundary rather than a product code.
  *
  * Runs of capitals are left alone, so CF, PLA and 3DFuel survive intact.
@@ -209,15 +209,15 @@ function splitCamel(s) {
 }
 
 /**
- * The nearest colour name, for words that are nearly one.
+ * The nearest color name, for words that are nearly one.
  *
  * Labels are printed by the same people who wrote "Turquoiso", and OCR adds its
- * own. Guessing beats dropping the colour on the floor: the cost of being wrong
+ * own. Guessing beats dropping the color on the floor: the cost of being wrong
  * is a shade that's slightly off on a graphic, and it's a guess about a word
- * that plainly meant to be a colour.
+ * that plainly meant to be a color.
  *
  * Deliberately tight. Short words are left alone — three letters from "gold"
- * is half the word — and a tie between two colours is no answer at all.
+ * is half the word — and a tie between two colors is no answer at all.
  */
 function nearestColorName(word) {
   const w = String(word).toLowerCase().trim();
@@ -240,7 +240,7 @@ function nearestColorName(word) {
   return tied ? '' : best;
 }
 
-/** Resolves a colour phrase to a hex, reusing the same vocabulary the UI does. */
+/** Resolves a color phrase to a hex, reusing the same vocabulary the UI does. */
 function hexForColor(name) {
   if (!name) return '';
   const target = name.toLowerCase().replace(/[\s_-]+/g, ' ').trim();
@@ -269,15 +269,15 @@ function hexForColor(name) {
 }
 
 /**
- * Every colour named in the phrase, in the order they're written.
+ * Every color named in the phrase, in the order they're written.
  *
- * A tri-colour spool says so on the box — "Purple Orange Teal" — and resolving
+ * A tri-color spool says so on the box — "Purple Orange Teal" — and resolving
  * that to the single closest hex throws away two thirds of what it told you.
  * Those are exactly the spools where the extra tones matter, since the graphic
  * blends them.
  *
- * Returns nothing for a single colour, however many words its name runs to:
- * "Snow Mountain Blue" is one colour, and the exact-name check below is what
+ * Returns nothing for a single color, however many words its name runs to:
+ * "Snow Mountain Blue" is one color, and the exact-name check below is what
  * keeps it from being read as snow plus blue.
  */
 function tonesForColor(name, text = '', tokens = []) {
@@ -290,18 +290,18 @@ function tonesForColor(name, text = '', tokens = []) {
   }
 
   /*
-   * Where the label has already divided the colours up, believe it.
+   * Where the label has already divided the colors up, believe it.
    *
    * Two ways it does that: a real separator — "Sky Blue/Rose Red/Light Green"
-   * off the spool tag — or running each colour into one word, "SkyBlue RoseRed
-   * LightGreen", where the capital is the separator and no single colour is
+   * off the spool tag — or running each color into one word, "SkyBlue RoseRed
+   * LightGreen", where the capital is the separator and no single color is
    * named that way.
    *
    * Either way each piece is resolved on its own, which is what copes with
    * halves that aren't in the vocabulary at all. "Rose" and "Emerald" are not
-   * colours this app knows, and the whole-phrase matching below discards any
+   * colors this app knows, and the whole-phrase matching below discards any
    * phrase holding a word it can't place — so Rose Red and EmeraldGreen took
-   * their spools' other two colours down with them.
+   * their spools' other two colors down with them.
    */
   const split = String(name).split(/\s*[/|+&]\s*|\s*,\s*|\s+and\s+/i).map((s) => s.trim()).filter(Boolean);
   const units = split.length > 1
@@ -312,7 +312,7 @@ function tonesForColor(name, text = '', tokens = []) {
     const resolve = (u) => {
       const spaced = splitCamel(u);
       // Only once the word itself fails: a misspelling shouldn't cost the
-      // spool its other two colours.
+      // spool its other two colors.
       return hexForColor(spaced) || COLOR_NAMES[nearestColorName(spaced)] || '';
     };
     const perUnit = [...new Set(units.map(resolve).filter(Boolean))];
@@ -322,7 +322,7 @@ function tonesForColor(name, text = '', tokens = []) {
   const hits = [];
   for (const [known, hex] of Object.entries(COLOR_NAMES)) {
     const k = known.toLowerCase();
-    // Modifiers ("clear", "light") qualify a colour rather than being one.
+    // Modifiers ("clear", "light") qualify a color rather than being one.
     if (MODIFIERS.has(k)) continue;
     const m = new RegExp(`(^| )${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}( |$)`).exec(target);
     if (m) hits.push({ at: m.index, end: m.index + k.length, hex });
@@ -338,9 +338,9 @@ function tonesForColor(name, text = '', tokens = []) {
   }
 
   /*
-   * Every word has to be part of a colour, or this isn't a list of them.
+   * Every word has to be part of a color, or this isn't a list of them.
    *
-   * "Snow Mountain Blue" contains two known colours and is plainly one colour
+   * "Snow Mountain Blue" contains two known colors and is plainly one color
    * with a poetic name — "Mountain" is the tell. "Purple Orange Teal" has no
    * word left over. Without this check the evocative names filament companies
    * love get shredded into their ingredients.
@@ -360,13 +360,13 @@ function tonesForColor(name, text = '', tokens = []) {
   if (distinct.length < 2) return [];
 
   /*
-   * Two colour words next to each other usually qualify one another —
+   * Two color words next to each other usually qualify one another —
    * "Burgundy Red", "Light Blue" — rather than listing two. So a pair needs
    * evidence: the name separating them itself, or the label saying somewhere
    * that the spool is multi-tone. Without that, "Transparent Burgundy Red"
    * came out as burgundy *and* red, on a spool that is neither.
    *
-   * Three in a row is its own evidence. Nobody qualifies a colour twice, and
+   * Three in a row is its own evidence. Nobody qualifies a color twice, and
    * requiring the keyword failed as soon as the camera started cropping to the
    * viewfinder — "Purple Orange Teal" is on the swatch, "Tricolor" is in a
    * heading two inches away and no longer in the photograph.
@@ -441,11 +441,11 @@ export function parseLabel(text) {
   const finish = findFinish(flat, colorName);
 
   /*
-   * A colour that names several colours is a multi-tone spool, and the graphic
+   * A color that names several colors is a multi-tone spool, and the graphic
    * only blends them when a pattern finish says to. Boxes usually say "gradient"
-   * or "tri-colour" somewhere and findFinish catches it — this is for the ones
-   * that only say it in the colour, and it's added rather than replacing, so a
-   * silk tri-colour keeps its silk.
+   * or "tri-color" somewhere and findFinish catches it — this is for the ones
+   * that only say it in the color, and it's added rather than replacing, so a
+   * silk tri-color keeps its silk.
    */
   const hasPattern = /gradient|dual|marble|wood|rainbow/i.test(`${finish} ${flat}`);
   const withPattern = tones.length > 1 && !hasPattern

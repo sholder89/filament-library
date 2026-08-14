@@ -104,7 +104,7 @@ RoHS`,
   },
 
   {
-    name: 'Tri-colour silk (two finishes, three tones from the colour name)',
+    name: 'Tri-color silk (two finishes, three tones from the color name)',
     text: [
       'COLOURBING',
       'PLA Silk Tricolor Gradient Filament',
@@ -125,7 +125,7 @@ RoHS`,
   },
 
   {
-    name: 'Colourbing spool tag (colours divided by slashes)',
+    name: 'Colourbing spool tag (colors divided by slashes)',
     text: [
       'Tricolor filament Silk PLA+ 1.75mm',
       'Color:Sky Blue/Rose Red/Light Green',
@@ -149,9 +149,9 @@ RoHS`,
   },
 
   {
-    // Printed "Turquoiso". Guessing beats dropping the colour: the cost of
-    // being wrong is a slightly-off shade, and it plainly meant to be a colour.
-    name: 'Colourbing spool tag with a misspelled colour',
+    // Printed "Turquoiso". Guessing beats dropping the color: the cost of
+    // being wrong is a slightly-off shade, and it plainly meant to be a color.
+    name: 'Colourbing spool tag with a misspelled color',
     text: [
       'Tricolor filament Silk PLA+ 1.75mm',
       'Color:Turquoiso/Coral/Gold',
@@ -172,9 +172,9 @@ RoHS`,
 
   {
     // The camera crops to the viewfinder, so "Tricolor" up in the heading is
-    // often not in the photograph — the three colours have to speak for
+    // often not in the photograph — the three colors have to speak for
     // themselves, including the halves the vocabulary doesn't know ("Rose").
-    name: 'Run-together colour names on a tightly framed swatch',
+    name: 'Run-together color names on a tightly framed swatch',
     text: 'SkyBlue RoseRed LightGreen',
     expect: {
       color_name: 'Sky Blue Rose Red Light Green',
@@ -185,10 +185,10 @@ RoHS`,
   },
 
   {
-    name: 'A colour with a poetic name is one colour, not its ingredients',
+    name: 'A color with a poetic name is one color, not its ingredients',
     text: 'Elegoo PLA\nColor: Snow Mountain Blue\n1.75mm 1KG',
     expect: { brand: 'Elegoo', color_name: 'Snow Mountain Blue' },
-    // "Snow" and "Blue" are both known colours; "Mountain" is what says this is
+    // "Snow" and "Blue" are both known colors; "Mountain" is what says this is
     // a name rather than a list, and nothing extra should be invented from it.
     absent: ['color_hex2', 'color_hex3', 'finish'],
   },

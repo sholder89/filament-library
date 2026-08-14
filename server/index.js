@@ -118,7 +118,7 @@ const date = (iso) => (iso ? String(iso).slice(0, 10) : '');
 
 /**
  * RFC 4180. A field holding a comma, a quote or a line break is wrapped in
- * quotes and its own quotes doubled — which matters here because colour names
+ * quotes and its own quotes doubled — which matters here because color names
  * and notes are free text, and a stray comma would otherwise shift every column
  * after it on that row.
  */
@@ -127,7 +127,7 @@ function csvCell(value) {
 
   /*
    * Excel and Sheets treat a cell starting = + @ - (or a tab) as a formula and
-   * run it on open, so a colour name or note typed into this app becomes code
+   * run it on open, so a color name or note typed into this app becomes code
    * on the machine of whoever opens the export. Prefixing with an apostrophe is
    * the standard defusing: spreadsheets read it as "this is text" and don't
    * display it, and anything else reading the CSV sees one stray character

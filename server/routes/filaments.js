@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { db, newId, nowISO } from '../db.js';
 import { importTares } from './tares.js';
-import { expandTerm, vocabularyFrom, normaliseQuery } from '../search-terms.js';
+import { expandTerm, vocabularyFrom, normalizeQuery } from '../search-terms.js';
 
 export const router = Router();
 
@@ -78,7 +78,7 @@ function readBody(body, { partial = false } = {}) {
   if (want('color_hex'))  out.color_hex  = hex(body.color_hex);
   if (want('finish'))     out.finish     = str(body.finish);
   // Extra tones are optional — blank rather than defaulted, so the spool
-  // graphic can tell "no second color" from "a second color that is grey".
+  // graphic can tell "no second color" from "a second color that is gray".
   if (want('color_hex2')) out.color_hex2 = hex(body.color_hex2, '');
   if (want('color_hex3')) out.color_hex3 = hex(body.color_hex3, '');
   if (want('location'))   out.location   = str(body.location);
@@ -189,8 +189,8 @@ router.get('/', (req, res) => {
   if (q) {
     /*
      * Every word has to appear somewhere on the spool, but not all in the same
-     * field. "purple translucent" is a colour and a finish, "Sunlu yellow" a
-     * brand and a colour — matching each word against one column at a time
+     * field. "purple translucent" is a color and a finish, "Sunlu yellow" a
+     * brand and a color — matching each word against one column at a time
      * found neither, even though both words were plainly there.
      *
      * So the fields are joined into one string per row and each word tested
@@ -226,14 +226,14 @@ router.get('/', (req, res) => {
     )`;
 
     // Capped so a pasted paragraph can't turn into hundreds of scans.
-    const words = normaliseQuery(q).split(/\s+/).filter(Boolean).slice(0, 8);
+    const words = normalizeQuery(q).split(/\s+/).filter(Boolean).slice(0, 8);
 
     // % and _ are LIKE's own wildcards: searching for either matched every row,
     // and "100% Cotton" or "shelf_a" could not be found at all.
     const like = (w) => `%${w.replace(/[\\%_]/g, '\\$&')}%`;
 
     /*
-     * Each word is widened before it's matched: "gray" also looks for "grey",
+     * Each word is widened before it's matched: "gray" also looks for "gray",
      * "flexible" also looks for TPU, and a misspelling also looks for whatever
      * it was nearly. Any of a word's forms will do, but every word must still
      * find something — so adding words keeps narrowing the result.
@@ -249,7 +249,7 @@ router.get('/', (req, res) => {
     const clauses = [];
     for (const word of words) {
       // A leading minus excludes instead of requiring — "petg -black". Widened
-      // the same way, so excluding "gray" also excludes the ones spelled grey.
+      // the same way, so excluding "gray" also excludes the ones spelled gray.
       const negated = word.length > 1 && word.startsWith('-');
       const forms = expandTerm(negated ? word.slice(1) : word, vocabulary);
       const any = `(${forms.map(() => `${HAYSTACK} LIKE ? ESCAPE '\\'`).join(' OR ')})`;

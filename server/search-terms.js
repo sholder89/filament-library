@@ -21,7 +21,7 @@ const GROUPS = [
   ['aluminium', 'aluminum'],
   ['fiber', 'fibre'],
 
-  // Material, as asked for rather than as labelled
+  // Material, as asked for rather than as labeled
   ['flexible', 'flex', 'tpu', 'tpe', 'rubber', 'rubbery', 'soft', 'squishy'],
   ['carbon', 'cf'],
   ['glass', 'gf'],
@@ -42,7 +42,7 @@ const GROUPS = [
   ['multicolor', 'multicolour', 'rainbow', 'tricolor', 'tricolour', 'gradient'],
   ['dual', 'twotone', 'bicolor', 'bicolour'],
 
-  // Colours that are each other in everything but name
+  // Colors that are each other in everything but name
   ['purple', 'violet'],
   ['cyan', 'aqua', 'turquoise', 'teal'],
   ['magenta', 'fuchsia'],
@@ -82,7 +82,7 @@ const PHRASES = [
   [/\bin (?:the |a )?printer\b/gi, 'loaded'],
 ];
 
-export function normaliseQuery(q) {
+export function normalizeQuery(q) {
   let out = String(q ?? '');
   for (const [pattern, word] of PHRASES) out = out.replace(pattern, word);
   return out;

@@ -10,7 +10,7 @@ const state = {
   print: { mode: 'off' },
   labelScan: false,
   editingId: null,
-  // Set while the eyedropper is showing what's closest to a colour. Not part
+  // Set while the eyedropper is showing what's closest to a color. Not part
   // of `filters`: it isn't remembered between visits, since it answers a
   // question you had once rather than describing how you like the shelf.
   matchColor: null,
@@ -938,7 +938,7 @@ async function loadFilaments() {
   state.filaments = await api(`/api/filaments?${p}`);
 
   /*
-   * Ordered here rather than in SQL. Placing a colour in the spectrum means
+   * Ordered here rather than in SQL. Placing a color in the spectrum means
    * converting a hex to a hue, which SQLite would need a page of substring
    * arithmetic to do — and the same function is wanted for the section
    * headings anyway. The server still sorts, so the order within a band is
@@ -1004,13 +1004,13 @@ let gridColumns = 0;
 
 function renderGrid() {
   /*
-   * Matching a colour takes over the ordering entirely: whatever you sorted by
+   * Matching a color takes over the ordering entirely: whatever you sorted by
    * before, the question on screen is now "which of these is closest", and the
    * answer has to be the first card. Grouping goes too — the ranking is the
    * only order that means anything here, and headings would break it up.
    *
    * Duplicates are spread out rather than stacked, since two spools that are
-   * identical apart from colour are exactly what this is being asked to tell
+   * identical apart from color are exactly what this is being asked to tell
    * apart.
    */
   if (state.matchColor) {
@@ -1027,7 +1027,7 @@ function renderGrid() {
     // The verdict goes in the bar rather than on the cards. As a card it would
     // be a grid item, and one taller item pushes its whole row down — a gap in
     // the shelf to say a thing the ordering already says.
-    // The colour belongs in the name here — "Sunlu PLA is close" doesn't say
+    // The color belongs in the name here — "Sunlu PLA is close" doesn't say
     // which Sunlu PLA, and telling them apart is the whole errand.
     const best = ranked[0];
     $('#matchBest').textContent = best
@@ -1137,9 +1137,9 @@ const HUE_BANDS = [
 
 /** In band order, which is the order the sections come out in. */
 const BAND_ORDER = [...HUE_BANDS.map(([, name]) => name),
-  'Black, white and grey', 'More than one colour'];
+  'Black, white and gray', 'More than one color'];
 
-/** A spool whose colour isn't one colour, so no single hue can place it. */
+/** A spool whose color isn't one color, so no single hue can place it. */
 const isMultiTone = (f) =>
   Boolean(f.color_hex2) || Boolean(f.color_hex3) || isRainbow(f.color_name);
 
@@ -1151,17 +1151,17 @@ const isMultiTone = (f) =>
  * hue — pink is a pale red, and nothing but lightness tells them apart, so a
  * light enough red is moved to the pinks. Purple and magenta are also the same
  * hue, so the purple band has to reach far enough round to collect both rather
- * than splitting a colour from itself.
+ * than splitting a color from itself.
  */
 function rainbowPlace(f) {
-  if (isMultiTone(f)) return { band: 'More than one colour', within: 0 };
+  if (isMultiTone(f)) return { band: 'More than one color', within: 0 };
 
   const { h, s, l } = hsl(f.color_hex || '#808080');
 
-  // Nothing colourful enough for its hue to be worth trusting, or so near black
+  // Nothing colorful enough for its hue to be worth trusting, or so near black
   // or white that whatever hue it has can't be seen. Ordered light to dark.
   if (s < 0.15 || l < 0.08 || l > 0.94) {
-    return { band: 'Black, white and grey', within: (1 - l) * 1000 };
+    return { band: 'Black, white and gray', within: (1 - l) * 1000 };
   }
 
   const turned = (h + 15) % 360;
@@ -1174,10 +1174,10 @@ function rainbowPlace(f) {
 /**
  * The spectrum position as one number.
  *
- * The bands aren't shown — this sort is a flat run of colour, which is the
+ * The bands aren't shown — this sort is a flat run of color, which is the
  * point of it — but they still decide the order, and they carry the two spools
  * that don't belong in a spectrum to the end: the neutrals, then the ones with
- * more than one colour.
+ * more than one color.
  */
 function rainbowRank(f) {
   const { band, within } = rainbowPlace(f);
@@ -1188,7 +1188,7 @@ const SECTIONS = {
   brand:    { label: (f) => f.brand?.trim() || 'Not set' },
   material: { label: (f) => baseMaterial(f.material) },
   color:    { label: (f) => f.color_name?.trim() || 'Not set', swatch: true },
-  // No entry for `rainbow` on purpose: it's an unbroken run of colour, and
+  // No entry for `rainbow` on purpose: it's an unbroken run of color, and
   // headings would chop the very thing you sorted for into pieces.
 };
 
@@ -1294,7 +1294,7 @@ function slotsFor(section) {
 }
 
 function runHTML(section, spec, slots, { span, collapsed, continued, id }) {
-  // No swatch on the pinned section — it holds whatever colours happen to be
+  // No swatch on the pinned section — it holds whatever colors happen to be
   // in the printer, so any one of them would misrepresent it.
   const swatch = spec.swatch && !section.pinned
     ? `<span class="section-swatch" style="background:${
@@ -1381,13 +1381,13 @@ function groupFilaments(filaments) {
  * know or care which density is active.
  */
 /**
- * The filament's colour as CSS, for the parts of the card that aren't the spool
+ * The filament's color as CSS, for the parts of the card that aren't the spool
  * graphic. Multi-tone stock gets the same treatment there as it does on the
- * winding, so a dual-colour spool doesn't flatten to whichever tone happens to
+ * winding, so a dual-color spool doesn't flatten to whichever tone happens to
  * be stored first.
  */
 /**
- * Colours the fill bar once a spool is getting low, so "what am I about to run
+ * Colors the fill bar once a spool is getting low, so "what am I about to run
  * out of" reads off the grid without sorting for it. Thresholds are deliberately
  * generous — the point is to notice before you're mid-print, not after.
  */
@@ -1404,7 +1404,7 @@ export function colorCSS(f) {
  * one. The count sits beside the type rather than on the wrapper around the
  * card: in a list row that keeps it attached to the thing it's counting, and
  * because it rides inside a column that's sized as a fraction of the row, a row
- * having one doesn't push the colour, fill bar or status badge out of line with
+ * having one doesn't push the color, fill bar or status badge out of line with
  * the rows that don't.
  */
 function cardHTML(f, stack = 0) {
@@ -1420,7 +1420,7 @@ function cardHTML(f, stack = 0) {
       ${f.loaded
         ? 'role="img" aria-label="Loaded in a printer"'
         // Nothing to announce when it's only an affordance — the same action is
-        // a labelled button on the spool's own page, which is the route a
+        // a labeled button on the spool's own page, which is the route a
         // keyboard or a screen reader takes anyway.
         : 'aria-hidden="true"'}>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V4h10v4M7 17H6a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-1M7 14h10v6H7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
@@ -1607,7 +1607,7 @@ function openCardMenu(anchor, id, kind) {
 
   /*
    * Anchored in viewport coordinates and pinned to the document, rather than
-   * positioned inside the card: a card is `overflow: hidden` so the colour bar
+   * positioned inside the card: a card is `overflow: hidden` so the color bar
    * can be clipped to its corners, and a menu inside one would be clipped too.
    */
   const box = anchor.getBoundingClientRect();
@@ -2118,7 +2118,7 @@ el.detail.addEventListener('click', async (e) => {
         method: 'POST', body: {},
       });
       await refresh();
-      // Jump to the new spool so it can be labelled straight away.
+      // Jump to the new spool so it can be labeled straight away.
       await showDetail(copy.id, true);
       toast('Added another sealed spool');
     } catch (err) {
@@ -2367,7 +2367,7 @@ function openEditor(filament = null) {
   syncExtraColors();
   setField('color_name', f.color_name);
   setField('color_hex', f.color_hex || '#808080');
-  // An existing spool's colour was already chosen deliberately, so editing its
+  // An existing spool's color was already chosen deliberately, so editing its
   // name shouldn't repaint it. A new one starts free to follow what's typed.
   colorPinned = Boolean(f.color_hex);
   // Whatever a saved spool is called, somebody meant it — a swatch mustn't
@@ -2427,7 +2427,7 @@ function syncPreview() {
 function syncColorText() {
   const hex = form.elements.color_hex.value.toUpperCase();
   $('#f_color_hex_text').value = hex;
-  // The swatch button shows the colour, which a hidden input can't.
+  // The swatch button shows the color, which a hidden input can't.
   $('#f_color_swatch').style.background = hex;
   for (const sw of document.querySelectorAll('.swatch')) {
     sw.setAttribute('aria-pressed', String(sw.dataset.hex.toUpperCase() === hex));
@@ -2492,12 +2492,12 @@ function renderSwatches() {
 }
 
 /**
- * Whether the colour was chosen outright — a swatch, a hex, or a scan — rather
+ * Whether the color was chosen outright — a swatch, a hex, or a scan — rather
  * than inferred from the name that was typed.
  *
  * Once it has been, typing over the name leaves it alone: naming a spool
  * "Midnight Blue Sparkle" after picking the exact purple off the label should
- * not drag it back to blue. Until then the name still drives the colour, which
+ * not drag it back to blue. Until then the name still drives the color, which
  * is what makes typing "Red" fill the swatch in for you.
  */
 let colorPinned = false;
@@ -2563,8 +2563,8 @@ function hexForColorName(input) {
 }
 
 /**
- * Typing a recognised color name repaints the swatch as you go — but only while
- * nothing has claimed the colour outright.
+ * Typing a recognized color name repaints the swatch as you go — but only while
+ * nothing has claimed the color outright.
  *
  * Clearing the field deliberately does not hand control back. Renaming means
  * selecting the old text and typing over it, which takes the field through
@@ -2598,7 +2598,7 @@ $('#f_color_swatch').addEventListener('click', () => {
   openColourPicker({
     anchor: $('#f_color_swatch'),
     value: form.elements.color_hex.value,
-    confirm: 'Use this colour',
+    confirm: 'Use this color',
     onPick: (hex) => {
       form.elements.color_hex.value = hex;
       // Chosen deliberately, so renaming the spool shouldn't repaint it.
@@ -2631,7 +2631,7 @@ function syncFinishHint() {
 /** Finishes that actually do something with more than one tone. */
 const MULTI_TONE = new Set(['gradient', 'dual']);
 
-/** The ones that decide where colour goes, as opposed to what sits on top. */
+/** The ones that decide where color goes, as opposed to what sits on top. */
 const PATTERN_FINISHES = new Set(['gradient', 'dual', 'marble', 'wood']);
 
 function currentEffect() {
@@ -2645,7 +2645,7 @@ function syncExtraColors() {
 
   /*
    * Emptied on the way out, not just hidden. Leaving the swatches in place
-   * meant the next spool's form opened carrying the last one's extra colours —
+   * meant the next spool's form opened carrying the last one's extra colors —
    * invisible while the field was hidden, and then plainly wrong the moment
    * anything unhid it without re-rendering first.
    */
@@ -2701,7 +2701,7 @@ $('#extraColors').addEventListener('click', (e) => {
     openColourPicker({
       anchor: slot,
       value: field.value,
-      confirm: 'Use this colour',
+      confirm: 'Use this color',
       onPick: (hex) => {
         field.value = hex;
         syncExtraColors();
@@ -3089,7 +3089,7 @@ function applyScannedFields(scanned, fresh = {}) {
    * A value this photo read for itself replaces what's on the form, where a
    * value merely still inferred from an earlier photo does not.
    *
-   * Pointing the camera at a different colour on a four-variant box is a
+   * Pointing the camera at a different color on a four-variant box is a
    * correction, and the old reading is still sitting in the accumulated text
    * where it goes on winning. Deciding by what *this* picture saw is the only
    * thing that tells those two cases apart.
@@ -3105,11 +3105,11 @@ function applyScannedFields(scanned, fresh = {}) {
   for (const name of replaces) fields[name] = fresh[name];
 
   /*
-   * The tones belong to whichever colour won, so they travel with it — and are
-   * cleared rather than left over when the new colour has fewer of them.
+   * The tones belong to whichever color won, so they travel with it — and are
+   * cleared rather than left over when the new color has fewer of them.
    *
-   * Only when the colour actually changed. Where both parses named the same
-   * colour, the combined one is the better source: it has seen more of the box,
+   * Only when the color actually changed. Where both parses named the same
+   * color, the combined one is the better source: it has seen more of the box,
    * and a word that justifies splitting into tones may have been in an earlier
    * photo rather than this one.
    */
@@ -3137,10 +3137,10 @@ function applyScannedFields(scanned, fresh = {}) {
       // Read off the label, so typing a nicer name for it shouldn't repaint it.
       colorPinned = true;
     }
-    // "Purple Orange Teal" is three colours, and the label said so — filling
+    // "Purple Orange Teal" is three colors, and the label said so — filling
     // only the first would lose what makes the spool worth a photo. Written
     // even when blank on a replacement, so a two-tone spool doesn't inherit a
-    // third tone from the colour it just displaced.
+    // third tone from the color it just displaced.
     if (fields.color_hex2 || replaces.has('color_name')) setField('color_hex2', fields.color_hex2 ?? '');
     if (fields.color_hex3 || replaces.has('color_name')) setField('color_hex3', fields.color_hex3 ?? '');
     // The swatches are drawn from those, and the finish — which is what usually
@@ -3231,14 +3231,14 @@ el.labelScanner.addEventListener('click', (e) => {
 el.labelScanner.addEventListener('close', stopLabelCamera);
 el.labelScanner.addEventListener('cancel', (e) => { e.preventDefault(); closeSheet(el.labelScanner); });
 
-// ── Closest colour ───────────────────────────────────────────────────────────
+// ── Closest color ───────────────────────────────────────────────────────────
 
 /**
- * "I need something this colour — what have I got?"
+ * "I need something this color — what have I got?"
  *
- * Matching is against every tone a spool carries, taking its best: a tri-colour
+ * Matching is against every tone a spool carries, taking its best: a tri-color
  * with a red in it is a genuine answer to red, and judging it by whichever
- * colour happens to be stored first would hide it.
+ * color happens to be stored first would hide it.
  */
 function nearestTone(f, target) {
   const tones = [f.color_hex, f.color_hex2, f.color_hex3]
@@ -3249,15 +3249,15 @@ function nearestTone(f, target) {
 
 /**
  * Roughly how close, in words. The numbers are the usual reading of a Lab
- * distance: about 2 is the point where two colours stop being tellable apart,
- * and about 10 is where you'd stop calling them the same colour.
+ * distance: about 2 is the point where two colors stop being tellable apart,
+ * and about 10 is where you'd stop calling them the same color.
  */
 function closeness(distance) {
   if (distance < 2.5) return 'all but identical';
   if (distance < 6) return 'very close';
   if (distance < 12) return 'close';
   if (distance < 25) return 'in the right family';
-  return 'the nearest you have, but not really that colour';
+  return 'the nearest you have, but not really that color';
 }
 
 function applyMatch(hex) {
@@ -3276,7 +3276,7 @@ function clearMatch() {
 
 $('#matchClear').addEventListener('click', clearMatch);
 
-// ── Colour picker ────────────────────────────────────────────────────────────
+// ── Color picker ────────────────────────────────────────────────────────────
 
 /*
  * Hand-built, and worth the hundred lines.
@@ -3342,7 +3342,7 @@ function setPickerColor(hex) {
  *
  * Pointer events rather than mouse or touch ones: it's the same code for a
  * finger and a mouse, and capture means a drag that wanders off the edge of the
- * square keeps working, which is exactly what happens when you chase a colour
+ * square keeps working, which is exactly what happens when you chase a color
  * into a corner.
  */
 function draggable(el, onMove) {
@@ -3404,7 +3404,7 @@ $('#cpSwatches').addEventListener('click', (e) => {
 
 /*
  * Screen sampling stays, as one option inside the picker rather than instead
- * of it. It's the better tool when the colour you want is already on screen and
+ * of it. It's the better tool when the color you want is already on screen and
  * no use at all when it isn't, which is why it can't be the only way in.
  */
 /*
@@ -3419,7 +3419,7 @@ $('#cpSwatches').addEventListener('click', (e) => {
  * sounds.
  *
  * So the button simply isn't offered elsewhere, and the picker above is what
- * everyone gets. Lifting a colour out of a photo would serve the same need
+ * everyone gets. Lifting a color out of a photo would serve the same need
  * without any of this, and works everywhere — a job for another day.
  */
 $('#cpScreen').addEventListener('click', async () => {
@@ -3454,10 +3454,10 @@ let pickerAnchor = null;
 let pickerPick = null;
 
 /**
- * The picker, for anything that needs a colour.
+ * The picker, for anything that needs a color.
  *
  * Opened against whatever was clicked and handing the result back through a
- * callback, so the eyedropper, the spool's own colour and each gradient tone
+ * callback, so the eyedropper, the spool's own color and each gradient tone
  * all get the same control. They used to differ: two of them opened the
  * operating system's picker, which looks like another application and, on iOS,
  * can't be opened at all.
@@ -3469,7 +3469,7 @@ function openColourPicker({ anchor, value, confirm, onPick }) {
   $('#cpUse').textContent = confirm;
   $('#cpScreen').hidden = !window.EyeDropper;
 
-  // The colours already in the library, as a shortcut past the square.
+  // The colors already in the library, as a shortcut past the square.
   $('#cpSwatches').innerHTML = (state.catalog.colors ?? []).slice(0, 18)
     .map((c) => `<button type="button" data-hex="${esc(c.hex)}" title="${esc(c.name)}"
                    style="background:${esc(c.hex)}" aria-label="${esc(c.name)}"></button>`).join('');
@@ -3529,7 +3529,7 @@ addEventListener('keydown', (e) => { if (e.key === 'Escape' && !el.picker2.hidde
 /**
  * How far the phone's tilt displaces the highlight, from -1 to 1.
  *
- * The travelling part is a CSS animation on the spools themselves, which costs
+ * The traveling part is a CSS animation on the spools themselves, which costs
  * nothing to run and needs no help from here. This only adds the tilt on top,
  * through a single custom property on the root element that every spool reads
  * — so a hundred cards cost one style write per frame rather than a hundred,

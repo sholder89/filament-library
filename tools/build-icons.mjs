@@ -44,7 +44,7 @@ function resize(src, size) {
         for (let sx = x0; sx < x1 && sx < src.width; sx++) {
           const i = (src.width * sy + sx) << 2;
           const alpha = src.data[i + 3] / 255;
-          // Premultiply so transparent edges don't drag colour toward black.
+          // Premultiply so transparent edges don't drag color toward black.
           r += src.data[i] * alpha;
           g += src.data[i + 1] * alpha;
           b += src.data[i + 2] * alpha;
@@ -114,10 +114,10 @@ function padForMaskable(img, size, background) {
  * Sampled at the midpoint of each edge rather than at the corners: this icon
  * style has rounded corners with transparent pixels outside them, so corner
  * samples read as fully transparent black and every flattened icon came out
- * with black corners instead of the artwork's own colour.
+ * with black corners instead of the artwork's own color.
  */
 /**
- * A colour taken from inside the artwork, for the icons that must be opaque.
+ * A color taken from inside the artwork, for the icons that must be opaque.
  *
  * Works inward from the edge until it finds solid pixels: this artwork is a
  * rounded shape on full transparency, so anything sampled near the border is

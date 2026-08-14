@@ -5,7 +5,7 @@ import { db, nowISO } from './db.js';
  *
  * Deliberately not part of the export: /api/export is a file you hand around —
  * to another machine, to a backup drive, to me when something breaks — and a
- * billing credential has no business travelling with it. Losing the key on a
+ * billing credential has no business traveling with it. Losing the key on a
  * restore means retyping one thing; leaking it means someone else's bill.
  */
 
@@ -21,7 +21,7 @@ export const setSetting = (key, value) => write.run(key, value, nowISO());
 export const clearSetting = (key) => remove.run(key).changes > 0;
 
 /**
- * Enough to recognise which key is in there without being enough to use it.
+ * Enough to recognize which key is in there without being enough to use it.
  * Google's keys all start "AIza", so the leading characters identify nothing —
  * the last four do.
  */

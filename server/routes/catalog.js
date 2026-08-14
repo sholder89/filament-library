@@ -50,7 +50,7 @@ router.get('/', (_req, res) => {
     ],
     spool_weights: SPOOL_WEIGHTS,
     // Typical empty-spool weights, plus the ones actually measured here — your
-    // own numbers are the reliable ones, so they're offered first and labelled.
+    // own numbers are the reliable ones, so they're offered first and labeled.
     spool_tares: SPOOL_TARES,
     // Weights you've saved yourself. Same shape as the reference list so both
     // go through one matcher, differing only in which pool is consulted first.

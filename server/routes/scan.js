@@ -111,7 +111,7 @@ router.post('/', async (req, res, next) => {
      * a shot of the brand and a shot of the spec panel add up to a filled form.
      * `fresh` is this photo alone — which is how the client can tell a value it
      * is still inferring from an earlier picture from one you have just pointed
-     * the camera at. Re-aiming at a different colour on a multi-variant box
+     * the camera at. Re-aiming at a different color on a multi-variant box
      * would otherwise never take, since the first reading is still in context
      * and still wins. `text` is the raw read, for saying what happened when
      * nothing matched.

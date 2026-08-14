@@ -35,11 +35,11 @@ export function luminance(hex) {
 }
 
 /**
- * CIE Lab, for asking how far apart two colours look.
+ * CIE Lab, for asking how far apart two colors look.
  *
  * Distance in plain RGB is nearly useless for that — the channels are a
  * storage format, not a description of vision, and it will happily rank two
- * greens further apart than a green and a grey. Lab is built so that equal
+ * greens further apart than a green and a gray. Lab is built so that equal
  * steps in it are roughly equal steps to the eye, which is exactly the question
  * being asked of it here.
  */
@@ -64,7 +64,7 @@ export function lab(hex) {
   return { L: (116 * fy) - 16, a: 500 * (fx - fy), b: 200 * (fy - fz) };
 }
 
-/** How different two colours look. Under about 2.3, most people can't tell. */
+/** How different two colors look. Under about 2.3, most people can't tell. */
 export function colorDistance(hexA, hexB) {
   const p = lab(hexA);
   const q = lab(hexB);
@@ -72,10 +72,10 @@ export function colorDistance(hexA, hexB) {
 }
 
 /**
- * Hue in degrees, plus how colourful and how light it is.
+ * Hue in degrees, plus how colorful and how light it is.
  *
- * Hue is what a rainbow is ordered by; the other two are what says a colour
- * doesn't belong in one. Black, white and grey have a hue — whichever rounding
+ * Hue is what a rainbow is ordered by; the other two are what says a color
+ * doesn't belong in one. Black, white and gray have a hue — whichever rounding
  * error they landed on — and sorting them into the reds because of it would be
  * worse than admitting they aren't part of the spectrum.
  */
@@ -104,10 +104,10 @@ export function hsl(hex) {
  * Each effect may return any of:
  *
  *   defs         markup for <defs>
- *   under        inside the winding mask, beneath the colour fill
+ *   under        inside the winding mask, beneath the color fill
  *   body         inside the winding mask, above the winding lines
  *   outer        outside the mask entirely — for glows that spill past the rim
- *   fillOpacity  opacity of the colour fill itself, so a finish can be see-through
+ *   fillOpacity  opacity of the color fill itself, so a finish can be see-through
  *
  * Everything except `outer` is clipped to the winding, so effects never bleed
  * onto the flange or the hub.
@@ -204,7 +204,7 @@ const EFFECTS = {
 
   /**
    * Translucency is the hard one to signal, because "slightly see-through" reads
-   * as "slightly wrong colour" at card size. So it's shown the way image editors
+   * as "slightly wrong color" at card size. So it's shown the way image editors
    * show transparency: a checker grid behind the filament, visible through it,
    * plus a glass highlight over the top. Unmistakable at a glance.
    */
@@ -258,7 +258,7 @@ const EFFECTS = {
            </g>`,
   }),
 
-  /** Blends every colour on the spool across the winding. */
+  /** Blends every color on the spool across the winding. */
   gradient: ({ id, colors, color }) => {
     const stops = (colors.length > 1 ? colors : [shade(color, 0.55), color, shade(color, -0.5)]);
     return {
@@ -269,7 +269,7 @@ const EFFECTS = {
     };
   },
 
-  /** Hard split into wedges, one per colour. */
+  /** Hard split into wedges, one per color. */
   dual: ({ colors, color }) => {
     const tones = colors.length > 1 ? colors : [color, shade(color, -0.45)];
     const step = 360 / tones.length;
@@ -340,7 +340,7 @@ export const RAINBOW_CSS =
 /** Effect keyword for a finish name, or '' when it's a plain spool. */
 /*
  * A spool can have more than one finish, and they aren't all the same kind of
- * thing. A pattern decides where the colour goes; a surface is what sits on top
+ * thing. A pattern decides where the color goes; a surface is what sits on top
  * of it. Silk Tricolor Gradient is one of each, and drawing only the first one
  * found — which is what this used to do — threw away half of what was on the
  * label.

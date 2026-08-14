@@ -21,7 +21,7 @@
   --empty:     #7b8494;
   --danger:    #ff5d5d;
   /* Loaded in a printer. Deliberately not the accent, which already means
-     "selected", nor a status colour — being in a printer is its own axis. */
+     "selected", nor a status color — being in a printer is its own axis. */
   --loaded:    #a970ff;
   --shadow:    0 10px 30px rgba(0, 0, 0, .45);
   --radius:    18px;
@@ -367,7 +367,7 @@ select {
   border-radius: 20px 20px 0 0;
   box-shadow: var(--shadow);
   /* Its own keyframe on purpose: `rise` also translates X by -50% for the
-     centred sheets, which would throw a full-width sheet off to the left. */
+     centered sheets, which would throw a full-width sheet off to the left. */
   animation: slide-up .2s cubic-bezier(.2, .9, .3, 1);
 }
 .picker-pop[hidden] { display: none; }
@@ -514,7 +514,7 @@ select {
 }
 
 .card {
-  /* Width of the colour bar. Every card's left padding is derived from it, so
+  /* Width of the color bar. Every card's left padding is derived from it, so
      this is the only number to change. */
   --bar: 9px;
 
@@ -526,7 +526,7 @@ select {
   background: var(--surface);
   border: 1px solid var(--border-sm);
   border-radius: var(--radius);
-  /* Clips the colour bar to the card's own curve. Rounding the bar itself can't
+  /* Clips the color bar to the card's own curve. Rounding the bar itself can't
      work: a 5px-wide box can't hold a 17px corner, so the browser scales the
      radius down to fit and the bar stops following the card, leaving its
      corners poking out past the rounded edge. */
@@ -536,7 +536,7 @@ select {
   transition: transform .16s cubic-bezier(.2,.8,.3,1), border-color .16s, box-shadow .16s;
 }
 
-/* The filament's colour down the leading edge. The winding is the only other
+/* The filament's color down the leading edge. The winding is the only other
    place it appears, and that shrinks as the spool empties — which is exactly
    when you're most likely to be looking for it. This doesn't move. */
 .card::before {
@@ -548,7 +548,7 @@ select {
   /* A hairline where the bar meets the card. Without it a white filament has no
      edge against a white card on the light theme, and a navy one has none
      against the dark card on the other — the two cases pull opposite ways, and
-     a line mixed from the text colour lands between them in both. */
+     a line mixed from the text color lands between them in both. */
   box-shadow: inset -1px 0 0 color-mix(in srgb, var(--text) 22%, transparent);
   pointer-events: none;
 }
@@ -556,9 +556,9 @@ select {
 .card:active { transform: translateY(-1px) scale(.99); }
 .card.is-empty { opacity: .58; }
 
-/* Loaded in a printer. A ring rather than a plain border colour so it reads at
+/* Loaded in a printer. A ring rather than a plain border color so it reads at
    a glance in a grid of two hundred, without repainting the card and losing the
-   colour of the filament itself — which is the thing you're scanning for. */
+   color of the filament itself — which is the thing you're scanning for. */
 .card.is-loaded {
   border-color: var(--loaded);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--loaded) 42%, transparent);
@@ -604,7 +604,7 @@ select {
 .loaded-flag.is-off:hover { color: var(--loaded); border-color: var(--loaded); }
 
 /* No pointer, no hover — a phone reaches this from the spool's own page, where
-   the same action is a labelled button, rather than from a mark it can never
+   the same action is a labeled button, rather than from a mark it can never
    be shown. */
 @media (hover: none) {
   .loaded-flag.is-off { display: none; }
@@ -625,7 +625,7 @@ select {
 .card-brand, .card-title, .card-color > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card-color > span { min-width: 0; }
 
-/* The same colour again, beside the name it belongs to. The inset ring is what
+/* The same color again, beside the name it belongs to. The inset ring is what
    stops a white or cream filament disappearing into a white card. */
 .color-chip {
   flex: none;
@@ -774,7 +774,7 @@ select {
   50%      { opacity: 1;   transform: scale(1.03); }
 }
 
-/* The silk streak: always travelling, and displaced further by the phone's
+/* The silk streak: always traveling, and displaced further by the phone's
    tilt. Two nested groups because one element can't carry both — an animated
    transform replaces a declared one outright, so the sweep and the tilt would
    fight over the same property. */
@@ -792,7 +792,7 @@ select {
   to   { transform: translateX(74px); }
 }
 
-/* A highlight travelling across the winding, so metal catches the light. */
+/* A highlight traveling across the winding, so metal catches the light. */
 .sheen {
   transform-box: fill-box;
   animation: sweep 3.8s cubic-bezier(.45, 0, .55, 1) infinite;
@@ -807,12 +807,12 @@ select {
   .sparkle { animation: none; opacity: .8; transform: none; }
   .glow-halo { animation: none; opacity: .85; }
   .sheen { animation: none; transform: translateX(130px); }
-  /* Parked slightly off centre — still a highlight, just not a moving one. */
+  /* Parked slightly off center — still a highlight, just not a moving one. */
   .silk-sheen { animation: none; transform: translateX(-18px); }
   .silk-tilt { transform: none; }
 }
 
-/* ── Colour picker ───────────────────────────────────────────────────────── */
+/* ── Color picker ───────────────────────────────────────────────────────── */
 
 /* Hangs under the eyedropper. Width is capped against the viewport rather than
    set outright, because the button lives at the right-hand edge of a phone. */
@@ -905,7 +905,7 @@ select {
 .cp-actions .btn { padding: 0 10px; font-size: 14px; }
 #cpScreen { margin-bottom: 10px; }
 
-/* ── Closest colour ──────────────────────────────────────────────────────── */
+/* ── Closest color ──────────────────────────────────────────────────────── */
 
 .match-bar {
   display: flex;
@@ -1192,7 +1192,7 @@ select {
 /* Large: spool beside a full read-out.
    Wide enough that the read-out actually fits. At 252px the desktop grid packed
    four across, and once the 88px spool and the status badge had taken their
-   share the text was left about 68px of a 290px card — long colour names were
+   share the text was left about 68px of a 290px card — long color names were
    truncating in the one view whose whole job is showing them. Three roomy cards
    beat four cramped ones. */
 .grid.view-large { grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); }
@@ -1220,13 +1220,13 @@ select {
 .grid.view-list .card-text {
   flex: 1;
   display: grid;
-  /* Left alone deliberately. Widening the colour column to fit the swatch as
+  /* Left alone deliberately. Widening the color column to fit the swatch as
      well as the name only moved the truncation onto the type beside it, and the
-     type has nothing else standing for it — where the colour, now, has the
+     type has nothing else standing for it — where the color, now, has the
      swatch. A shortened "Sand · Ma…" still shows you it's sand. */
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
   align-items: center;
-  /* Named because the count below has to know it to centre itself. */
+  /* Named because the count below has to know it to center itself. */
   --text-row-gap: 2px;
   gap: var(--text-row-gap) 14px;
 }
