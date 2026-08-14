@@ -2526,12 +2526,26 @@ el.statusFilter.addEventListener('click', (e) => {
 });
 
 let searchTimer;
+const syncSearchClear = () => { $('#searchClear').hidden = !el.search.value; };
+
 el.search.addEventListener('input', () => {
+  syncSearchClear();
   clearTimeout(searchTimer);
   searchTimer = setTimeout(() => {
     state.filters.q = el.search.value.trim();
     loadFilaments();
   }, 220);
+});
+
+$('#searchClear').addEventListener('click', () => {
+  clearTimeout(searchTimer);
+  el.search.value = '';
+  syncSearchClear();
+  state.filters.q = '';
+  // Straight away rather than through the debounce: the wait is there to avoid
+  // a query per keystroke, and clearing is one deliberate press.
+  loadFilaments();
+  el.search.focus();
 });
 
 el.sortBy.addEventListener('change', () => {
@@ -2545,6 +2559,7 @@ el.sortBy.addEventListener('change', () => {
 el.clearFilters.addEventListener('click', () => {
   state.filters = { status: 'active', brand: [], material: [], finish: [], q: '', sort: el.sortBy.value };
   el.search.value = '';
+  syncSearchClear();
   state.collapsedSections.clear();
   applyFiltersToUI();
   saveFilters();

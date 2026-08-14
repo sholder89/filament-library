@@ -256,8 +256,31 @@ input, textarea { -webkit-text-fill-color: var(--text); }
   display: flex;
   align-items: center;
 }
-.search svg { position: absolute; left: 12px; width: 18px; height: 18px; color: var(--muted); pointer-events: none; }
-.search input { width: 100%; padding-left: 38px; }
+.search > svg { position: absolute; left: 12px; width: 18px; height: 18px; color: var(--muted); pointer-events: none; }
+/* Room on the right for the clear button, so a long query doesn't run under it. */
+.search input { width: 100%; padding-left: 38px; padding-right: 42px; }
+
+/* Safari draws its own clear button inside a type=search; this replaces it, so
+   the two would otherwise sit side by side. */
+.search input::-webkit-search-cancel-button { display: none; }
+
+.search-clear {
+  position: absolute;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.search-clear svg { width: 15px; height: 15px; }
+.search-clear:hover { color: var(--text); background: var(--elevated); }
+.search-clear[hidden] { display: none; }
 
 input, select, textarea {
   min-height: var(--tap);
