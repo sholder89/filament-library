@@ -35,6 +35,33 @@ export function luminance(hex) {
 }
 
 /**
+ * Hue in degrees, plus how colourful and how light it is.
+ *
+ * Hue is what a rainbow is ordered by; the other two are what says a colour
+ * doesn't belong in one. Black, white and grey have a hue — whichever rounding
+ * error they landed on — and sorting them into the reds because of it would be
+ * worse than admitting they aren't part of the spectrum.
+ */
+export function hsl(hex) {
+  const { r, g, b } = toRgb(hex);
+  const [R, G, B] = [r / 255, g / 255, b / 255];
+  const max = Math.max(R, G, B);
+  const min = Math.min(R, G, B);
+  const span = max - min;
+  const l = (max + min) / 2;
+
+  let h = 0;
+  if (span) {
+    if (max === R) h = ((G - B) / span + (G < B ? 6 : 0)) * 60;
+    else if (max === G) h = ((B - R) / span + 2) * 60;
+    else h = ((R - G) / span + 4) * 60;
+  }
+
+  const s = span === 0 ? 0 : span / (1 - Math.abs(2 * l - 1));
+  return { h, s, l };
+}
+
+/**
  * Extra artwork for a finish, layered around the wound filament.
  *
  * Each effect may return any of:

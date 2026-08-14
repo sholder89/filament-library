@@ -1,4 +1,4 @@
-import { spoolSVG, escapeXML as esc, luminance, RAINBOW_CSS, isRainbow, effectFor } from './spool.js';
+import { spoolSVG, escapeXML as esc, luminance, hsl, RAINBOW_CSS, isRainbow, effectFor } from './spool.js';
 import { labelPreviewHTML } from './label.js';
 import { QrScanner, StillCamera, cameraBlockedReason, filamentIdFrom } from './scan.js';
 
@@ -786,6 +786,18 @@ async function loadFilaments() {
   p.set('sort', sort);
 
   state.filaments = await api(`/api/filaments?${p}`);
+
+  /*
+   * Ordered here rather than in SQL. Placing a colour in the spectrum means
+   * converting a hex to a hue, which SQLite would need a page of substring
+   * arithmetic to do — and the same function is wanted for the section
+   * headings anyway. The server still sorts, so the order within a band is
+   * whatever it sent, and spools in a printer keep their place at the top.
+   */
+  if (state.filters.sort === 'rainbow') {
+    state.filaments.sort((a, b) => (b.loaded - a.loaded) || (rainbowRank(a) - rainbowRank(b)));
+  }
+
   renderGrid();
 
   const active = brand.length || material.length || finish.length || q || status !== 'active';
@@ -913,10 +925,78 @@ export function baseMaterial(name) {
  * forty spools to see what PETG you own isn't much use. Date orders stay flat,
  * since a heading per timestamp would be noise.
  */
+/*
+ * Spectrum order, as bands rather than a continuous sweep.
+ *
+ * Hue is measured from red, but red straddles 0° — crimson sits at 355 and
+ * scarlet at 5, which would put them at opposite ends of the shelf. Everything
+ * is rotated 15° first so a band boundary falls in the gap instead, and reds
+ * come out together at the start where a rainbow expects them.
+ *
+ * The ranges are uneven because the eye is: greens and blues cover far more of
+ * the wheel than yellows, and splitting the wheel evenly would give one band
+ * holding half the library and another holding nothing.
+ */
+const HUE_BANDS = [
+  [30, 'Reds'], [60, 'Oranges'], [85, 'Yellows'], [175, 'Greens'],
+  [210, 'Cyans'], [270, 'Blues'], [320, 'Purples'], [360, 'Pinks'],
+];
+
+/** In band order, which is the order the sections come out in. */
+const BAND_ORDER = [...HUE_BANDS.map(([, name]) => name),
+  'Black, white and grey', 'More than one colour'];
+
+/** A spool whose colour isn't one colour, so no single hue can place it. */
+const isMultiTone = (f) =>
+  Boolean(f.color_hex2) || Boolean(f.color_hex3) || isRainbow(f.color_name);
+
+/**
+ * Which band a spool belongs to, and where it sits inside that band.
+ *
+ * Bands first and hue second, rather than hue alone, because two of the
+ * boundaries don't fall where the wheel says they do. Pink and red are the same
+ * hue — pink is a pale red, and nothing but lightness tells them apart, so a
+ * light enough red is moved to the pinks. Purple and magenta are also the same
+ * hue, so the purple band has to reach far enough round to collect both rather
+ * than splitting a colour from itself.
+ */
+function rainbowPlace(f) {
+  if (isMultiTone(f)) return { band: 'More than one colour', within: 0 };
+
+  const { h, s, l } = hsl(f.color_hex || '#808080');
+
+  // Nothing colourful enough for its hue to be worth trusting, or so near black
+  // or white that whatever hue it has can't be seen. Ordered light to dark.
+  if (s < 0.15 || l < 0.08 || l > 0.94) {
+    return { band: 'Black, white and grey', within: (1 - l) * 1000 };
+  }
+
+  const turned = (h + 15) % 360;
+  let band = HUE_BANDS.find(([edge]) => turned < edge)?.[1] ?? 'Reds';
+  if (band === 'Reds' && l > 0.80) band = 'Pinks';
+
+  return { band, within: turned * 100 + l * 10 };
+}
+
+/**
+ * The spectrum position as one number.
+ *
+ * The bands aren't shown — this sort is a flat run of colour, which is the
+ * point of it — but they still decide the order, and they carry the two spools
+ * that don't belong in a spectrum to the end: the neutrals, then the ones with
+ * more than one colour.
+ */
+function rainbowRank(f) {
+  const { band, within } = rainbowPlace(f);
+  return BAND_ORDER.indexOf(band) * 1e6 + within;
+}
+
 const SECTIONS = {
   brand:    { label: (f) => f.brand?.trim() || 'Not set' },
   material: { label: (f) => baseMaterial(f.material) },
   color:    { label: (f) => f.color_name?.trim() || 'Not set', swatch: true },
+  // No entry for `rainbow` on purpose: it's an unbroken run of colour, and
+  // headings would chop the very thing you sorted for into pieces.
 };
 
 /**

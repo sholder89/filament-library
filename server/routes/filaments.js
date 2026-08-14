@@ -13,6 +13,11 @@ const SORTS = {
   brand:    'brand COLLATE NOCASE ASC, material COLLATE NOCASE ASC, color_name COLLATE NOCASE ASC',
   material: 'material COLLATE NOCASE ASC, brand COLLATE NOCASE ASC',
   color:    'color_name COLLATE NOCASE ASC',
+  // Spectrum order is worked out in the browser, where turning a hex into a
+  // hue is three lines rather than a page of SQLite substring arithmetic. This
+  // only has to be accepted and deterministic, so that what arrives is in a
+  // settled order before it's rearranged.
+  rainbow:  'color_name COLLATE NOCASE ASC, brand COLLATE NOCASE ASC',
   opened:   'opened_at DESC',
   // What you're closest to running out of. Ties break on the smaller spool,
   // since 20% of a 250 g reel is a lot less filament than 20% of a kilo.

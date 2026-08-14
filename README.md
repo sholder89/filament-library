@@ -38,6 +38,12 @@ through — used-up spools stay in the library as a record instead of vanishing.
   PLA and see what PETG you have. Type headings use the base material, so PLA+,
   PLA Silk and PLA-CF all sit under **PLA** while the cards still show the exact
   variant. Date orders stay flat.
+- **Color rainbow** — sorts the shelf into a spectrum, red through pink, by the
+  hue of each spool's color rather than the spelling of its name. Deliberately
+  ungrouped: it's one unbroken run of colour, and headings would chop up the
+  thing you sorted for. Blacks, whites and greys have no place in a spectrum so
+  they follow it, ordered light to dark, and spools with more than one color
+  come last, since no single hue can place them.
 - **Remembers how you left it** — status, brand/type/finish filters and the sort
   order are kept between visits. A search you typed isn't, since a stale query
   would look like missing data.
