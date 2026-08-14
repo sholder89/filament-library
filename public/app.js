@@ -714,10 +714,17 @@ function materialTreeHTML(options, selected) {
   }
 
   return [...families.entries()].map(([base, { total, kids }]) => {
-    // A family of one that's already called by its own name has nothing to
-    // expand into — "ASA" on its own is just a row.
-    if (kids.length === 1 && kids[0].value === base) {
-      return optionRowHTML(base, total, selected.includes(base));
+    /*
+     * One of a kind is just a row, under its own full name.
+     *
+     * A chevron that opens onto a single child is a wasted tap, and the exact
+     * name says more than the family would — "PPS CF10" tells you what you own
+     * where "PPS" only tells you roughly. Buy a second PPS and it becomes a
+     * family on its own.
+     */
+    if (kids.length === 1) {
+      const { value, count } = kids[0];
+      return optionRowHTML(value, count, selected.includes(value));
     }
 
     const values = kids.map((k) => k.value);
@@ -1054,7 +1061,17 @@ function measureColumns() {
  * Longest-first so PETG wins over PET and PCTG over PC, and a boundary check so
  * an unrelated name that merely starts with those letters isn't swallowed.
  */
-const BASE_TYPES = ['NYLON', 'PEEK', 'PETG', 'PCTG', 'HIPS', 'PLA', 'ABS', 'ASA', 'TPU', 'TPE', 'PVA', 'PC', 'PP', 'PA'];
+/*
+ * Longest first. The boundary check below already stops PET swallowing PETG or
+ * PP swallowing PPS, but the order says the intent without having to work that
+ * out, and a missing entry is silent: a type whose base isn't listed becomes a
+ * family of its own name, so PPS CF10 sat beside PLA as though it were a whole
+ * material class rather than one PPS.
+ */
+const BASE_TYPES = [
+  'NYLON', 'PEEK', 'PETG', 'PCTG', 'HIPS', 'PPS', 'PPA', 'PVB', 'PVA', 'PET',
+  'PLA', 'ABS', 'ASA', 'TPU', 'TPE', 'PC', 'PP', 'PA',
+];
 const BASE_LABEL = { PA: 'Nylon', NYLON: 'Nylon' };
 
 export function baseMaterial(name) {
