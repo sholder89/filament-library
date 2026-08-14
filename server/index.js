@@ -138,6 +138,18 @@ function csvCell(value) {
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
+/**
+ * Today's date where the server is standing, for naming a download.
+ *
+ * Not toISOString() — that is UTC by definition and ignores TZ entirely, so an
+ * export taken on a US evening came out stamped with tomorrow's date. The file
+ * a person saves should say the day they saved it. en-CA is a YYYY-MM-DD locale,
+ * which keeps the names sorting properly in a folder.
+ *
+ * The timestamp *inside* the export stays UTC. That one is read by machines.
+ */
+const exportStamp = () => new Date().toLocaleDateString('en-CA');
+
 app.get('/api/export.csv', (_req, res) => {
   const rows = db.prepare('SELECT * FROM filaments ORDER BY brand COLLATE NOCASE, material COLLATE NOCASE, color_name COLLATE NOCASE').all();
 
@@ -147,7 +159,7 @@ app.get('/api/export.csv', (_req, res) => {
   ].join('\r\n');
 
   res.set('Content-Type', 'text/csv; charset=utf-8');
-  res.set('Content-Disposition', `attachment; filename="filament-library-${new Date().toISOString().slice(0, 10)}.csv"`);
+  res.set('Content-Disposition', `attachment; filename="filament-library-${exportStamp()}.csv"`);
   // Excel on Windows assumes the system code page without this and mangles
   // anything non-ASCII — degree signs, accented brand names.
   res.send(`﻿${csv}`);
@@ -155,7 +167,7 @@ app.get('/api/export.csv', (_req, res) => {
 
 /** Whole-inventory dump, including used-up spools — handy as a backup. */
 app.get('/api/export', (_req, res) => {
-  res.set('Content-Disposition', `attachment; filename="filament-library-${new Date().toISOString().slice(0, 10)}.json"`);
+  res.set('Content-Disposition', `attachment; filename="filament-library-${exportStamp()}.json"`);
   res.json({
     exported_at: new Date().toISOString(),
     filaments: db.prepare('SELECT * FROM filaments ORDER BY created_at').all(),

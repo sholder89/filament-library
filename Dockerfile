@@ -10,7 +10,11 @@ FROM node:24-alpine
 
 # su-exec lets the entrypoint fix up the data mount as root and then drop
 # privileges before the app starts.
-RUN apk add --no-cache su-exec
+#
+# tzdata is what makes TZ mean anything. Alpine ships no zone database, and musl
+# doesn't complain when a name can't be resolved — it just quietly uses UTC. So
+# without this, setting TZ=America/New_York appears to work and doesn't.
+RUN apk add --no-cache su-exec tzdata
 
 ENV NODE_ENV=production \
     PORT=8080 \
