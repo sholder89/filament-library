@@ -1,4 +1,4 @@
-import { spoolSVG, escapeXML as esc, luminance, hsl, RAINBOW_CSS, isRainbow, effectFor } from './spool.js';
+import { spoolSVG, escapeXML as esc, luminance, hsl, colorDistance, RAINBOW_CSS, isRainbow, effectFor } from './spool.js';
 import { labelPreviewHTML } from './label.js';
 import { QrScanner, StillCamera, cameraBlockedReason, filamentIdFrom } from './scan.js';
 
@@ -10,6 +10,10 @@ const state = {
   print: { mode: 'off' },
   labelScan: false,
   editingId: null,
+  // Set while the eyedropper is showing what's closest to a colour. Not part
+  // of `filters`: it isn't remembered between visits, since it answers a
+  // question you had once rather than describing how you like the shelf.
+  matchColor: null,
   filters: { status: 'active', brand: [], material: [], finish: [], q: '', sort: 'newest' },
   // Group keys the user has fanned open; everything else stays stacked.
   expandedGroups: new Set(),
@@ -853,6 +857,39 @@ addEventListener('focus', () => refreshOnResume());
 let gridColumns = 0;
 
 function renderGrid() {
+  /*
+   * Matching a colour takes over the ordering entirely: whatever you sorted by
+   * before, the question on screen is now "which of these is closest", and the
+   * answer has to be the first card. Grouping goes too — the ranking is the
+   * only order that means anything here, and headings would break it up.
+   *
+   * Duplicates are spread out rather than stacked, since two spools that are
+   * identical apart from colour are exactly what this is being asked to tell
+   * apart.
+   */
+  if (state.matchColor) {
+    const ranked = [...state.filaments]
+      .map((f) => ({ f, d: nearestTone(f, state.matchColor) }))
+      .filter(({ d }) => Number.isFinite(d))
+      .sort((a, b) => a.d - b.d);
+
+    el.grid.classList.remove('is-grouped');
+    el.grid.innerHTML = ranked.length
+      ? ranked.map(({ f }) => cardHTML(f)).join('')
+      : '<div class="empty-state"><h3>Nothing to compare</h3><p>No spools have a color set.</p></div>';
+
+    // The verdict goes in the bar rather than on the cards. As a card it would
+    // be a grid item, and one taller item pushes its whole row down — a gap in
+    // the shelf to say a thing the ordering already says.
+    // The colour belongs in the name here — "Sunlu PLA is close" doesn't say
+    // which Sunlu PLA, and telling them apart is the whole errand.
+    const best = ranked[0];
+    $('#matchBest').textContent = best
+      ? ` — ${[nameOf(best.f), best.f.color_name].filter(Boolean).join(' ')} is ${closeness(best.d)}`
+      : '';
+    return;
+  }
+
   const spec = SECTIONS[state.filters.sort];
   // Drives the section row spacing, so it has to be off for the flat sorts and
   // for the empty state as well.
@@ -2994,6 +3031,71 @@ el.labelScanner.addEventListener('click', (e) => {
 });
 el.labelScanner.addEventListener('close', stopLabelCamera);
 el.labelScanner.addEventListener('cancel', (e) => { e.preventDefault(); closeSheet(el.labelScanner); });
+
+// ── Closest colour ───────────────────────────────────────────────────────────
+
+/**
+ * "I need something this colour — what have I got?"
+ *
+ * Matching is against every tone a spool carries, taking its best: a tri-colour
+ * with a red in it is a genuine answer to red, and judging it by whichever
+ * colour happens to be stored first would hide it.
+ */
+function nearestTone(f, target) {
+  const tones = [f.color_hex, f.color_hex2, f.color_hex3]
+    .filter((c) => /^#[0-9a-fA-F]{6}$/.test(String(c ?? '')));
+  if (!tones.length) return Infinity;
+  return Math.min(...tones.map((tone) => colorDistance(tone, target)));
+}
+
+/**
+ * Roughly how close, in words. The numbers are the usual reading of a Lab
+ * distance: about 2 is the point where two colours stop being tellable apart,
+ * and about 10 is where you'd stop calling them the same colour.
+ */
+function closeness(distance) {
+  if (distance < 2.5) return 'all but identical';
+  if (distance < 6) return 'very close';
+  if (distance < 12) return 'close';
+  if (distance < 25) return 'in the right family';
+  return 'the nearest you have, but not really that colour';
+}
+
+function applyMatch(hex) {
+  state.matchColor = hex;
+  $('#matchBar').hidden = false;
+  $('#matchSwatch').style.background = hex;
+  $('#matchHex').textContent = hex.toUpperCase();
+  renderGrid();
+}
+
+function clearMatch() {
+  state.matchColor = null;
+  $('#matchBar').hidden = true;
+  renderGrid();
+}
+
+/*
+ * Where the browser can sample the screen, sample the screen — it's what the
+ * icon draws, and picking the exact orange off a photo of a print beats
+ * hunting for it on a colour wheel. Everywhere else, the ordinary colour input,
+ * which on a phone is a perfectly good picker anyway.
+ */
+$('#matchBtn').addEventListener('click', async () => {
+  if (window.EyeDropper) {
+    try {
+      const { sRGBHex } = await new EyeDropper().open();
+      if (sRGBHex) applyMatch(sRGBHex);
+    } catch { /* dismissed with Escape */ }
+    return;
+  }
+  const input = $('#matchColor');
+  input.value = state.matchColor ?? '#808080';
+  input.click();
+});
+
+$('#matchColor').addEventListener('change', (e) => applyMatch(e.target.value));
+$('#matchClear').addEventListener('click', clearMatch);
 
 // ── Sheen ────────────────────────────────────────────────────────────────────
 

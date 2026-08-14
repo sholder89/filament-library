@@ -38,6 +38,14 @@ through — used-up spools stay in the library as a record instead of vanishing.
   PLA and see what PETG you have. Type headings use the base material, so PLA+,
   PLA Silk and PLA-CF all sit under **PLA** while the cards still show the exact
   variant. Date orders stay flat.
+- **What have I got that's this color?** — the eyedropper in the header opens a
+  color picker, and the shelf reorders by how close each spool is to what you
+  chose, nearest first, with a verdict on the best one. Where the browser can
+  sample the screen (Chrome and Edge on desktop) it does, so you can lift the
+  exact color straight off a photo or a model. Distance is measured in CIE Lab
+  rather than RGB, because RGB will happily rank a green further from another
+  green than from a grey. A spool with several colors is matched on whichever
+  of them is closest, so a tri-color counts as an answer to any of its tones.
 - **Color rainbow** — sorts the shelf into a spectrum, red through pink, by the
   hue of each spool's color rather than the spelling of its name. Deliberately
   ungrouped: it's one unbroken run of colour, and headings would chop up the

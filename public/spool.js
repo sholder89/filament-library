@@ -35,6 +35,43 @@ export function luminance(hex) {
 }
 
 /**
+ * CIE Lab, for asking how far apart two colours look.
+ *
+ * Distance in plain RGB is nearly useless for that — the channels are a
+ * storage format, not a description of vision, and it will happily rank two
+ * greens further apart than a green and a grey. Lab is built so that equal
+ * steps in it are roughly equal steps to the eye, which is exactly the question
+ * being asked of it here.
+ */
+export function lab(hex) {
+  const { r, g, b } = toRgb(hex);
+
+  // sRGB is gamma-encoded; undo that before any of the maths means anything.
+  const linear = (v) => {
+    const c = v / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  const [R, G, B] = [linear(r), linear(g), linear(b)];
+
+  // Into XYZ, then relative to D65 white.
+  const x = (R * 0.4124 + G * 0.3576 + B * 0.1805) / 0.95047;
+  const y = (R * 0.2126 + G * 0.7152 + B * 0.0722);
+  const z = (R * 0.0193 + G * 0.1192 + B * 0.9505) / 1.08883;
+
+  const f = (t) => (t > 0.008856 ? Math.cbrt(t) : (7.787 * t) + 16 / 116);
+  const [fx, fy, fz] = [f(x), f(y), f(z)];
+
+  return { L: (116 * fy) - 16, a: 500 * (fx - fy), b: 200 * (fy - fz) };
+}
+
+/** How different two colours look. Under about 2.3, most people can't tell. */
+export function colorDistance(hexA, hexB) {
+  const p = lab(hexA);
+  const q = lab(hexB);
+  return Math.hypot(p.L - q.L, p.a - q.a, p.b - q.b);
+}
+
+/**
  * Hue in degrees, plus how colourful and how light it is.
  *
  * Hue is what a rainbow is ordered by; the other two are what says a colour

@@ -180,6 +180,12 @@ input, textarea { -webkit-text-fill-color: var(--text); }
 .icon-btn svg { width: 20px; height: 20px; }
 .icon-btn:hover { color: var(--text); border-color: var(--accent); }
 
+/* No chrome. The theme and settings buttons are how you configure the app;
+   the eyedropper does something to what's on screen, and looking different is
+   how it says so. */
+.icon-btn.bare { border-color: transparent; background: transparent; }
+.icon-btn.bare:hover { color: var(--accent); border-color: transparent; }
+
 /* ── Stats ──────────────────────────────────────────────────────────────── */
 
 .stats {
@@ -763,6 +769,33 @@ select {
   .silk-sheen { animation: none; transform: translateX(-18px); }
   .silk-tilt { transform: none; }
 }
+
+/* ── Closest colour ──────────────────────────────────────────────────────── */
+
+.match-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 auto 12px;
+  padding: 10px 14px;
+  max-width: 1180px;
+  border: 1px solid var(--border-sm);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: 14px;
+}
+.match-bar[hidden] { display: none; }
+.match-swatch {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+}
+.match-text { flex: 1; min-width: 0; color: var(--muted); }
+.match-text b { color: var(--text); font-variant-numeric: tabular-nums; }
+
+#matchBest { color: var(--text); }
 
 /* ── Stacked duplicates ──────────────────────────────────────────────────── */
 
