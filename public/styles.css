@@ -2138,14 +2138,18 @@ select {
   border-radius: var(--radius-sm);
   background: var(--surface);
 }
-.extra-color input[type="color"] {
+.extra-color .extra-swatch {
   width: 42px;
-  min-height: 38px;
-  padding: 3px;
+  height: 38px;
+  flex: none;
+  padding: 0;
+  border: 1px solid var(--border);
   border-radius: 8px;
   cursor: pointer;
 }
-.extra-color button {
+.extra-color .extra-swatch:hover { border-color: var(--accent); }
+
+.extra-color button:not(.extra-swatch) {
   width: 30px;
   height: 30px;
   border: 0;
@@ -2172,7 +2176,17 @@ select {
 .extra-add:hover { border-color: var(--accent); color: var(--accent); }
 
 .hexrow { display: grid; grid-template-columns: 56px 1fr; gap: 8px; }
-.hexrow input[type="color"] { padding: 4px; min-height: var(--tap); cursor: pointer; }
+
+/* Stands in for the old <input type="color">: same footprint, but it opens the
+   app's own picker rather than the operating system's. */
+.hex-swatch {
+  min-height: var(--tap);
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.hex-swatch:hover { border-color: var(--accent); }
 .hexrow input[type="text"] { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; text-transform: uppercase; }
 
 input[type="range"] {

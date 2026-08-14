@@ -2370,6 +2370,9 @@ function openEditor(filament = null) {
   // An existing spool's colour was already chosen deliberately, so editing its
   // name shouldn't repaint it. A new one starts free to follow what's typed.
   colorPinned = Boolean(f.color_hex);
+  // Whatever a saved spool is called, somebody meant it — a swatch mustn't
+  // rename it. A new spool's box is empty, so it gets named either way.
+  colorNameIsOurs = false;
   setField('status', f.status || 'new');
   setField('spool_weight_g', f.spool_weight_g ?? 1000);
   setField('empty_spool_g', f.empty_spool_g ?? '');
@@ -2424,6 +2427,8 @@ function syncPreview() {
 function syncColorText() {
   const hex = form.elements.color_hex.value.toUpperCase();
   $('#f_color_hex_text').value = hex;
+  // The swatch button shows the colour, which a hidden input can't.
+  $('#f_color_swatch').style.background = hex;
   for (const sw of document.querySelectorAll('.swatch')) {
     sw.setAttribute('aria-pressed', String(sw.dataset.hex.toUpperCase() === hex));
   }
@@ -2497,13 +2502,26 @@ function renderSwatches() {
  */
 let colorPinned = false;
 
+/*
+ * Whether the name in the box is one the app wrote.
+ *
+ * Picking a swatch renames the spool, because leaving "Red" on something that
+ * now renders blue is worse than renaming it. But that must not reach a name
+ * you chose: "Snow Mountain Blue" is the whole reason the field is free text,
+ * and having it revert to "Sky Blue" for changing the shade is infuriating.
+ * So a swatch only renames what a swatch wrote, or an empty box.
+ */
+let colorNameIsOurs = false;
+
 $('#swatches').addEventListener('click', (e) => {
   const sw = e.target.closest('.swatch');
   if (!sw) return;
+
   form.elements.color_hex.value = sw.dataset.hex;
-  // Always renames. Leaving the old name behind after picking a new swatch was
-  // the bug — you'd end up with a spool labelled Red that renders blue.
-  form.elements.color_name.value = sw.dataset.name;
+  if (!form.elements.color_name.value.trim() || colorNameIsOurs) {
+    form.elements.color_name.value = sw.dataset.name;
+    colorNameIsOurs = true;
+  }
   colorPinned = true;
   syncColorText();
   syncPreview();
@@ -2555,6 +2573,8 @@ function hexForColorName(input) {
  * it. To go back to guessing, pick a different swatch.
  */
 form.elements.color_name.addEventListener('input', () => {
+  // Typed by hand, so no swatch may overwrite it from here on.
+  colorNameIsOurs = false;
   const hex = colorPinned ? null : hexForColorName(form.elements.color_name.value);
   if (hex) {
     form.elements.color_hex.value = hex;
@@ -2574,10 +2594,19 @@ $('#f_color_hex_text').addEventListener('input', (e) => {
   }
 });
 
-form.elements.color_hex.addEventListener('input', () => {
-  colorPinned = true;
-  syncColorText();
-  syncPreview();
+$('#f_color_swatch').addEventListener('click', () => {
+  openColourPicker({
+    anchor: $('#f_color_swatch'),
+    value: form.elements.color_hex.value,
+    confirm: 'Use this colour',
+    onPick: (hex) => {
+      form.elements.color_hex.value = hex;
+      // Chosen deliberately, so renaming the spool shouldn't repaint it.
+      colorPinned = true;
+      syncColorText();
+      syncPreview();
+    },
+  });
 });
 form.elements.status.addEventListener('change', () => {
   // A sealed spool is full and a used-up one is empty, by definition.
@@ -2639,7 +2668,8 @@ function syncExtraColors() {
     }
     return `
       <span class="extra-color">
-        <input type="color" value="${esc(value)}" data-slot="${n}" aria-label="Extra color ${n - 1}">
+        <button type="button" class="extra-swatch" data-slot="${n}"
+                style="background:${esc(value)}" aria-label="Change extra color ${n - 1}"></button>
         <button type="button" data-remove="${n}" aria-label="Remove this color">✕</button>
       </span>`;
   }).join('');
@@ -2662,15 +2692,25 @@ $('#extraColors').addEventListener('click', (e) => {
     if (remove.dataset.remove === '2') form.elements.color_hex3.value = '';
     syncExtraColors();
     syncPreview();
+    return;
+  }
+
+  const slot = e.target.closest('[data-slot]');
+  if (slot) {
+    const field = form.elements[`color_hex${slot.dataset.slot}`];
+    openColourPicker({
+      anchor: slot,
+      value: field.value,
+      confirm: 'Use this colour',
+      onPick: (hex) => {
+        field.value = hex;
+        syncExtraColors();
+        syncPreview();
+      },
+    });
   }
 });
 
-$('#extraColors').addEventListener('input', (e) => {
-  const slot = e.target.dataset?.slot;
-  if (!slot) return;
-  form.elements[`color_hex${slot}`].value = e.target.value;
-  syncPreview();
-});
 
 form.elements.finish.addEventListener('change', () => {
   syncFinishHint();
@@ -3089,6 +3129,9 @@ function applyScannedFields(scanned, fresh = {}) {
   fill('material', 'type', () => refreshMaterialPicker(fields.material));
   fill('color_name', 'color', () => {
     setField('color_name', fields.color_name);
+    // Printed on the spool, so it's the manufacturer's name and not a guess —
+    // a swatch mustn't overwrite it any more than a typed one.
+    colorNameIsOurs = false;
     if (fields.color_hex) {
       setField('color_hex', fields.color_hex);
       // Read off the label, so typing a nicer name for it shouldn't repaint it.
@@ -3390,8 +3433,10 @@ $('#cpScreen').addEventListener('click', async () => {
 });
 
 $('#cpUse').addEventListener('click', () => {
-  applyMatch(cpHex());
+  const pick = pickerPick;
+  const hex = cpHex();
   closePicker2();
+  pick?.(hex);
 });
 
 el.picker2.addEventListener('click', (e) => {
@@ -3405,7 +3450,23 @@ el.picker2.addEventListener('click', (e) => {
  * the button sits hard against the right edge, so a panel simply hung beneath
  * it would run off the side.
  */
-function openPicker2() {
+let pickerAnchor = null;
+let pickerPick = null;
+
+/**
+ * The picker, for anything that needs a colour.
+ *
+ * Opened against whatever was clicked and handing the result back through a
+ * callback, so the eyedropper, the spool's own colour and each gradient tone
+ * all get the same control. They used to differ: two of them opened the
+ * operating system's picker, which looks like another application and, on iOS,
+ * can't be opened at all.
+ */
+function openColourPicker({ anchor, value, confirm, onPick }) {
+  pickerAnchor = anchor;
+  pickerPick = onPick;
+
+  $('#cpUse').textContent = confirm;
   $('#cpScreen').hidden = !window.EyeDropper;
 
   // The colours already in the library, as a shortcut past the square.
@@ -3413,33 +3474,51 @@ function openPicker2() {
     .map((c) => `<button type="button" data-hex="${esc(c.hex)}" title="${esc(c.name)}"
                    style="background:${esc(c.hex)}" aria-label="${esc(c.name)}"></button>`).join('');
 
-  setPickerColor(state.matchColor ?? '#D32029');
+  setPickerColor(value || '#D32029');
+
+  /*
+   * Moved inside whichever sheet is open, for the same reason the toast is: a
+   * <dialog> shown with showModal() both paints over everything else and makes
+   * it inert, so a panel left on the body would be invisible behind the editor
+   * and unclickable through it.
+   */
+  const host = SHEETS.find((d) => d.open) ?? document.body;
+  if (el.picker2.parentNode !== host) host.append(el.picker2);
+
   el.picker2.hidden = false;
 
-  const anchor = $('#matchBtn').getBoundingClientRect();
+  const box = anchor.getBoundingClientRect();
   const panel = el.picker2.getBoundingClientRect();
   const gap = 8;
 
-  el.picker2.style.left = `${Math.min(Math.max(gap, anchor.right - panel.width), innerWidth - panel.width - gap)}px`;
-  // Below the button unless there isn't room, in which case above it.
-  const below = anchor.bottom + gap;
+  el.picker2.style.left = `${Math.min(Math.max(gap, box.right - panel.width), innerWidth - panel.width - gap)}px`;
+  // Below the anchor unless there isn't room, in which case above it.
+  const below = box.bottom + gap;
   el.picker2.style.top = below + panel.height < innerHeight - gap
     ? `${below}px`
-    : `${Math.max(gap, anchor.top - panel.height - gap)}px`;
+    : `${Math.max(gap, box.top - panel.height - gap)}px`;
 }
 
 function closePicker2() {
   el.picker2.hidden = true;
+  pickerAnchor = null;
+  pickerPick = null;
 }
 
 $('#matchBtn').addEventListener('click', () => {
-  if (el.picker2.hidden) openPicker2();
-  else closePicker2();
+  if (!el.picker2.hidden) return closePicker2();
+  openColourPicker({
+    anchor: $('#matchBtn'),
+    value: state.matchColor ?? '#D32029',
+    confirm: 'Find the closest',
+    onPick: applyMatch,
+  });
 });
 
-// Anything outside it puts it away, the way the filter dropdowns behave.
+// Anything outside it puts it away, the way the filter dropdowns behave. The
+// control that opened it is excluded, or its own click would shut it again.
 document.addEventListener('click', (e) => {
-  if (!el.picker2.hidden && !e.target.closest('#picker2') && !e.target.closest('#matchBtn')) {
+  if (!el.picker2.hidden && !e.target.closest('#picker2') && !pickerAnchor?.contains(e.target)) {
     closePicker2();
   }
 });

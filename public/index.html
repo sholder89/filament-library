@@ -252,7 +252,10 @@
       <datalist id="colorList"></datalist>
       <div class="swatches" id="swatches"></div>
       <div class="hexrow">
-        <input type="color" id="f_color_hex" name="color_hex" value="#808080" aria-label="Exact color">
+        <!-- A button rather than an <input type="color">, so the picker is the
+             app's own. The hidden field is still what the form submits. -->
+        <button type="button" class="hex-swatch" id="f_color_swatch" aria-label="Pick the exact color"></button>
+        <input type="hidden" id="f_color_hex" name="color_hex" value="#808080">
         <input type="text" id="f_color_hex_text" inputmode="text" spellcheck="false" aria-label="Color hex code" maxlength="7">
       </div>
     </div>
