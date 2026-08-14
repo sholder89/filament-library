@@ -3633,6 +3633,26 @@ $('#themeBtn').addEventListener('click', () => {
  * the only way to tell whether a variable had taken was to go looking for the
  * button it enables.
  */
+/**
+ * Which build is actually running, from the service worker's own cache names.
+ *
+ * Read rather than declared, so there's no second constant to forget: the
+ * caches are called shell-v70 and data-v70, and that name is by definition the
+ * version whose files are being served. Worth having on screen because a fixed
+ * bug that appears unfixed is nearly always an old copy of app.js still cached,
+ * and this turns "it's still broken" into a number both of us can check.
+ */
+async function appVersion() {
+  try {
+    const shell = (await caches.keys()).find((k) => k.startsWith('shell-'));
+    if (!shell) return 'not cached — served fresh';
+    const active = await navigator.serviceWorker?.getRegistration?.();
+    return shell.replace('shell-', '') + (active?.waiting ? ' — an update is waiting, reload twice' : '');
+  } catch {
+    return 'unknown';
+  }
+}
+
 async function showSettings() {
   openSheet(el.settings);
   renderMyTares();
@@ -3656,6 +3676,7 @@ async function showSettings() {
       row('Brands', stats.brands),
       row('Label printing', { off: 'Off', relay: 'Via relay', direct: 'Direct to client' }[health.print_mode] ?? health.print_mode),
       row('Label scanning', health.label_scan ? 'On' : 'Off — no Vision key yet'),
+      row('App version', await appVersion()),
     ].join('');
   } catch (err) {
     facts.innerHTML = row('Could not reach the server', err.message);
