@@ -131,38 +131,37 @@
 <!-- Built rather than borrowed: the native input opens the operating system's
      picker, which looks like someone else's app, and can't be opened at all
      from a hidden input on iOS. -->
-<dialog id="picker2" class="sheet">
-  <div class="sheet-inner">
-    <div class="sheet-head">
-      <h2>Pick a colour</h2>
-      <button type="button" class="icon-btn" data-close aria-label="Close">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-      </button>
-    </div>
-
-    <div class="cp-area" id="cpArea" role="application" aria-label="Saturation and brightness" tabindex="0">
-      <span class="cp-dot" id="cpDot"></span>
-    </div>
-
-    <div class="cp-hue" id="cpHue" role="application" aria-label="Hue" tabindex="0">
-      <span class="cp-dot" id="cpHueDot"></span>
-    </div>
-
-    <div class="cp-foot">
-      <span class="cp-preview" id="cpPreview"></span>
-      <input type="text" id="cpHex" class="cp-hex" spellcheck="false" autocomplete="off"
-             maxlength="7" aria-label="Colour as a hex code">
-      <button type="button" class="btn" id="cpScreen" hidden>Pick from screen</button>
-    </div>
-
-    <div class="cp-swatches" id="cpSwatches"></div>
-
-    <div class="cp-actions">
-      <button type="button" class="btn" data-close>Cancel</button>
-      <button type="button" class="btn primary" id="cpUse">Find the closest</button>
-    </div>
+<div id="picker2" class="cp-pop" role="dialog" aria-label="Pick a colour" hidden>
+  <div class="cp-area" id="cpArea" role="application" aria-label="Saturation and brightness" tabindex="0">
+    <span class="cp-dot" id="cpDot"></span>
   </div>
-</dialog>
+
+  <div class="cp-hue" id="cpHue" role="application" aria-label="Hue" tabindex="0">
+    <span class="cp-dot" id="cpHueDot"></span>
+  </div>
+
+  <div class="cp-foot">
+    <span class="cp-preview" id="cpPreview"></span>
+    <input type="text" id="cpHex" class="cp-hex" spellcheck="false" autocomplete="off"
+           maxlength="7" aria-label="Colour as a hex code">
+  </div>
+
+  <div class="cp-swatches" id="cpSwatches"></div>
+
+  <button type="button" class="btn wide" id="cpScreen" hidden>Pick from screen</button>
+
+  <div class="cp-actions">
+    <button type="button" class="btn" data-close>Cancel</button>
+    <button type="button" class="btn primary" id="cpUse">Find the closest</button>
+  </div>
+</div>
+
+<!-- One frame of the shared screen, held still so a pixel can be clicked out of
+     it. Only used where there's no native eyedropper. -->
+<div id="cpShot" class="cp-shot" hidden>
+  <canvas id="cpShotCanvas"></canvas>
+  <p class="cp-shot-hint">Click the colour you want · Esc to cancel</p>
+</div>
 
 <div class="match-bar" id="matchBar" hidden>
   <span class="match-swatch" id="matchSwatch"></span>

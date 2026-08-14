@@ -170,7 +170,7 @@ function ago(iso) {
 }
 
 // The filter popover isn't a <dialog> — it's dismissed by closePicker instead.
-const SHEETS = [el.detail, el.editor, el.scanner, el.labelScanner, el.settings, el.picker2];
+const SHEETS = [el.detail, el.editor, el.scanner, el.labelScanner, el.settings];
 
 /** Locks background scrolling while a sheet is up — iOS ignores <dialog>'s own lock. */
 function openSheet(dialog) {
@@ -3209,33 +3209,138 @@ $('#cpSwatches').addEventListener('click', (e) => {
  * of it. It's the better tool when the colour you want is already on screen and
  * no use at all when it isn't, which is why it can't be the only way in.
  */
+const canSampleScreen = () =>
+  Boolean(window.EyeDropper) || Boolean(navigator.mediaDevices?.getDisplayMedia);
+
+/**
+ * Sampling a colour off the screen, the long way round.
+ *
+ * Only Chromium has the EyeDropper API. Firefox can still get there through
+ * screen capture: ask for a screen, keep one frame of it, and let a pixel be
+ * clicked out of that. Clunkier — it asks you to pick a window first, and what
+ * you're clicking is a photograph rather than the live screen — but it's the
+ * difference between the button working and not existing.
+ *
+ * Needs a secure context, same as the camera. Over plain HTTP on the LAN it
+ * won't be offered at all, which is the same rule the label scanner follows.
+ */
+async function sampleViaCapture() {
+  const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+  const video = document.createElement('video');
+  video.srcObject = stream;
+  video.muted = true;
+  await video.play();
+
+  // One frame is all that's wanted; the share stops immediately so there's no
+  // window quietly being watched while a colour is chosen.
+  const canvas = $('#cpShotCanvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  for (const track of stream.getTracks()) track.stop();
+
+  $('#cpShot').hidden = false;
+
+  return new Promise((resolve) => {
+    const finish = (hex) => {
+      $('#cpShot').hidden = true;
+      canvas.removeEventListener('click', onClick);
+      removeEventListener('keydown', onKey);
+      resolve(hex);
+    };
+
+    const onClick = (e) => {
+      const box = canvas.getBoundingClientRect();
+      // The canvas is displayed scaled to fit, so the click has to be mapped
+      // back to the pixel it actually landed on.
+      const x = Math.round((e.clientX - box.left) * (canvas.width / box.width));
+      const y = Math.round((e.clientY - box.top) * (canvas.height / box.height));
+      const [r, g, b] = canvas.getContext('2d').getImageData(x, y, 1, 1).data;
+      finish(`#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`.toUpperCase());
+    };
+
+    const onKey = (e) => { if (e.key === 'Escape') finish(null); };
+
+    canvas.addEventListener('click', onClick);
+    addEventListener('keydown', onKey);
+  });
+}
+
 $('#cpScreen').addEventListener('click', async () => {
   try {
-    const { sRGBHex } = await new EyeDropper().open();
-    if (sRGBHex) setPickerColor(sRGBHex);
-  } catch { /* dismissed */ }
+    if (window.EyeDropper) {
+      const { sRGBHex } = await new EyeDropper().open();
+      if (sRGBHex) setPickerColor(sRGBHex);
+      return;
+    }
+    const hex = await sampleViaCapture();
+    if (hex) setPickerColor(hex);
+  } catch (err) {
+    // Escape and "no thanks" on the share prompt both reject, and neither is a
+    // failure worth reporting. Anything else is — swallowing it is what made
+    // this look like a dead button rather than a missing feature.
+    if (err?.name !== 'AbortError' && err?.name !== 'NotAllowedError') {
+      toast(`Couldn't sample the screen: ${err.message}`, true);
+    }
+  }
 });
 
 $('#cpUse').addEventListener('click', () => {
   applyMatch(cpHex());
-  closeSheet(el.picker2);
+  closePicker2();
 });
 
 el.picker2.addEventListener('click', (e) => {
-  if (e.target.closest('[data-close]')) closeSheet(el.picker2);
+  if (e.target.closest('[data-close]')) closePicker2();
 });
 
-$('#matchBtn').addEventListener('click', () => {
-  $('#cpScreen').hidden = !window.EyeDropper;
+/**
+ * Anchored under the eyedropper rather than taking the screen.
+ *
+ * Pinned to the viewport and clamped to it, which is what keeps it on a phone:
+ * the button sits hard against the right edge, so a panel simply hung beneath
+ * it would run off the side.
+ */
+function openPicker2() {
+  $('#cpScreen').hidden = !canSampleScreen();
+  $('#cpScreen').textContent = window.EyeDropper ? 'Pick from screen' : 'Pick from a shared screen';
 
   // The colours already in the library, as a shortcut past the square.
-  $('#cpSwatches').innerHTML = (state.catalog.colors ?? []).slice(0, 24)
+  $('#cpSwatches').innerHTML = (state.catalog.colors ?? []).slice(0, 18)
     .map((c) => `<button type="button" data-hex="${esc(c.hex)}" title="${esc(c.name)}"
                    style="background:${esc(c.hex)}" aria-label="${esc(c.name)}"></button>`).join('');
 
   setPickerColor(state.matchColor ?? '#D32029');
-  openSheet(el.picker2);
+  el.picker2.hidden = false;
+
+  const anchor = $('#matchBtn').getBoundingClientRect();
+  const panel = el.picker2.getBoundingClientRect();
+  const gap = 8;
+
+  el.picker2.style.left = `${Math.min(Math.max(gap, anchor.right - panel.width), innerWidth - panel.width - gap)}px`;
+  // Below the button unless there isn't room, in which case above it.
+  const below = anchor.bottom + gap;
+  el.picker2.style.top = below + panel.height < innerHeight - gap
+    ? `${below}px`
+    : `${Math.max(gap, anchor.top - panel.height - gap)}px`;
+}
+
+function closePicker2() {
+  el.picker2.hidden = true;
+}
+
+$('#matchBtn').addEventListener('click', () => {
+  if (el.picker2.hidden) openPicker2();
+  else closePicker2();
 });
+
+// Anything outside it puts it away, the way the filter dropdowns behave.
+document.addEventListener('click', (e) => {
+  if (!el.picker2.hidden && !e.target.closest('#picker2') && !e.target.closest('#matchBtn')) {
+    closePicker2();
+  }
+});
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && !el.picker2.hidden) closePicker2(); });
 
 // ── Sheen ────────────────────────────────────────────────────────────────────
 
