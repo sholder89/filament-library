@@ -141,10 +141,11 @@ const EFFECTS = {
    * Silk is the one finish people buy for how it looks, so it gets three
    * layers rather than one wash of white: a broad diagonal gloss, a dark band
    * on its far side to give the bright side something to be brighter than, and
-   * a narrow specular streak that slides with the page and the phone.
+   * a narrow specular streak that travels back and forth across it.
    *
-   * The streak is positioned from --sheen, a single number on the root element
-   * that everything on screen shares — see the sheen block in app.js.
+   * The streak is a pure CSS animation — every spool on the page runs the same
+   * one, so they sweep together and read as a single light source rather than a
+   * hundred unrelated animations.
    */
   silk: ({ id }) => ({
     defs: `
@@ -166,11 +167,9 @@ const EFFECTS = {
       </linearGradient>`,
     body: `
       <circle cx="100" cy="100" r="90" fill="url(#${id}sk)"/>
-      <g class="silk-tilt">
-        <g class="silk-sheen">
-          <rect x="62" y="-48" width="46" height="296" fill="url(#${id}skm)"
-                transform="rotate(15 100 100)"/>
-        </g>
+      <g class="silk-sheen">
+        <rect x="62" y="-48" width="46" height="296" fill="url(#${id}skm)"
+              transform="rotate(15 100 100)"/>
       </g>`,
   }),
 

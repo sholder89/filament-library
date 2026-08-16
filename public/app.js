@@ -3524,90 +3524,6 @@ document.addEventListener('click', (e) => {
 });
 addEventListener('keydown', (e) => { if (e.key === 'Escape' && !el.picker2.hidden) closePicker2(); });
 
-// ── Sheen ────────────────────────────────────────────────────────────────────
-
-/**
- * How far the phone's tilt displaces the highlight, from -1 to 1.
- *
- * The traveling part is a CSS animation on the spools themselves, which costs
- * nothing to run and needs no help from here. This only adds the tilt on top,
- * through a single custom property on the root element that every spool reads
- * — so a hundred cards cost one style write per frame rather than a hundred,
- * and they all lean the same way at the same moment, which is what makes it
- * read as one light source rather than a hundred animations.
- */
-let sheenTilt = 0;
-let sheenQueued = false;
-
-const stillness = matchMedia('(prefers-reduced-motion: reduce)');
-
-function paintSheen() {
-  sheenQueued = false;
-  document.documentElement.style.setProperty('--sheen', sheenTilt.toFixed(3));
-}
-
-function queueSheen() {
-  // Coalesced to one write per frame: the sensor fires far faster than
-  // anything can be drawn.
-  if (sheenQueued || stillness.matches) return;
-  sheenQueued = true;
-  requestAnimationFrame(paintSheen);
-}
-
-function listenForTilt() {
-  addEventListener('deviceorientation', (e) => {
-    // gamma is the left-right tilt, ±90°. Divided well short of that so an
-    // ordinary wrist movement covers the whole travel.
-    if (e.gamma == null) return;
-    sheenTilt = Math.max(-1, Math.min(1, e.gamma / 38));
-    queueSheen();
-  });
-}
-
-/**
- * iOS won't hand over the motion sensor without a prompt, and the prompt has to
- * come from something the user pressed — so it lives in Settings rather than
- * ambushing them on load. Everywhere else the sensor just works.
- */
-const TILT_KEY = 'tilt-sheen';
-const needsTiltPermission = typeof DeviceOrientationEvent !== 'undefined'
-  && typeof DeviceOrientationEvent.requestPermission === 'function';
-
-async function enableTilt({ ask = false } = {}) {
-  if (typeof DeviceOrientationEvent === 'undefined') return false;
-
-  if (needsTiltPermission) {
-    if (!ask && localStorage.getItem(TILT_KEY) !== 'on') return false;
-    try {
-      if (await DeviceOrientationEvent.requestPermission() !== 'granted') return false;
-    } catch {
-      return false;   // Only throws when it wasn't a real user gesture.
-    }
-    localStorage.setItem(TILT_KEY, 'on');
-  }
-
-  listenForTilt();
-  return true;
-}
-
-// Granted once, remembered after — the prompt doesn't come back every launch.
-enableTilt();
-
-function syncTiltSetting() {
-  // Only worth showing where there's something to grant. Everywhere else the
-  // tilt is already working and a button would be a lie.
-  $('#tiltGroup').hidden = !needsTiltPermission;
-  const on = localStorage.getItem(TILT_KEY) === 'on';
-  $('#tiltBtn').textContent = on ? 'Motion sensor is on' : 'Use the motion sensor';
-  $('#tiltBtn').disabled = on;
-}
-
-$('#tiltBtn').addEventListener('click', async () => {
-  const ok = await enableTilt({ ask: true });
-  syncTiltSetting();
-  toast(ok ? 'Tilt the phone and the spools will catch the light' : 'Motion access was declined', !ok);
-});
-
 // ── Theme ────────────────────────────────────────────────────────────────────
 
 function applyTheme(theme) {
@@ -3658,7 +3574,6 @@ async function showSettings() {
   renderMyTares();
   renderTareTable();
   loadVisionState();
-  syncTiltSetting();
   const facts = $('#settingsFacts');
   facts.innerHTML = '<div class="spec"><dt>Loading…</dt><dd></dd></div>';
 
