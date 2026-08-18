@@ -2949,7 +2949,7 @@ function setupMacro() {
   btn.hidden = !scanner?.macroAvailable;
   btn.setAttribute('aria-pressed', String(Boolean(scanner?.usingMacro)));
   $('#scanStatus').textContent = scanner?.usingMacro
-    ? 'Hold the label a few centimetres away and fill the box.'
+    ? 'Hold the label a few centimeters away and fill the box.'
     : 'Hold the label about 15–20 cm away and fill the box.';
   $('#scanLens').textContent = scanner?.lenses?.length
     ? `Lens: ${scanner.usingMacro ? scanner.macroLens.label : 'default rear camera'}`

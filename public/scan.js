@@ -11,8 +11,22 @@
 /** Fraction of the short side handed to the decoder — matches the reticle. */
 const CROP = 0.74;
 
-/** Ceiling on the decoded square. jsQR is pure JS; beyond this it gets slow. */
-const MAX_DECODE = 1024;
+/**
+ * Ceiling on the decoded square.
+ *
+ * Smaller is genuinely better, which is not the obvious direction. jsQR
+ * binarizes in fixed 8x8 pixel regions and ignores any region whose contrast
+ * falls under a fixed threshold. Optical blur is a fraction of the *image*, so
+ * on a big frame a soft module edge spreads across several whole regions and
+ * each one looks flat — the decoder discards exactly the edges it needs. Shrink
+ * the same frame and that blur spans fewer pixels, so a region straddles a real
+ * transition again.
+ *
+ * Measured against a rendered label code at matched optical blur, 1024 failed
+ * from mild blur onward while 512 decoded every case, at about a quarter of the
+ * cost. A 29-module code still gets ~15px per module here, where 3 would do.
+ */
+const MAX_DECODE = 512;
 
 /**
  * Rear-facing lenses, tagged with whether each one is the ultra-wide.
@@ -70,7 +84,7 @@ export function cameraBlockedReason() {
  * A plain rear camera for taking one still, used by label scanning.
  *
  * Deliberately does not hunt for the ultra-wide the way QrScanner does: that
- * lens exists to focus on a sticker held a couple of centimetres away, whereas
+ * lens exists to focus on a sticker held a couple of centimeters away, whereas
  * a filament label is read at arm's length where the standard lens is sharper
  * and has the longer focal length that keeps text from bowing at the edges.
  */
@@ -212,7 +226,7 @@ export class QrScanner {
      * This is the whole trick. A phone's main wide lens can't focus closer than
      * ~10cm, so a sticker-sized code is either blurry or too small to decode.
      * The native camera app solves it by silently hopping to the ultra-wide,
-     * which focuses within a couple of centimetres — that's what "macro mode"
+     * which focuses within a couple of centimeters — that's what "macro mode"
      * is. getUserMedia never does that on its own, so we pick the lens
      * ourselves.
      */
@@ -255,8 +269,10 @@ export class QrScanner {
       } catch { /* a bad frame isn't worth stopping for */ }
     }
 
-    // Throttled to ~10fps: decoding every frame drains the battery for no gain.
-    this.timer = setTimeout(() => requestAnimationFrame(() => this.tick()), 100);
+    // ~25fps. Most frames from a handheld phone are motion-blurred, so decoding
+    // is a race to land on one of the sharp ones and attempts are the scarce
+    // resource. On slower phones the decode itself becomes the limit anyway.
+    this.timer = setTimeout(() => requestAnimationFrame(() => this.tick()), 40);
   }
 
   async scanNative() {
@@ -276,7 +292,20 @@ export class QrScanner {
      * decoder needs; cropping spends that budget on the part of the image the
      * code is actually in, keeping close to native pixels per module.
      */
-    const side = Math.min(vw, vh) * CROP;
+    this.frame = (this.frame ?? 0) + 1;
+
+    /*
+     * Three passes in four stay tight on the reticle and assume a normal
+     * dark-on-light code, which is what a filament label is. The fourth widens
+     * to the whole short side and tries the inverted reading too, so a code
+     * held slightly outside the box, or a white-on-black one, still gets found.
+     *
+     * The old split was even — half the frames on inverted codes — which spent
+     * half the budget on a case that almost never occurs and halved the
+     * attempts available to the one that always does.
+     */
+    const sweep = this.frame % 4 === 0;
+    const side = Math.min(vw, vh) * (sweep ? 1 : CROP);
     const sx = (vw - side) / 2;
     const sy = (vh - side) / 2;
     const target = Math.min(Math.round(side), MAX_DECODE);
@@ -286,11 +315,8 @@ export class QrScanner {
     ctx.drawImage(video, sx, sy, side, side, 0, 0, target, target);
 
     const image = ctx.getImageData(0, 0, target, target);
-    // Alternate inversion attempts: light-on-dark labels cost nothing to catch
-    // if we only pay for it every other frame.
-    this.frame = (this.frame ?? 0) + 1;
     const hit = this.decode(image.data, image.width, image.height, {
-      inversionAttempts: this.frame % 2 ? 'dontInvert' : 'onlyInvert',
+      inversionAttempts: sweep ? 'attemptBoth' : 'dontInvert',
     });
     return hit?.data ?? null;
   }
