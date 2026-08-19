@@ -4,6 +4,19 @@ import { QrScanner, StillCamera, cameraBlockedReason, filamentIdFrom } from './s
 
 // ── State ────────────────────────────────────────────────────────────────────
 
+/**
+ * True when running as an installed app rather than a browser tab.
+ *
+ * iOS throws away camera permission whenever the URL changes in an installed
+ * web app, and opening a spool used to push /f/<id> — so scanning a label was
+ * quietly revoking the permission that the next scan would then have to ask
+ * for again. There is no address bar here to keep in sync and no browser back
+ * button to serve, so the history entries cost a permission prompt and buy
+ * nothing. In an ordinary tab they still earn their keep, and still happen.
+ */
+const STANDALONE = matchMedia('(display-mode: standalone)').matches
+  || navigator.standalone === true;
+
 const state = {
   filaments: [],
   catalog: { brands: [], materials: [], colors: [], locations: [] },
@@ -2004,7 +2017,7 @@ async function showDetail(id, push = false) {
   if (!el.detail.open) openSheet(el.detail);
   el.detailBody.scrollTop = 0;
 
-  if (push && location.pathname !== `/f/${f.id}`) {
+  if (push && !STANDALONE && location.pathname !== `/f/${f.id}`) {
     history.pushState({ id: f.id }, '', `/f/${f.id}`);
   }
 }
@@ -2242,7 +2255,7 @@ el.detail.addEventListener('change', (e) => {
 
 function dismissDetail() {
   closeSheet(el.detail);
-  if (location.pathname.startsWith('/f/')) history.pushState({}, '', '/');
+  if (!STANDALONE && location.pathname.startsWith('/f/')) history.pushState({}, '', '/');
 }
 
 el.detail.addEventListener('cancel', (e) => {
