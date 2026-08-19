@@ -585,25 +585,7 @@
       <button type="button" class="scan-tap" id="scanRefocus" aria-label="Tap to refocus"></button>
     </div>
 
-    <div class="scan-controls">
-      <button type="button" class="scan-toggle" id="scanMacroBtn" aria-pressed="true" hidden>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-        Macro lens
-      </button>
-    </div>
-
-    <details class="more scan-advanced">
-      <summary>Camera options</summary>
-      <div class="scan-zoom" id="scanZoom" hidden>
-        <label for="scanZoomRange">Zoom</label>
-        <input type="range" id="scanZoomRange" min="1" max="4" step="0.1" value="1">
-        <output id="scanZoomOut">1.0×</output>
-      </div>
-      <p class="hint" id="scanLens"></p>
-    </details>
-
     <p class="hint" id="scanStatus">Hold the label a few centimeters away and fill the box.</p>
-    <p class="hint" id="scanDiag"></p>
     <p class="form-error" id="scanError" hidden></p>
     <div class="sheet-actions">
       <button type="button" class="btn ghost wide" data-close>Cancel</button>

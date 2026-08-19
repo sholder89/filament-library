@@ -2898,11 +2898,11 @@ async function openScanner() {
   scanner = new QrScanner($('#scanVideo'), onScanned);
   try {
     await scanner.start();
-    setupZoom();
-    setupMacro();
-    // Surfaced because frame size is the difference between reading a label and
-    // not — worth being able to see what the camera actually gave us.
-    $('#scanDiag').textContent = `Camera ${scanner.resolution}`;
+    // How far to hold it depends on which lens we ended up on, and that is the
+    // only thing about the camera worth saying out loud.
+    $('#scanStatus').textContent = scanner.usingMacro
+      ? 'Hold the label a few centimeters away and fill the box.'
+      : 'Hold the label about 15–20 cm away and fill the box.';
   } catch (err) {
     const denied = err.name === 'NotAllowedError' || err.name === 'SecurityError';
     $('#scanError').textContent = denied
@@ -2913,74 +2913,19 @@ async function openScanner() {
   }
 }
 
-/**
- * Optical zoom, where the camera exposes it. This is the practical answer to a
- * phone not being able to focus close enough: stand back far enough to be sharp
- * and zoom in so the code still fills the frame.
- */
-function setupZoom() {
-  const row = $('#scanZoom');
-  const range = $('#scanZoomRange');
-  const caps = scanner?.zoomRange;
-
-  row.hidden = !caps;
-  if (!caps) return;
-
-  const start = scanner.defaultZoom;
-  range.min = caps.min;
-  range.max = Math.min(caps.max, Math.max(start * 6, caps.min * 6));
-  range.step = caps.step || 0.1;
-  range.value = start;
-  $('#scanZoomOut').textContent = `${Number(start).toFixed(1)}×`;
-}
-
-$('#scanZoomRange').addEventListener('input', (e) => {
-  $('#scanZoomOut').textContent = `${Number(e.target.value).toFixed(1)}×`;
-  scanner?.setZoom(e.target.value);
-});
-
-/**
- * The ultra-wide is on by default where it exists — it's the only rear lens
- * that focuses close enough for a sticker-sized code, and it's what the native
- * camera app quietly switches to.
- */
-function setupMacro() {
-  const btn = $('#scanMacroBtn');
-  btn.hidden = !scanner?.macroAvailable;
-  btn.setAttribute('aria-pressed', String(Boolean(scanner?.usingMacro)));
-  $('#scanStatus').textContent = scanner?.usingMacro
-    ? 'Hold the label a few centimeters away and fill the box.'
-    : 'Hold the label about 15–20 cm away and fill the box.';
-  $('#scanLens').textContent = scanner?.lenses?.length
-    ? `Lens: ${scanner.usingMacro ? scanner.macroLens.label : 'default rear camera'}`
-    : '';
-}
-
-$('#scanMacroBtn').addEventListener('click', async () => {
-  if (!scanner) return;
-  const btn = $('#scanMacroBtn');
-  btn.disabled = true;
-  await scanner.setMacro(!scanner.usingMacro);
-  setupZoom();
-  setupMacro();
-  $('#scanDiag').textContent = `Camera ${scanner.resolution}`;
-  btn.disabled = false;
-});
-
+// Tapping the preview nudges a hunting lens to settle. No control for it —
+// tapping what you're looking at is the whole affordance.
 $('#scanRefocus').addEventListener('click', async () => {
   if (!scanner) return;
+  const hint = $('#scanStatus').textContent;
   $('#scanStatus').textContent = 'Refocusing…';
   await scanner.refocus();
-  setTimeout(setupMacro, 900);
+  setTimeout(() => { $('#scanStatus').textContent = hint; }, 900);
 });
 
 function stopScanner() {
   scanner?.stop();
   scanner = null;
-  $('#scanZoom').hidden = true;
-  $('#scanMacroBtn').hidden = true;
-  $('#scanDiag').textContent = '';
-  $('#scanLens').textContent = '';
 }
 
 async function onScanned(value) {

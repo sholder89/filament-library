@@ -1,11 +1,20 @@
 /**
  * Camera QR scanning.
  *
- * Uses the built-in BarcodeDetector where it exists (Chrome, Android) and falls
- * back to a vendored jsQR for everything else — notably Safari on iOS, which
- * has no BarcodeDetector and is the main target here.
+ * Uses the built-in BarcodeDetector where it exists (Chrome, Android). iOS has
+ * none and never has, which is why the same label the iOS camera app reads
+ * instantly used to fail here — Apple's decoder is native, ours was jsQR.
  *
- * jsQR is ~250 KB, so it's only fetched the first time the scanner is opened.
+ * So everywhere else gets ZXing-C++ compiled to WebAssembly, through a ponyfill
+ * presenting the same BarcodeDetector interface. Measured against jsQR on a
+ * rendered copy of a real label: jsQR lost the code at ±30 of sensor noise,
+ * ZXing still read it at ±120, and ZXing was ~5x faster. Camera grain in indoor
+ * light is exactly that failure, so this is the difference between a scanner
+ * that works in a workshop and one that only works in daylight.
+ *
+ * The wasm is ~1 MB (about 460 KB gzipped) and is fetched from this server, not
+ * a CDN — the app has to keep working on a LAN with no internet. Both files
+ * load on first scan only, and the service worker caches them after that.
  */
 
 /** Fraction of the short side handed to the decoder — matches the reticle. */
@@ -14,17 +23,10 @@ const CROP = 0.74;
 /**
  * Ceiling on the decoded square.
  *
- * Smaller is genuinely better, which is not the obvious direction. jsQR
- * binarizes in fixed 8x8 pixel regions and ignores any region whose contrast
- * falls under a fixed threshold. Optical blur is a fraction of the *image*, so
- * on a big frame a soft module edge spreads across several whole regions and
- * each one looks flat — the decoder discards exactly the edges it needs. Shrink
- * the same frame and that blur spans fewer pixels, so a region straddles a real
- * transition again.
- *
- * Measured against a rendered label code at matched optical blur, 1024 failed
- * from mild blur onward while 512 decoded every case, at about a quarter of the
- * cost. A 29-module code still gets ~15px per module here, where 3 would do.
+ * A 29-module label code gets ~15 pixels per module here where 3 would do, so
+ * this is already generous; spending more only costs frame rate, and attempts
+ * per second are what decide whether a handheld scan lands. ZXing read every
+ * blur and noise case tested at this size.
  */
 const MAX_DECODE = 512;
 
@@ -51,18 +53,33 @@ async function backLenses() {
   }
 }
 
-let jsQRPromise = null;
+let zxingPromise = null;
 
-function loadJsQR() {
-  if (window.jsQR) return Promise.resolve(window.jsQR);
-  jsQRPromise ??= new Promise((resolve, reject) => {
+/**
+ * The WebAssembly decoder, as a BarcodeDetector.
+ *
+ * Deliberately the ponyfill rather than the polyfill: it registers itself as
+ * BarcodeDetectionAPI and leaves window.BarcodeDetector alone, so a browser
+ * with a real one keeps it and never pays for this download.
+ */
+function loadZXing() {
+  zxingPromise ??= new Promise((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = '/vendor/jsqr.js';
-    script.onload = () => (window.jsQR ? resolve(window.jsQR) : reject(new Error('jsQR failed to initialize')));
+    script.src = '/vendor/barcode-detector.js';
+    script.onload = () => {
+      const api = window.BarcodeDetectionAPI;
+      if (!api) { reject(new Error('QR decoder failed to initialize')); return; }
+      // Without this it would go to jsDelivr for the wasm, which is exactly
+      // what a LAN-only app cannot rely on.
+      api.prepareZXingModule({
+        overrides: { locateFile: (path) => (path.endsWith('.wasm') ? '/vendor/zxing_reader.wasm' : path) },
+      });
+      resolve(api);
+    };
     script.onerror = () => reject(new Error('Could not load the QR decoder'));
     document.head.appendChild(script);
   });
-  return jsQRPromise;
+  return zxingPromise;
 }
 
 /** Why the camera can't be used, or null when it can. */
@@ -247,9 +264,12 @@ export class QrScanner {
         if (formats.includes('qr_code')) {
           this.detector = new window.BarcodeDetector({ formats: ['qr_code'] });
         }
-      } catch { /* fall through to jsQR */ }
+      } catch { /* fall through to the wasm build */ }
     }
-    if (!this.detector) this.decode = await loadJsQR();
+    if (!this.detector) {
+      const { BarcodeDetector } = await loadZXing();
+      this.detector = new BarcodeDetector({ formats: ['qr_code'] });
+    }
 
     this.running = true;
     this.tick();
@@ -261,9 +281,9 @@ export class QrScanner {
     const { video } = this;
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
       try {
-        const value = this.detector ? await this.scanNative() : this.scanFallback();
-        if (value) {
-          this.onResult(value);
+        const [hit] = await this.detector.detect(this.frameForDecode());
+        if (hit?.rawValue) {
+          this.onResult(hit.rawValue);
           return; // caller decides whether to keep going
         }
       } catch { /* a bad frame isn't worth stopping for */ }
@@ -275,35 +295,20 @@ export class QrScanner {
     this.timer = setTimeout(() => requestAnimationFrame(() => this.tick()), 40);
   }
 
-  async scanNative() {
-    const [hit] = await this.detector.detect(this.video);
-    return hit?.rawValue ?? null;
-  }
-
-  scanFallback() {
+  /**
+   * The pixels to decode: the reticle square, as ImageData.
+   *
+   * Cropping rather than handing over the whole frame keeps the reticle honest
+   * — what the box promises is what gets read — and keeps each pass cheap
+   * enough to run often. Every fourth pass widens to the full short side so a
+   * code held slightly outside the box is still found.
+   */
+  frameForDecode() {
     const { video, canvas, ctx } = this;
     const vw = video.videoWidth;
     const vh = video.videoHeight;
-    if (!vw || !vh) return null;
 
-    /*
-     * Crop to the reticle instead of shrinking the whole frame. Downscaling a
-     * full frame to fit jsQR's budget throws away exactly the detail the
-     * decoder needs; cropping spends that budget on the part of the image the
-     * code is actually in, keeping close to native pixels per module.
-     */
     this.frame = (this.frame ?? 0) + 1;
-
-    /*
-     * Three passes in four stay tight on the reticle and assume a normal
-     * dark-on-light code, which is what a filament label is. The fourth widens
-     * to the whole short side and tries the inverted reading too, so a code
-     * held slightly outside the box, or a white-on-black one, still gets found.
-     *
-     * The old split was even — half the frames on inverted codes — which spent
-     * half the budget on a case that almost never occurs and halved the
-     * attempts available to the one that always does.
-     */
     const sweep = this.frame % 4 === 0;
     const side = Math.min(vw, vh) * (sweep ? 1 : CROP);
     const sx = (vw - side) / 2;
@@ -313,17 +318,7 @@ export class QrScanner {
     canvas.width = target;
     canvas.height = target;
     ctx.drawImage(video, sx, sy, side, side, 0, 0, target, target);
-
-    const image = ctx.getImageData(0, 0, target, target);
-    const hit = this.decode(image.data, image.width, image.height, {
-      inversionAttempts: sweep ? 'attemptBoth' : 'dontInvert',
-    });
-    return hit?.data ?? null;
-  }
-
-  /** Actual negotiated frame size, for the on-screen diagnostic. */
-  get resolution() {
-    return this.video.videoWidth ? `${this.video.videoWidth}×${this.video.videoHeight}` : 'unknown';
+    return ctx.getImageData(0, 0, target, target);
   }
 
   get zoomRange() {
@@ -348,28 +343,6 @@ export class QrScanner {
     try {
       await this.track.applyConstraints({ advanced: [{ zoom: Number(value) }] });
     } catch { /* the camera refused; leave it where it was */ }
-  }
-
-  /** True when the ultra-wide (close-focusing) lens is the active one. */
-  get macroAvailable() {
-    return Boolean(this.macroLens);
-  }
-
-  /** Flips between the ultra-wide and the default rear lens. */
-  async setMacro(on) {
-    if (!this.macroLens) return;
-    const wasRunning = this.running;
-    this.running = false;
-    clearTimeout(this.timer);
-
-    try {
-      await this.openCamera(on
-        ? { deviceId: { exact: this.macroLens.deviceId } }
-        : { facingMode: { ideal: 'environment' } });
-      this.usingMacro = on;
-    } catch { /* keep whatever is already open */ }
-
-    if (wasRunning) { this.running = true; this.tick(); }
   }
 
   /**

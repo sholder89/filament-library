@@ -1,6 +1,6 @@
 /* Filament Library service worker — app shell offline, inventory read-only offline. */
 
-const VERSION = 'v74';
+const VERSION = 'v75';
 const SHELL = `shell-${VERSION}`;
 const DATA = `data-${VERSION}`;
 
@@ -10,8 +10,9 @@ const SHELL_FILES = [
   '/app.js',
   '/spool.js',
   '/label.js',
-  // vendor/jsqr.js is deliberately not precached — it's ~250 KB and only needed
-  // if you actually open the scanner. It gets cached on first use.
+  // The scanner's decoder (vendor/barcode-detector.js and its ~1 MB wasm) is
+  // deliberately not precached — it's only needed if you actually open the
+  // scanner, and it gets cached on first use like any other static asset.
   '/scan.js',
   '/manifest.webmanifest',
   '/icons/icon-192.png',
