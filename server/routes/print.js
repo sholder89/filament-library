@@ -24,9 +24,10 @@ const CLIENT_URL = (process.env.LABEL_CLIENT_URL || '').replace(/\/+$/, '');
 const RELAY_URL  = (process.env.LABEL_RELAY_URL  || '').replace(/\/+$/, '');
 const TOKEN      = process.env.LABEL_TOKEN || '';
 
-// Safe to default now that the size travels with the job instead of being
-// written to the printer's saved settings.
-const SIZE       = process.env.LABEL_SIZE || '2x1';
+// Unset by default: label size is a property of whatever stock is loaded, which
+// only the label app knows. Leaving it out lets the label app's own setting
+// stand — set LABEL_SIZE only to pin every print to one size regardless.
+const SIZE       = process.env.LABEL_SIZE || null;
 // On by default: the label prints the spool description beside the code, so a
 // sticker is readable without scanning it. Set to 0 for a bare QR.
 const SHOW_TEXT  = process.env.LABEL_QR_SHOW_TEXT !== '0';
@@ -34,7 +35,8 @@ const NAME_LABEL = process.env.LABEL_NAME_LABEL === '1';
 const MODE_PREF  = (process.env.LABEL_MODE || 'auto').toLowerCase();
 
 /** Sizes the label client knows about — anything else would render wrong. */
-const VALID_SIZES = ['2x1', '4x2', '4x6', '3x2', '2x0.5', '1.1x3.5', '1.1x2.4'];
+const VALID_SIZES = ['2x1', '4x2', '4x6', '3x2', '2x0.5', '1.1x3.5', '1.1x2.4',
+                     '50mm-round'];
 
 export function printMode() {
   const relayReady = Boolean(RELAY_URL && TOKEN);
@@ -148,19 +150,23 @@ router.post('/:id', async (req, res, next) => {
 
   // The QR encodes the URL; the caption is what a human reads off the shelf.
   const caption = describe(filament);
-  const qrStyle = { style_preset: 'qr_code', qr_show_text: showText ? 'true' : 'false', icons: 'false', size };
-  const textStyle = { style_preset: 'none', icons: 'false', size };
+  // Only send a size when one was actually asked for. Omitting the key leaves
+  // the label app free to use whatever size is selected there for the stock
+  // that's loaded, rather than this app overriding it on every job.
+  const sizeOpt = size ? { size } : {};
+  const qrStyle = { style_preset: 'qr_code', qr_show_text: showText ? 'true' : 'false', icons: 'false', ...sizeOpt };
+  const textStyle = { style_preset: 'none', icons: 'false', ...sizeOpt };
 
   try {
     if (mode === 'direct') {
       await request(`${CLIENT_URL}/print`, {
         method: 'POST',
-        body: { text: url, style_preset: 'qr_code', qr_show_text: showText, caption, icons: false, size, copies },
+        body: { text: url, style_preset: 'qr_code', qr_show_text: showText, caption, icons: false, copies, ...sizeOpt },
       });
       if (nameLabel) {
         await request(`${CLIENT_URL}/print`, {
           method: 'POST',
-          body: { text: caption, style_preset: 'none', icons: false, size, copies },
+          body: { text: caption, style_preset: 'none', icons: false, copies, ...sizeOpt },
         });
       }
     } else {
@@ -172,7 +178,7 @@ router.post('/:id', async (req, res, next) => {
       }
     }
 
-    res.json({ ok: true, mode, url, caption, size, copies });
+    res.json({ ok: true, mode, url, caption, size: size ?? null, copies });
   } catch (err) {
     if (err.name === 'TimeoutError' || err.name === 'AbortError') {
       return res.status(504).json({

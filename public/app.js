@@ -2004,7 +2004,9 @@ async function showDetail(id, push = false) {
         qrSrc: `/api/print/qr/${encodeURIComponent(f.id)}.svg`,
       })}
       <span class="qr-caption">${printable
-        ? `This is roughly what prints — ${esc(state.print.size || '2x1')}″ label`
+        ? (state.print.size
+            ? `This is roughly what prints — ${esc(state.print.size)} label`
+            : 'This is roughly what prints — size follows the label printer')
         : 'Scan this to open the spool on your phone'}</span>
       <code>${esc(state.print.base_url || location.origin)}/f/${esc(f.id)}</code>
     </div>

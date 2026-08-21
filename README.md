@@ -282,7 +282,7 @@ Everything is optional — the app runs with an empty `.env`.
 | `APP_BASE_URL` | *(auto)* | URL the QR codes point at. Auto-detects from how you reached the app, which is right on a home LAN. Set it if you're behind a reverse proxy. |
 | `LABEL_RELAY_URL` | — | Voice Label Printer relay server |
 | `LABEL_TOKEN` | — | Must match the relay's `LABEL_TOKEN` |
-| `LABEL_SIZE` | `2x1` | Label size — `2x1`, `4x2`, `4x6`, `3x2`, `2x0.5`, `1.1x3.5`, `1.1x2.4` |
+| `LABEL_SIZE` | *(unset)* | Pin every print to one label size. Leave unset — the default — to use whatever size is selected in the label app, which is the thing that knows what stock is loaded. Values: `2x1`, `4x2`, `4x6`, `3x2`, `2x0.5`, `1.1x3.5`, `1.1x2.4`, `50mm-round` |
 | `LABEL_QR_SHOW_TEXT` | `1` | Print the brand/type/color beside the QR |
 | `LABEL_NAME_LABEL` | `0` | Also print a second plain-text label with the spool description |
 | `LABEL_MODE` | `auto` | `relay`, `direct`, or `auto` |
