@@ -3610,6 +3610,25 @@ function agoShort(iso) {
  * asking "what did I do lately" should answer once per thing done, so events
  * sharing a spool and a timestamp collapse into a single entry.
  */
+/**
+ * The exact moment, without the parts that are already obvious.
+ *
+ * The year is dropped inside the current one: it is the same six characters
+ * on every row, and the row it is squeezing is the one that says what
+ * actually happened. The full date with the year stays on the hover.
+ */
+function fmtWhenCompact(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: d.getFullYear() === new Date().getFullYear() ? undefined : 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 function groupFeed(events) {
   const out = [];
   const seen = new Map();
@@ -3687,8 +3706,27 @@ function feedRowHTML({ spool, parts }) {
       <span class="feed-name">${esc(name)}</span>
       <span class="feed-what">${esc(parts.join(" · "))}</span>
     </span>
-    <span class="feed-when">${esc(agoShort(spool.at))}</span>
+    <span class="feed-when" role="button" tabindex="0" title="${esc(fmtWhen(spool.at))}">
+      ${esc(feedAbsolute ? fmtWhenCompact(spool.at) : agoShort(spool.at))}
+    </span>
   </button>`;
+}
+
+/**
+ * Relative times, or the exact moment.
+ *
+ * A title attribute covers a hover, which is the whole answer on a desktop
+ * and none of it on the phone this mostly runs on. So the timestamp is also
+ * a control: tapping one switches every row to the full date and back. It
+ * stops the click reaching the row, which would open the spool instead.
+ */
+let feedEvents = [];
+let feedAbsolute = false;
+
+function paintFeed() {
+  el.feedList.innerHTML = feedEvents.length
+    ? groupFeed(feedEvents).map(feedRowHTML).join('')
+    : `<p class="feed-empty">Nothing has happened yet.</p>`;
 }
 
 async function openFeed() {
@@ -3702,9 +3740,8 @@ async function openFeed() {
 
   try {
     const { events } = await api('/api/events?limit=60');
-    el.feedList.innerHTML = events.length
-      ? groupFeed(events).map(feedRowHTML).join('')
-      : `<p class="feed-empty">Nothing has happened yet.</p>`;
+    feedEvents = events;
+    paintFeed();
   } catch {
     el.feedList.innerHTML = `<p class="feed-empty">Could not load recent activity.</p>`;
   }
@@ -3732,6 +3769,13 @@ function closeFeed() {
 $('#feedBtn').addEventListener('click', openFeed);
 
 el.feedPanel.addEventListener('click', (e) => {
+  if (e.target.closest('.feed-when')) {
+    e.stopPropagation();
+    feedAbsolute = !feedAbsolute;
+    paintFeed();
+    return;
+  }
+
   const row = e.target.closest('[data-feed-id]');
   if (!row) return;
   closeFeed();

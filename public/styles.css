@@ -2463,3 +2463,9 @@ input[type="range"] {
 }
 
 .feed-empty { margin: 0; padding: 22px 14px; color: var(--muted); font-size: 13.5px; }
+
+/* The timestamp doubles as the switch between relative and exact times, so it
+   needs to look pressable without becoming a second button competing with the
+   row it sits in. */
+.feed-when { cursor: pointer; border-radius: 6px; padding: 2px 4px; margin: -2px -4px; }
+.feed-when:hover { background: rgb(128 128 128 / .16); color: var(--text); }
