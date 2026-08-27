@@ -184,13 +184,6 @@ const EVENT_HAYSTACK = `(
 )`;
 
 /**
- * Recent activity, narrowed.
- *
- * Search is widened exactly as the filament list widens it — same synonyms,
- * same typo pass against the words the library actually uses — so "flexible"
- * finds the TPU here too and there is only one search to learn.
- */
-/**
  * The WHERE for a narrowed activity query, shared by the page and its count.
  *
  * Built once and used twice: a paginated list has to know how many rows it is
