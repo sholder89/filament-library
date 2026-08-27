@@ -6,7 +6,7 @@ import { db } from './db.js';
 import { router as filamentsRouter, importHandler } from './routes/filaments.js';
 import { router as catalogRouter } from './routes/catalog.js';
 import { router as taresRouter, allTares } from './routes/tares.js';
-import { allEvents, recentEvents } from './events.js';
+import { allEvents, recentEvents, searchEvents, ACTION_KEYS } from './events.js';
 import { router as appSettingsRouter } from './routes/app-settings.js';
 import { router as printRouter, printMode } from './routes/print.js';
 import { router as scanRouter, scanEnabled } from './routes/scan.js';
@@ -92,8 +92,20 @@ app.use('/api/print', printRouter);
  */
 app.get('/api/events', (req, res) => {
   const asked = parseInt(req.query.limit, 10);
-  const limit = Math.min(200, Math.max(1, Number.isFinite(asked) ? asked : 60));
-  res.json({ events: recentEvents(limit) });
+  const limit = Math.min(500, Math.max(1, Number.isFinite(asked) ? asked : 60));
+  const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
+
+  const q = String(req.query.q ?? "");
+  const action = String(req.query.action ?? "");
+  const filamentId = String(req.query.filament ?? "");
+
+  // The plain recent list is the common case and stays on its own prepared
+  // statement; anything narrowed goes through the search builder.
+  const events = q || action || filamentId || offset
+    ? searchEvents({ q, action, filamentId, limit, offset })
+    : recentEvents(limit);
+
+  res.json({ events, actions: ACTION_KEYS });
 });
 
 /**

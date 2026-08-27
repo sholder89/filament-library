@@ -1,4 +1,5 @@
 import { db, nowISO } from './db.js';
+import { expandTerm, vocabularyFrom, normalizeQuery } from './search-terms.js';
 
 /**
  * What happened to a spool, and when.
@@ -132,3 +133,97 @@ const recent = db.prepare(`
 `);
 
 export const recentEvents = (limit = 60) => recent.all(limit);
+
+/**
+ * The finer actions the feed shows, as SQL.
+ *
+ * The table stores a coarse kind because that is what the diff knows: loading
+ * and unloading are one column moving. A reader sees opposite actions, so the
+ * filter has to split them again here rather than storing them apart.
+ */
+const ACTION_WHERE = {
+  added:     "e.kind = 'added'",
+  opened:    "e.kind = 'status' AND e.to_value = 'opened'",
+  empty:     "e.kind = 'status' AND e.to_value = 'empty'",
+  sealed:    "e.kind = 'status' AND e.to_value = 'new'",
+  loaded:    "e.kind = 'loaded' AND e.to_value = '1'",
+  unloaded:  "e.kind = 'loaded' AND e.to_value = '0'",
+  remaining: "e.kind = 'remaining'",
+  weighed:   "e.kind = 'weighed'",
+  edit:      "e.kind = 'field'",
+};
+
+export const ACTION_KEYS = Object.keys(ACTION_WHERE);
+
+/**
+ * What a row can be found by.
+ *
+ * The spool's own words, plus the change itself, plus the words someone would
+ * actually search for the action by — nobody types "kind:loaded", they type
+ * "printer". Spelled out per action for the same reason the filament haystack
+ * is: matching is on substrings, so "unloaded" would answer to "loaded".
+ */
+const EVENT_HAYSTACK = `(
+  f.brand || ' ' || f.material || ' ' || f.color_name || ' ' || f.finish
+  || ' ' || e.field || ' ' || e.from_value || ' ' || e.to_value
+  || CASE e.kind
+       WHEN 'added'     THEN ' added created'
+       WHEN 'remaining' THEN ' remaining left usage'
+       WHEN 'weighed'   THEN ' weighed weight tare'
+       WHEN 'field'     THEN ' edited changed'
+       WHEN 'loaded'    THEN CASE e.to_value
+                               WHEN '1' THEN ' loaded printer ams'
+                               ELSE ' unloaded removed printer ams'
+                             END
+       ELSE CASE e.to_value
+              WHEN 'opened' THEN ' opened started'
+              WHEN 'empty'  THEN ' finished gone'
+              ELSE ' sealed'
+            END
+     END
+)`;
+
+/**
+ * Recent activity, narrowed.
+ *
+ * Search is widened exactly as the filament list widens it — same synonyms,
+ * same typo pass against the words the library actually uses — so "flexible"
+ * finds the TPU here too and there is only one search to learn.
+ */
+export function searchEvents({ q = '', action = '', filamentId = '', limit = 200, offset = 0 } = {}) {
+  const where = [];
+  const params = [];
+
+  if (ACTION_WHERE[action]) where.push(`(${ACTION_WHERE[action]})`);
+  if (filamentId) { where.push('e.filament_id = ?'); params.push(filamentId); }
+
+  const text = String(q ?? '').trim();
+  if (text) {
+    const words = normalizeQuery(text).split(/\s+/).filter(Boolean).slice(0, 8);
+    const like = (w) => `%${w.replace(/[\%_]/g, '\$&')}%`;
+    const vocabulary = vocabularyFrom(
+      db.prepare('SELECT brand, material, color_name, finish FROM filaments').all(),
+    );
+
+    for (const word of words) {
+      const negated = word.length > 1 && word.startsWith('-');
+      const forms = expandTerm(negated ? word.slice(1) : word, vocabulary);
+      const any = `(${forms.map(() => `${EVENT_HAYSTACK} LIKE ? ESCAPE '\\'`).join(' OR ')})`;
+      where.push(negated ? `NOT ${any}` : any);
+      params.push(...forms.map(like));
+    }
+  }
+
+  const sql = `
+    SELECT e.id, e.at, e.kind, e.field, e.from_value, e.to_value,
+           f.id AS filament_id, f.brand, f.material, f.color_name, f.finish,
+           f.color_hex, f.color_hex2, f.color_hex3
+    FROM filament_events e
+    JOIN filaments f ON f.id = e.filament_id
+    ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+    ORDER BY e.at DESC, e.id DESC
+    LIMIT ? OFFSET ?
+  `;
+
+  return db.prepare(sql).all(...params, limit, offset);
+}

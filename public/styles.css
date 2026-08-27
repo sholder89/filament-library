@@ -41,6 +41,14 @@
      the effect reads as part of the theme rather than a bolt-on; opacity is
      lower on light because ink is more visible against a pale page. */
   --bgfx-color:   #5b8cff;
+
+  /* Feed badges. Nine actions want nine tones — with four sharing gray the
+     icons were doing all the work, and a glance down the list could not tell
+     an unload from an edit. Hues here, not lightness, so they stay apart. */
+  --act-out:   #22c1d6;
+  --act-weigh: #2bb89a;
+  --act-seal:  #e8739e;
+  --act-edit:  #9b8c7a;
   --bgfx-opacity: .22;
 }
 
@@ -60,6 +68,10 @@
   --empty:     #8b94a3;
   --danger:    #d92d20;
   --loaded:    #7c3aed;
+  --act-out:   #0e9fb4;
+  --act-weigh: #16967c;
+  --act-seal:  #cf4d7d;
+  --act-edit:  #7d7060;
   --shadow:    0 10px 30px rgba(16, 24, 40, .10);
 
   --spool-rim-hi: #c3cad6;
@@ -73,6 +85,18 @@
 }
 
 * { box-sizing: border-box; }
+
+/* The `hidden` attribute is a user-agent rule at the lowest precedence there
+   is, so any author rule that sets display beats it and the element stays on
+   screen with hidden="" sitting right there in the markup. Twelve components
+   in this file already carry their own `[hidden] { display: none }` because of
+   it, added one at a time as each one was caught: a menu that would not close,
+   a button that appeared in a browser lacking the API behind it, a toast, and
+   the library view refusing to give way to the activity page.
+
+   Settled here once. !important is the point rather than a shortcut: it has to
+   outrank whatever display a component sets on itself. */
+[hidden] { display: none !important; }
 
 html, body {
   margin: 0;
@@ -2437,8 +2461,11 @@ input[type="range"] {
 .feed-badge.tone-opened { background: var(--opened); color: #23180a; }
 .feed-badge.tone-empty  { background: var(--empty); }
 .feed-badge.tone-loaded { background: var(--loaded); }
+.feed-badge.tone-out    { background: var(--act-out); color: #04222a; }
 .feed-badge.tone-accent { background: var(--accent); color: var(--accent-ink); }
-.feed-badge.tone-muted  { background: var(--muted); color: var(--surface); }
+.feed-badge.tone-weigh  { background: var(--act-weigh); color: #052019; }
+.feed-badge.tone-seal   { background: var(--act-seal); }
+.feed-badge.tone-edit   { background: var(--act-edit); }
 
 .feed-text { min-width: 0; display: grid; gap: 1px; }
 .feed-name {
@@ -2469,3 +2496,115 @@ input[type="range"] {
    row it sits in. */
 .feed-when { cursor: pointer; border-radius: 6px; padding: 2px 4px; margin: -2px -4px; }
 .feed-when:hover { background: rgb(128 128 128 / .16); color: var(--text); }
+
+/* ── All activity ────────────────────────────────────────────────────────── */
+
+.feed-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+
+.feed-all {
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  text-transform: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  border-radius: 6px;
+}
+.feed-all:hover { background: rgb(128 128 128 / .16); }
+
+.activity-controls { display: grid; gap: 10px; margin-bottom: 4px; }
+
+/* Horizontal scroll rather than wrapping: nine chips would otherwise take
+   three rows on a phone and push the list itself off the screen. */
+.activity-chips {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+.activity-chips::-webkit-scrollbar { display: none; }
+
+.act-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px 6px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 620;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.act-chip:hover { color: var(--text); }
+.act-chip.on { border-color: var(--accent); color: var(--text); background: rgb(91 140 255 / .13); }
+
+.act-chip-mark {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+}
+.act-chip-mark svg { width: 11px; height: 11px; display: block; }
+
+.activity-scope {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--muted);
+}
+.activity-scope[hidden] { display: none; }
+.activity-scope button {
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+/* The list owns the scrolling so the search and chips stay put while it moves. */
+.activity-list {
+  max-height: min(58vh, 620px);
+  margin-top: 10px;
+}
+.activity-list li { display: block; padding: 0; border-bottom: 1px solid var(--border); }
+.activity-list .feed-row { border-bottom: 0; padding: 11px 4px; }
+
+/* The activity page sits where the grid does and uses the same gutters, so
+   switching between them does not shift the page around. */
+.activity-view {
+  padding: 4px 16px 40px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+.activity-view[hidden] { display: none; }
+
+.activity-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 14px;
+}
+.activity-head h2 { font-size: 21px; margin: 0; }
+
+/* The window scrolls this list, not the list itself - it is a page, so running
+   out of entries should feel like the bottom of a page. */
+.activity-view .activity-list { max-height: none; overflow: visible; margin-top: 14px; }

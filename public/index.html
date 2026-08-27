@@ -167,6 +167,38 @@
 
 <main id="grid" class="grid" aria-live="polite"></main>
 
+<!-- ── Activity ─────────────────────────────────────────────────────────── -->
+
+<!-- A page, not a sheet: this is somewhere you go and read, not a form you
+     fill in and dismiss. It takes the place of the grid rather than covering
+     it, so the whole window scrolls the list. -->
+<section id="activityView" class="activity-view" aria-label="Activity" hidden>
+  <div class="activity-head">
+    <button type="button" class="icon-btn" id="activityBack" aria-label="Back to the library">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <h2>Activity</h2>
+  </div>
+
+  <div class="activity-controls">
+    <div class="search">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="m16.5 16.5 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <input type="search" id="activitySearch" placeholder="Search activity, spools, colors…" autocomplete="off" enterkeyhint="search">
+      <button type="button" class="search-clear" id="activitySearchClear" aria-label="Clear the search" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="activity-chips" id="activityActions" role="group" aria-label="Filter by action"></div>
+    <div class="activity-scope" id="activityScope" hidden>
+      <span id="activityScopeLabel"></span>
+      <button type="button" id="activityScopeClear" aria-label="Show every spool">Show all spools</button>
+    </div>
+  </div>
+
+  <ol class="timeline activity-list" id="activityList"></ol>
+</section>
+
+
 <div class="fab-stack">
   <button class="fab fab-secondary" id="scanBtn" aria-label="Scan a spool's QR code" hidden>
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -599,7 +631,10 @@
 <!-- Recent activity. Pinned to the document rather than nested in the header,
      which is a stacking and clipping context of its own. -->
 <div id="feedPanel" class="feed-panel" role="dialog" aria-label="Recent activity" hidden>
-  <div class="feed-head">Recent activity</div>
+  <div class="feed-head">
+    <span>Recent activity</span>
+    <button type="button" class="feed-all" id="feedAllBtn">View all</button>
+  </div>
   <div class="feed-list" id="feedList"></div>
 </div>
 

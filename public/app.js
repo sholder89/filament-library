@@ -39,6 +39,8 @@ const $ = (sel) => document.querySelector(sel);
 const el = {
   stats: $('#stats'),
   feedPanel: $('#feedPanel'),
+  activityView: $('#activityView'),
+  activityList: $('#activityList'),
   feedList: $('#feedList'),
   grid: $('#grid'),
   statusFilter: $('#statusFilter'),
@@ -3597,10 +3599,14 @@ function agoShort(iso) {
   if (Number.isNaN(then)) return '';
   const mins = Math.round((Date.now() - then) / 60000);
   if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m`;
-  if (mins < 60 * 24) return `${Math.round(mins / 60)}h`;
+  if (mins === 1) return 'a minute ago';
+  if (mins < 60) return `${mins} minutes ago`;
+  const hours = Math.round(mins / 60);
+  if (hours === 1) return 'an hour ago';
+  if (hours < 24) return `${hours} hours ago`;
   const days = Math.round(mins / (60 * 24));
-  if (days < 7) return `${days}d`;
+  if (days === 1) return 'yesterday';
+  if (days < 7) return `${days} days ago`;
   return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 }
 
@@ -3676,12 +3682,12 @@ const ACTIONS = {
   added:     { tone: 'new',    icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>' },
   opened:    { tone: 'opened', icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7z" fill="currentColor"/></svg>' },
   empty:     { tone: 'empty',  icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4L19 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' },
-  sealed:    { tone: 'muted',  icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' },
+  sealed:    { tone: 'seal',  icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' },
   loaded:    { tone: 'loaded', icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10m0 0l-4-4m4 4l4-4M4 19h16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>' },
-  unloaded:  { tone: 'muted',  icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V6m0 0L8 10m4-4l4 4M4 19h16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>' },
+  unloaded:  { tone: 'out',  icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V6m0 0L8 10m4-4l4 4M4 19h16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>' },
   remaining: { tone: 'accent', icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="9" width="18" height="6" rx="2.5" fill="none" stroke="currentColor" stroke-width="2.2"/><rect x="6" y="11.4" width="6" height="1.9" rx="1" fill="currentColor"/></svg>' },
-  weighed:   { tone: 'accent', icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="9" r="4" fill="currentColor"/><path d="M4 18h16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>' },
-  edit:      { tone: 'muted',  icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19.5 8.5l-4-4L4 16z" fill="currentColor"/></svg>' },
+  weighed:   { tone: 'weigh', icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="9" r="4" fill="currentColor"/><path d="M4 18h16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>' },
+  edit:      { tone: 'edit',  icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19.5 8.5l-4-4L4 16z" fill="currentColor"/></svg>' },
 };
 
 /*
@@ -3789,6 +3795,188 @@ addEventListener('click', (e) => {
 });
 addEventListener('keydown', (e) => { if (e.key === 'Escape' && !el.feedPanel.hidden) closeFeed(); });
 addEventListener('resize', () => { if (!el.feedPanel.hidden) placeFeed(); });
+
+// ── All activity ────────────────────────────────────────────────────────────
+
+/** The action filters, ordered the way a spool's life actually runs. */
+const ACTION_FILTERS = [
+  ['added', 'Added'],
+  ['opened', 'Opened'],
+  ['loaded', 'Loaded'],
+  ['unloaded', 'Unloaded'],
+  ['remaining', 'Usage'],
+  ['weighed', 'Weighed'],
+  ['empty', 'Used up'],
+  ['sealed', 'Re-sealed'],
+  ['edit', 'Edits'],
+];
+
+const activityState = { q: '', action: '', filamentId: '', label: '' };
+
+function renderActionChips() {
+  $('#activityActions').innerHTML = ACTION_FILTERS.map(([key, label]) => {
+    const on = activityState.action === key;
+    const act = ACTIONS[key] ?? ACTIONS.edit;
+    return '<button type="button" class="act-chip' + (on ? ' on' : '') + '" data-action="' + key + '"'
+      + ' aria-pressed="' + on + '"><span class="act-chip-mark tone-' + act.tone + '">' + act.icon + '</span>'
+      + esc(label) + '</button>';
+  }).join('');
+}
+
+/**
+ * Rows here are deliberately not grouped the way the dropdown groups them.
+ *
+ * The dropdown answers "what have I been up to lately" and collapses one save
+ * into one line. This is the record, and it filters by action — so a row has
+ * to be a single event, or filtering by Usage would return rows that are
+ * mostly not usage.
+ */
+function activityRowHTML(e) {
+  const act = ACTIONS[actionKey(e)] ?? ACTIONS.edit;
+  const name = [nameOf(e), e.color_name].filter(Boolean).join(' · ');
+  const when = feedAbsolute ? fmtWhenCompact(e.at) : agoShort(e.at);
+  return '<li>'
+    + '<button type="button" class="feed-row" data-feed-id="' + esc(e.filament_id) + '">'
+    + '<span class="feed-mark">'
+    + '<i class="feed-dot" style="background:' + colorCSS(e) + '"></i>'
+    + '<span class="feed-badge tone-' + act.tone + '">' + act.icon + '</span>'
+    + '</span>'
+    + '<span class="feed-text">'
+    + '<span class="feed-name">' + esc(name) + '</span>'
+    + '<span class="feed-what">' + esc(describeEvent(e)) + '</span>'
+    + '</span>'
+    + '<span class="feed-when" role="button" tabindex="0" title="' + esc(fmtWhen(e.at)) + '">'
+    + esc(when)
+    + '</span>'
+    + '</button>'
+    + '</li>';
+}
+
+/*
+ * Typing is faster than the round trip, so answers can arrive out of order.
+ * Each request carries a number and only the newest one is allowed to paint —
+ * otherwise a slow search for "bl" lands after "black" and overwrites it.
+ */
+let activityToken = 0;
+
+async function loadActivity() {
+  const mine = ++activityToken;
+  const params = new URLSearchParams({ limit: '300' });
+  if (activityState.q) params.set('q', activityState.q);
+  if (activityState.action) params.set('action', activityState.action);
+  if (activityState.filamentId) params.set('filament', activityState.filamentId);
+
+  try {
+    const { events } = await api('/api/events?' + params);
+    if (mine !== activityToken) return;
+    el.activityList.innerHTML = events.length
+      ? events.map(activityRowHTML).join('')
+      : '<li class="timeline-empty">Nothing matches that.</li>';
+  } catch {
+    if (mine !== activityToken) return;
+    el.activityList.innerHTML = '<li class="timeline-empty">Could not load activity.</li>';
+  }
+}
+
+function syncActivityScope() {
+  $('#activityScope').hidden = !activityState.filamentId;
+  $('#activityScopeLabel').textContent = activityState.filamentId
+    ? 'Showing ' + (activityState.label || activityState.filamentId)
+    : '';
+}
+
+/*
+ * The library and the activity page are the two things the main view can be,
+ * so opening one hides the other. Everything the grid needs - stats, filters,
+ * the add button - belongs to the library and goes with it.
+ */
+const LIBRARY_PARTS = ['#stats', '.toolbar', '#grid', '.fab-stack'];
+
+function showLibraryParts(on) {
+  for (const sel of LIBRARY_PARTS) {
+    const node = document.querySelector(sel);
+    if (node) node.hidden = !on;
+  }
+}
+
+function openActivity({ filamentId = '', label = '' } = {}) {
+  activityState.filamentId = filamentId;
+  activityState.label = label;
+  activityState.q = '';
+  activityState.action = '';
+  $('#activitySearch').value = '';
+  $('#activitySearchClear').hidden = true;
+  renderActionChips();
+  syncActivityScope();
+  el.activityList.innerHTML = '<li class="timeline-empty">Loading…</li>';
+
+  showLibraryParts(false);
+  el.activityView.hidden = false;
+  scrollTo({ top: 0 });
+  loadActivity();
+}
+
+function closeActivity() {
+  el.activityView.hidden = true;
+  showLibraryParts(true);
+}
+
+$('#activityBack').addEventListener('click', closeActivity);
+
+$('#feedAllBtn').addEventListener('click', () => {
+  closeFeed();
+  openActivity();
+});
+
+$('#activityActions').addEventListener('click', (e) => {
+  const chip = e.target.closest('[data-action]');
+  if (!chip) return;
+  // Pressing the active one clears it, so there is always a way back to all.
+  activityState.action = activityState.action === chip.dataset.action ? '' : chip.dataset.action;
+  renderActionChips();
+  loadActivity();
+});
+
+let activitySearchTimer;
+$('#activitySearch').addEventListener('input', (e) => {
+  const value = e.target.value;
+  $('#activitySearchClear').hidden = !value;
+  clearTimeout(activitySearchTimer);
+  activitySearchTimer = setTimeout(() => {
+    activityState.q = value.trim();
+    loadActivity();
+  }, 220);
+});
+
+$('#activitySearchClear').addEventListener('click', () => {
+  clearTimeout(activitySearchTimer);
+  $('#activitySearch').value = '';
+  $('#activitySearchClear').hidden = true;
+  activityState.q = '';
+  loadActivity();
+  $('#activitySearch').focus();
+});
+
+$('#activityScopeClear').addEventListener('click', () => {
+  activityState.filamentId = '';
+  activityState.label = '';
+  syncActivityScope();
+  loadActivity();
+});
+
+el.activityView.addEventListener('click', (e) => {
+  if (e.target.closest('.feed-when')) {
+    e.stopPropagation();
+    feedAbsolute = !feedAbsolute;
+    loadActivity();
+    return;
+  }
+  const row = e.target.closest('[data-feed-id]');
+  if (!row) return;
+  // The page stays underneath: closing the spool puts you back where you were
+  // in the list, which is the point of it being a page.
+  showDetail(row.dataset.feedId, true);
+});
 
 // ── Theme ────────────────────────────────────────────────────────────────────
 
