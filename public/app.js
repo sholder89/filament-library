@@ -1025,12 +1025,19 @@ async function loadAll() {
 let lastRefreshAt = 0;
 
 async function refresh() {
-  // The unfiltered list comes first so stale selections can be dropped before
-  // they're used to query, rather than flashing an empty grid.
-  await loadAll();
+  /*
+   * The unfiltered list comes first so stale selections can be dropped before
+   * they're used to query, rather than flashing an empty grid.
+   *
+   * The saved places come with it, not after: cards draw their location icon by
+   * looking the name up in that list, so loading it afterwards meant the first
+   * paint of a cold start had nothing to look in and every spool fell back to
+   * the generic box, then kept it until something happened to re-render.
+   */
+  await Promise.all([loadAll(), loadLocations()]);
   pruneFilters();
   await loadFilaments();
-  await Promise.all([loadStats(), loadCatalog(), loadLocations()]);
+  await Promise.all([loadStats(), loadCatalog()]);
   lastRefreshAt = Date.now();
 }
 
@@ -4202,6 +4209,11 @@ const LOCATION_ICONS = {
   bin:     '<path d="M5 7h14l-1 13a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 7zM9 4h6v3H9z"/>',
   bag:     '<path d="M6 8h12l-1 12H7L6 8zM9 8V5a3 3 0 0 1 6 0v3"/>',
   cabinet: '<path d="M5 3h14v18H5zM12 3v18M9 11h1M14 11h1"/>',
+  // A pair, so two of the same thing can be told apart at a glance: the body
+  // stays put and the open door swings out to one side. Which is the whole
+  // difference you need when the cabinets are left and right of each other.
+  'cabinet-left':  '<path d="M9 3h11v18H9zM9 4 4 6v12l5 2zM11.5 11v2"/>',
+  'cabinet-right': '<path d="M4 3h11v18H4zM15 4l5 2v12l-5 2zM12.5 11v2"/>',
   cart:    '<path d="M4 5h3l2 10h9M6 19a1.6 1.6 0 1 0 3 0 1.6 1.6 0 1 0-3 0M15 19a1.6 1.6 0 1 0 3 0 1.6 1.6 0 1 0-3 0M9 11h11l1-5H8"/>',
   desk:    '<path d="M3 9h18M4 9v11M20 9v11M4 5h16v4H4zM9 13h6"/>',
   closet:  '<path d="M4 3h16v18H4zM4 9h16M12 5v2M9 15h6"/>',
@@ -4210,7 +4222,7 @@ const LOCATION_ICONS = {
 
 /** Every icon a person can choose from, printers first since those lead the list. */
 const ICON_CHOICES = ['printer', 'drybox', 'shelf', 'box', 'drawer', 'bin',
-  'bag', 'cabinet', 'cart', 'desk', 'closet', 'wall'];
+  'bag', 'cabinet', 'cabinet-left', 'cabinet-right', 'cart', 'desk', 'closet', 'wall'];
 
 function locIconSVG(key) {
   const path = LOCATION_ICONS[key] ?? LOCATION_ICONS.box;

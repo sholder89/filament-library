@@ -2832,7 +2832,9 @@ input[type="range"] {
   max-width: 55%;
   font-size: 11.5px;
 }
-.grid.view-medium .loc-head svg { width: 12px; height: 12px; }
+/* 14 rather than 12: with only the drawing to go on here, a couple of pixels
+   is the difference between two mirrored cabinets reading apart and not. */
+.grid.view-medium .loc-head svg { width: 14px; height: 14px; }
 .grid.view-medium .card-title-row,
 .grid.view-medium .card-color,
 .grid.view-medium .card-extra { grid-column: 1 / -1; }
