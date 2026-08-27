@@ -6,6 +6,7 @@ import { db } from './db.js';
 import { router as filamentsRouter, importHandler } from './routes/filaments.js';
 import { router as catalogRouter } from './routes/catalog.js';
 import { router as taresRouter, allTares } from './routes/tares.js';
+import { router as locationsRouter, allLocations } from './routes/locations.js';
 import { allEvents, recentEvents, searchEvents, ACTION_KEYS } from './events.js';
 import { router as appSettingsRouter } from './routes/app-settings.js';
 import { router as printRouter, printMode } from './routes/print.js';
@@ -81,6 +82,7 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/filaments', filamentsRouter);
 app.use('/api/catalog', catalogRouter);
 app.use('/api/tares', taresRouter);
+app.use('/api/locations', locationsRouter);
 app.use('/api/settings', appSettingsRouter);
 app.use('/api/print', printRouter);
 
@@ -211,6 +213,9 @@ app.get('/api/export', (_req, res) => {
     // way, and every spool reads as though it arrived on the day of the
     // restore. It is a few rows per spool, not a meaningful size.
     events: allEvents(),
+    // The saved places and their icons. Without them a restore brings the
+    // spools back but not the shelf they were organised onto.
+    locations: allLocations(),
   });
 });
 

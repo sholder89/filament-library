@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { db, newId, nowISO } from '../db.js';
 import { importTares } from './tares.js';
 import { recordEvent, recordChanges, eventsFor, deleteEvents, importEvents } from '../events.js';
+import { isPrinterLocation, importLocations } from './locations.js';
 import { expandTerm, vocabularyFrom, normalizeQuery } from '../search-terms.js';
 
 export const router = Router();
@@ -114,6 +115,32 @@ function readBody(body, { partial = false } = {}) {
 
 /** Accepts what JSON, a form and a query string each call true. */
 const truthy = (v) => v === true || v === 1 || /^(1|true|yes|on)$/i.test(str(v));
+
+/**
+ * Keeps a spool being in a printer and a spool being at a printer agreeing.
+ *
+ * `loaded` came first and everything reads it — the sort, the pinned section,
+ * the card flag, the history. Rather than replace it, a location whose kind
+ * is printer now sets it, which is what allows three printers where there
+ * used to be a yes or no.
+ *
+ * Only fires on the field that actually moved. Setting a location decides
+ * whether the spool is loaded; taking it out of a printer clears the place it
+ * was, since it is demonstrably no longer there. Pressing Load without naming
+ * a printer is left alone: it still means what it always meant.
+ */
+function reconcileLocation(existing, row, fields) {
+  const movedTo = fields.location !== undefined && row.location !== existing.location;
+  if (movedTo) {
+    row.loaded = isPrinterLocation(row.location) ? 1 : 0;
+    return row;
+  }
+
+  const takenOut = fields.loaded !== undefined && !row.loaded && existing.loaded;
+  if (takenOut && isPrinterLocation(existing.location)) row.location = '';
+
+  return row;
+}
 
 /**
  * Keeps the lifecycle timestamps honest no matter which route did the writing:
@@ -324,6 +351,9 @@ router.post('/', (req, res) => {
     ...fields,
   });
 
+  // Added straight into a printer? Then it is in one.
+  if (row.location) row.loaded = isPrinterLocation(row.location) ? 1 : row.loaded;
+
   // An explicit opened_at in the payload implies the spool is already in use.
   if (fields.opened_at && row.status === 'new') {
     row.status = 'opened';
@@ -366,9 +396,9 @@ router.patch('/:id', (req, res) => {
 
   // Only re-derive timestamps when the status itself moved — otherwise editing
   // a note would silently rewrite the date you opened the spool.
-  const row = fields.status && fields.status !== existing.status
+  const row = reconcileLocation(existing, fields.status && fields.status !== existing.status
     ? reconcileLifecycle(merged)
-    : merged;
+    : merged, fields);
 
   const at = nowISO();
   db.prepare(`
@@ -545,6 +575,7 @@ export function importHandler(req, res, next) {
       // Inside the same transaction, so a file that fails partway leaves the
       // spool weights alone too.
       result.tares = importTares(body.spool_tares);
+      result.locations = importLocations(body.locations);
 
       /*
        * History rides along with the spools.

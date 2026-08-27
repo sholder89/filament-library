@@ -2642,3 +2642,175 @@ input[type="range"] {
   .activity-pager { flex-direction: column; align-items: stretch; }
   .pager-nav { justify-content: space-between; }
 }
+
+/* ── Places ──────────────────────────────────────────────────────────────── */
+
+.loc-chip { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
+.loc-chip svg { width: 14px; height: 14px; flex: none; }
+.loc-chip.is-printer { color: var(--loaded); }
+.loc-chip.is-empty { color: var(--muted); opacity: .8; }
+
+/* A span rather than a button: the card itself is a button, and a button inside
+   a button is invalid - the parser lifts it straight out of the card and drops
+   it loose in the grid. The printer flag on the card solves it the same way.
+
+   It still has to read as pressable without turning a quiet line of meta into a
+   control shouting for attention. */
+.loc-meta {
+  /* inline-flex, not the inline a span defaults to: max-width and the ellipsis
+     below both need a box to apply to. */
+  display: inline-flex;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 2px 5px;
+  margin: -2px -5px;
+  border-radius: 6px;
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.loc-meta:hover { background: rgb(128 128 128 / .16); }
+.chip.loc-open { cursor: pointer; border-style: dashed; }
+.chip.loc-open:hover { border-color: var(--accent); }
+
+.loc-picker {
+  position: fixed;
+  z-index: 70;
+  width: min(260px, calc(100vw - 16px));
+  max-height: min(60vh, 420px);
+  display: flex;
+  flex-direction: column;
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.loc-list { overflow-y: auto; padding: 6px; }
+
+.loc-opt {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.loc-opt svg { width: 18px; height: 18px; flex: none; color: var(--muted); }
+.loc-opt span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.loc-opt:hover { background: rgb(128 128 128 / .16); }
+.loc-opt.on { background: rgb(91 140 255 / .16); }
+.loc-opt.on svg { color: var(--accent); }
+.loc-tag { font-size: 11px; font-style: normal; color: var(--loaded); flex: none; }
+.loc-empty { margin: 0; padding: 14px 10px; font-size: 13px; color: var(--muted); }
+
+.loc-foot { display: flex; border-top: 1px solid var(--border); }
+.loc-foot button {
+  flex: 1;
+  min-height: 40px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.loc-foot button:hover { background: rgb(128 128 128 / .14); color: var(--text); }
+.loc-foot button + button { border-left: 1px solid var(--border); }
+
+/* Choosing an icon shows the drawings, since recognising one is the whole
+   reason it is there. */
+.icon-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.icon-pick {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.icon-pick svg { width: 21px; height: 21px; }
+.icon-pick:hover { background: rgb(128 128 128 / .16); color: var(--text); }
+.icon-pick.on { border-color: var(--accent); color: var(--accent); }
+
+/* The manage list in settings. */
+.loc-manage { display: grid; gap: 6px; margin-bottom: 12px; }
+
+.loc-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.loc-row-icon {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: rgb(128 128 128 / .14);
+  color: var(--muted);
+  cursor: pointer;
+}
+.loc-row-icon svg { width: 19px; height: 19px; }
+.loc-row-icon.tone-printer { color: var(--loaded); }
+
+.loc-row-name {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+.loc-row-name span { font-size: 14px; font-weight: 620; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.loc-row-name i { font-size: 12px; font-style: normal; color: var(--muted); }
+
+.loc-row-kind {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 640;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.loc-row-kind[aria-pressed="true"] { border-color: var(--loaded); color: var(--loaded); }
+
+.loc-row-del {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.loc-row-del svg { width: 16px; height: 16px; }
+.loc-row-del:hover { color: var(--danger); background: rgb(255 93 93 / .12); }

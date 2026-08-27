@@ -590,6 +590,15 @@
       </details>
     </section>
 
+    <section class="settings-group">
+      <h3>Places</h3>
+      <p class="hint">Where spools live. Saved places show up as one tap when
+        moving a spool, and anything marked as a printer counts as being in
+        one — so having three of them is just three places.</p>
+      <div class="loc-manage" id="locManage"></div>
+      <button type="button" class="btn wide" id="locAddBtn">Add a place</button>
+    </section>
+
     <section class="settings-group" id="visionGroup">
       <h3>Reading labels from a photo</h3>
       <p class="hint">Point the camera at a spool's label and the brand, type and
@@ -644,6 +653,16 @@
     </div>
   </div>
 </dialog>
+
+<!-- Where a spool is. Pinned to the document rather than nested in a sheet,
+     which is a stacking context of its own. -->
+<div id="locPicker" class="loc-picker" role="dialog" aria-label="Move this spool" hidden>
+  <div class="loc-list" id="locPickerList"></div>
+  <div class="loc-foot">
+    <button type="button" id="locPickerOther">Somewhere else…</button>
+    <button type="button" id="locPickerClear">Not put away</button>
+  </div>
+</div>
 
 <!-- Recent activity. Pinned to the document rather than nested in the header,
      which is a stacking and clipping context of its own. -->

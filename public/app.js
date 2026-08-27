@@ -33,12 +33,17 @@ const state = {
   // Section headings the user has folded away in a grouped view.
   collapsedSections: new Set(),
   view: 'medium',
+  // The saved places, with their icons. Names are the key, so this is a
+  // lookup table for decoration rather than the record of where anything is.
+  locations: [],
 };
 
 const $ = (sel) => document.querySelector(sel);
 const el = {
   stats: $('#stats'),
   feedPanel: $('#feedPanel'),
+  locPicker: $('#locPicker'),
+  locPickerList: $('#locPickerList'),
   activityView: $('#activityView'),
   activityList: $('#activityList'),
   feedList: $('#feedList'),
@@ -152,7 +157,8 @@ el.toast.addEventListener('click', async (e) => {
  * stamps a date and zeroes what's left; "put it back" doesn't know what was
  * left before. Putting the old values back does.
  */
-const UNDO_FIELDS = ['status', 'loaded', 'remaining_pct', 'opened_at', 'finished_at', 'empty_spool_g'];
+const UNDO_FIELDS = ['status', 'loaded', 'remaining_pct', 'opened_at', 'finished_at',
+  'empty_spool_g', 'location'];
 
 const snapshot = (f) => Object.fromEntries(UNDO_FIELDS.map((k) => [k, f[k]]));
 
@@ -984,7 +990,7 @@ async function refresh() {
   await loadAll();
   pruneFilters();
   await loadFilaments();
-  await Promise.all([loadStats(), loadCatalog()]);
+  await Promise.all([loadStats(), loadCatalog(), loadLocations()]);
   lastRefreshAt = Date.now();
 }
 
@@ -1462,7 +1468,8 @@ function cardHTML(f, stack = 0) {
           ? `<span class="card-meta">Used up ${esc(fmtDate(f.finished_at))}</span>`
           : `<span class="card-bar ${lowClass(f.remaining_pct)}"><i style="width:${f.remaining_pct}%"></i></span>
              <span class="card-meta ${lowClass(f.remaining_pct)}">${f.remaining_pct}% left · ${grams} g</span>`}
-        ${f.location ? `<span class="card-meta">${esc(f.location)}</span>` : ''}
+        <span class="card-meta loc-meta" role="button" data-loc-open data-id="${f.id}"
+          title="Move this spool">${f.location ? locationChipHTML(f.location) : '<span class="loc-chip is-empty">Put away…</span>'}</span>
       </div>
     </div>
   </button>`;
@@ -2000,7 +2007,8 @@ async function showDetail(id, push = false) {
           ${f.finish ? `<span class="chip">${esc(f.finish)}</span>` : ''}
           ${f.status !== 'empty' ? `<span class="chip" id="remainingChip">${f.remaining_pct}% left · ~${remainingG} g</span>` : ''}
           <span class="chip">${esc(f.diameter)} mm</span>
-          ${f.location ? `<span class="chip">${esc(f.location)}</span>` : ''}
+          <button type="button" class="chip loc-open" data-loc-open data-id="${f.id}">
+            ${f.location ? locationChipHTML(f.location) : '<span class="loc-chip is-empty">Put away…</span>'}</button>
         </div>
       </div>
     </div>
@@ -3782,6 +3790,15 @@ function closeFeed() {
 
 $('#feedBtn').addEventListener('click', openFeed);
 
+addEventListener('click', (e) => {
+  const open = e.target.closest('[data-loc-open]');
+  if (!open) return;
+  // Stops a card click opening the spool underneath the picker.
+  e.preventDefault();
+  e.stopPropagation();
+  openLocationPicker(open, open.dataset.id);
+}, true);
+
 el.feedPanel.addEventListener('click', (e) => {
   if (e.target.closest('.feed-when')) {
     e.stopPropagation();
@@ -4080,6 +4097,273 @@ el.activityView.addEventListener('click', (e) => {
   showDetail(row.dataset.feedId, true);
 });
 
+// ── Where a spool is ────────────────────────────────────────────────────────
+
+/**
+ * Drawings for the places filament lives.
+ *
+ * Kept deliberately few and deliberately blunt. The point of an icon here is
+ * to be told apart from the one under it at a glance while a thumb is moving,
+ * not to be a picture of your actual shelf — so these are silhouettes with no
+ * interior detail, and there are a dozen rather than fifty.
+ */
+const LOCATION_ICONS = {
+  printer: '<path d="M7 9V4h10v5M7 17v3h10v-3M5 9h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2z"/>',
+  drybox:  '<path d="M4 8h16v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8zM3 5h18v3H3zM10 13h4"/>',
+  shelf:   '<path d="M3 4h18M3 12h18M3 20h18M7 4v8M17 12v8"/>',
+  box:     '<path d="M4 8l8-4 8 4v9l-8 4-8-4V8zM4 8l8 4 8-4M12 12v9"/>',
+  drawer:  '<path d="M4 4h16v16H4zM4 12h16M9 8h6M9 16h6"/>',
+  bin:     '<path d="M5 7h14l-1 13a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 7zM9 4h6v3H9z"/>',
+  bag:     '<path d="M6 8h12l-1 12H7L6 8zM9 8V5a3 3 0 0 1 6 0v3"/>',
+  cabinet: '<path d="M5 3h14v18H5zM12 3v18M9 11h1M14 11h1"/>',
+  cart:    '<path d="M4 5h3l2 10h9M6 19a1.6 1.6 0 1 0 3 0 1.6 1.6 0 1 0-3 0M15 19a1.6 1.6 0 1 0 3 0 1.6 1.6 0 1 0-3 0M9 11h11l1-5H8"/>',
+  desk:    '<path d="M3 9h18M4 9v11M20 9v11M4 5h16v4H4zM9 13h6"/>',
+  closet:  '<path d="M4 3h16v18H4zM4 9h16M12 5v2M9 15h6"/>',
+  wall:    '<path d="M3 6h7v5H3zM14 6h7v5h-7zM8 13h8v5H8z"/>',
+};
+
+/** Every icon a person can choose from, printers first since those lead the list. */
+const ICON_CHOICES = ['printer', 'drybox', 'shelf', 'box', 'drawer', 'bin',
+  'bag', 'cabinet', 'cart', 'desk', 'closet', 'wall'];
+
+function locIconSVG(key) {
+  const path = LOCATION_ICONS[key] ?? LOCATION_ICONS.box;
+  return `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor"
+    stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
+}
+
+/** The saved place with this name, if it is one. Names are the key. */
+const savedLocation = (name) => state.locations.find(
+  (l) => l.name.toLowerCase() === String(name ?? '').trim().toLowerCase(),
+);
+
+/** A location as it appears inline: its icon when we know it, its name always. */
+function locationChipHTML(name) {
+  if (!name) return '';
+  const saved = savedLocation(name);
+  return `<span class="loc-chip${saved?.kind === 'printer' ? ' is-printer' : ''}">${saved ? locIconSVG(saved.icon) : locIconSVG('box')}${esc(name)}</span>`;
+}
+
+async function loadLocations() {
+  try {
+    const { locations } = await api('/api/locations');
+    state.locations = locations;
+  } catch {
+    // A missing list only costs the icons; the text still says where it is.
+    state.locations = state.locations ?? [];
+  }
+}
+
+/*
+ * Which spool the open picker is moving, and where to put it back if the
+ * answer changes nothing.
+ */
+let locPickerFor = null;
+
+function openLocationPicker(anchor, id) {
+  const f = state.filaments.find((x) => x.id === id) ?? state.currentFilament;
+  if (!f) return;
+  if (locPickerFor === id && !el.locPicker.hidden) return closeLocationPicker();
+
+  locPickerFor = id;
+  const here = (f.location || '').toLowerCase();
+
+  el.locPickerList.innerHTML = state.locations.length
+    ? state.locations.map((l) => `<button type="button" class="loc-opt${l.name.toLowerCase() === here ? ' on' : ''}"
+        data-loc="${esc(l.name)}">${locIconSVG(l.icon)}<span>${esc(l.name)}</span>
+        ${l.kind === 'printer' ? '<i class="loc-tag">printer</i>' : ''}</button>`).join('')
+    : '<p class="loc-empty">No saved places yet. Add some in Settings, or use Somewhere else.</p>';
+
+  $('#locPickerOther').hidden = false;
+  $('#locPickerClear').hidden = false;
+  el.locPicker.dataset.mode = 'move';
+  el.locPicker.onIconPick = null;
+  el.locPicker.hidden = false;
+  placeLocationPicker(anchor);
+}
+
+/**
+ * Anchored under whatever was tapped, clamped to the screen — and moved into
+ * the open sheet when there is one, because a <dialog> shown modally makes
+ * everything outside it inert and a popup left on the body could be seen but
+ * not pressed.
+ */
+function placeLocationPicker(anchor) {
+  const host = SHEETS.find((d) => d.open) ?? document.body;
+  if (el.locPicker.parentNode !== host) host.append(el.locPicker);
+
+  const box = anchor.getBoundingClientRect();
+  const pop = el.locPicker.getBoundingClientRect();
+  const left = Math.min(Math.max(8, box.left), innerWidth - pop.width - 8);
+  const below = box.bottom + 6;
+  const fits = below + pop.height < innerHeight - 8;
+
+  el.locPicker.style.left = `${left}px`;
+  el.locPicker.style.top = `${fits ? below : Math.max(8, box.top - pop.height - 6)}px`;
+}
+
+function closeLocationPicker() {
+  el.locPicker.hidden = true;
+  locPickerFor = null;
+}
+
+/** Moves a spool, and says so in a way that can be taken back. */
+async function moveSpool(id, location) {
+  const before = state.filaments.find((x) => x.id === id) ?? state.currentFilament;
+  if (!before || (before.location || '') === location) return closeLocationPicker();
+
+  closeLocationPicker();
+  try {
+    await api(`/api/filaments/${encodeURIComponent(id)}`, { method: 'PATCH', body: { location } });
+    await refresh();
+    if (!el.detail.hidden && el.detail.open && state.currentFilament?.id === id) await showDetail(id);
+    toast(location ? `Moved to ${location}` : 'Taken off the shelf',
+      { undo: undoer(id, before, 'Put back') });
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+el.locPicker.addEventListener('click', (e) => {
+  const icon = e.target.closest('[data-icon]');
+  if (icon) {
+    const pick = el.locPicker.onIconPick;
+    closeLocationPicker();
+    pick?.(icon.dataset.icon);
+    return;
+  }
+
+  const opt = e.target.closest('[data-loc]');
+  if (opt) { moveSpool(locPickerFor, opt.dataset.loc); return; }
+
+  if (e.target.closest('#locPickerClear')) { moveSpool(locPickerFor, ''); return; }
+
+  if (e.target.closest('#locPickerOther')) {
+    const id = locPickerFor;
+    const current = (state.filaments.find((x) => x.id === id) ?? state.currentFilament)?.location ?? '';
+    closeLocationPicker();
+    const name = prompt('Where is it?', current);
+    if (name !== null) moveSpool(id, name.trim());
+  }
+});
+
+addEventListener('click', (e) => {
+  if (el.locPicker.hidden) return;
+  /*
+   * Every control that opens this has to be exempt, or the click that opened it
+   * carries on up to here and closes it again in the same gesture — which is
+   * exactly what the icon button in Settings did.
+   */
+  if (e.target.closest('#locPicker, [data-loc-open], [data-loc-icon]')) return;
+  closeLocationPicker();
+});
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && !el.locPicker.hidden) closeLocationPicker(); });
+
+// ── Managing places ─────────────────────────────────────────────────────────
+
+function renderLocManage() {
+  const list = $('#locManage');
+  if (!list) return;
+
+  list.innerHTML = state.locations.length
+    ? state.locations.map((l) => `<div class="loc-row" data-id="${l.id}">
+        <button type="button" class="loc-row-icon tone-${l.kind}" data-loc-icon title="Change the icon">
+          ${locIconSVG(l.icon)}</button>
+        <button type="button" class="loc-row-name" data-loc-rename>
+          <span>${esc(l.name)}</span>
+          <i>${l.kind === 'printer' ? 'printer' : ''}${l.kind === 'printer' && l.spools ? ' · ' : ''}${l.spools ? `${l.spools} spool${l.spools === 1 ? '' : 's'}` : ''}</i>
+        </button>
+        <button type="button" class="loc-row-kind" data-loc-kind title="Is this a printer?"
+          aria-pressed="${l.kind === 'printer'}">${l.kind === 'printer' ? 'Printer' : 'Storage'}</button>
+        <button type="button" class="loc-row-del" data-loc-del aria-label="Forget ${esc(l.name)}">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>`).join('')
+    : '<p class="hint">Nothing saved yet.</p>';
+}
+
+async function saveLocation(id, patch) {
+  try {
+    await api(`/api/locations/${id}`, { method: 'PATCH', body: patch });
+    await refresh();
+    renderLocManage();
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+/**
+ * The icon chooser, as a grid of the drawings themselves.
+ *
+ * Shown rather than named: the whole reason these exist is to be recognised
+ * without reading, so picking one from a list of words would be choosing the
+ * thing by the wrong sense.
+ */
+function chooseIcon(anchor, current, onPick) {
+  el.locPickerList.innerHTML = `<div class="icon-grid">${ICON_CHOICES.map((key) =>
+    `<button type="button" class="icon-pick${key === current ? ' on' : ''}" data-icon="${key}"
+      aria-label="${key}">${locIconSVG(key)}</button>`).join('')}</div>`;
+  $('#locPickerOther').hidden = true;
+  $('#locPickerClear').hidden = true;
+  el.locPicker.hidden = false;
+  placeLocationPicker(anchor);
+
+  el.locPicker.dataset.mode = 'icon';
+  el.locPicker.onIconPick = onPick;
+}
+
+$('#locManage').addEventListener('click', async (e) => {
+  const row = e.target.closest('.loc-row');
+  if (!row) return;
+  const id = Number(row.dataset.id);
+  const loc = state.locations.find((l) => l.id === id);
+  if (!loc) return;
+
+  if (e.target.closest('[data-loc-icon]')) {
+    chooseIcon(e.target.closest('[data-loc-icon]'), loc.icon, (icon) => saveLocation(id, { icon }));
+    return;
+  }
+
+  if (e.target.closest('[data-loc-rename]')) {
+    const name = prompt('Call it what?', loc.name);
+    if (name && name.trim() && name.trim() !== loc.name) saveLocation(id, { name: name.trim() });
+    return;
+  }
+
+  if (e.target.closest('[data-loc-kind]')) {
+    const kind = loc.kind === 'printer' ? 'storage' : 'printer';
+    // A place that becomes a printer should look like one unless it has been
+    // given an icon on purpose.
+    const icon = kind === 'printer' && loc.icon === 'box' ? 'printer' : loc.icon;
+    saveLocation(id, { kind, icon });
+    return;
+  }
+
+  if (e.target.closest('[data-loc-del]')) {
+    const warn = loc.spools
+      ? `Forget ${loc.name}? The ${loc.spools} spool${loc.spools === 1 ? '' : 's'} there keep the name, they just lose the icon.`
+      : `Forget ${loc.name}?`;
+    if (!confirm(warn)) return;
+    try {
+      await api(`/api/locations/${id}`, { method: 'DELETE' });
+      await refresh();
+      renderLocManage();
+    } catch (err) { toast(err.message, true); }
+  }
+});
+
+$('#locAddBtn').addEventListener('click', async () => {
+  const name = prompt('What do you call it?');
+  if (!name || !name.trim()) return;
+  try {
+    await api('/api/locations', { method: 'POST', body: { name: name.trim() } });
+    await refresh();
+    renderLocManage();
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+
 // ── Theme ────────────────────────────────────────────────────────────────────
 
 function applyTheme(theme) {
@@ -4130,6 +4414,7 @@ async function showSettings() {
   renderMyTares();
   renderTareTable();
   loadVisionState();
+  renderLocManage();
   const facts = $('#settingsFacts');
   facts.innerHTML = '<div class="spec"><dt>Loading…</dt><dd></dd></div>';
 

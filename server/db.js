@@ -109,7 +109,7 @@ db.exec('PRAGMA foreign_keys = ON');
  * Schema is versioned through PRAGMA user_version so upgrades are additive and
  * never lose a spool record. Bump SCHEMA_VERSION and add a migration below.
  */
-const SCHEMA_VERSION = 10;
+const SCHEMA_VERSION = 11;
 
 function migrate() {
   const current = db.prepare('PRAGMA user_version').get().user_version;
@@ -345,6 +345,52 @@ function migrate() {
         ON filament_events (at DESC, id DESC);
     `);
     db.exec(`PRAGMA user_version = 10`);
+  }
+
+  if (current < 11) {
+    /*
+     * Places a spool can be, with an icon so a list of them can be read at a
+     * glance rather than word by word.
+     *
+     * `kind` is what makes a printer a location rather than a separate concept.
+     * A spool in a printer was already tracked by filaments.loaded, which the
+     * sort, the grouping, the card flag and the history all read - so that
+     * stays exactly as it is, and assigning a location whose kind is 'printer'
+     * simply sets it. Which is what lets there be three printers instead of a
+     * yes-or-no.
+     *
+     * Names are the key rather than an id on the filament: the text column
+     * already exists, is exported, searched and shown, and a spool sitting
+     * somewhere that is not on the saved list still has to be describable.
+     */
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS locations (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        name       TEXT NOT NULL,
+        icon       TEXT NOT NULL DEFAULT 'box',
+        kind       TEXT NOT NULL DEFAULT 'storage'
+                   CHECK (kind IN ('storage', 'printer')),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS locations_name
+        ON locations (name COLLATE NOCASE);
+    `);
+
+    /*
+     * Anywhere already written on a spool becomes a saved location, so an
+     * existing library arrives with its list already filled in rather than
+     * asking someone to retype what the records plainly say.
+     */
+    db.exec(`
+      INSERT OR IGNORE INTO locations (name, icon, kind, created_at, updated_at)
+      SELECT DISTINCT TRIM(location), 'box', 'storage',
+             '${new Date().toISOString()}', '${new Date().toISOString()}'
+      FROM filaments
+      WHERE TRIM(location) <> '';
+    `);
+
+    db.exec(`PRAGMA user_version = 11`);
   }
 }
 
