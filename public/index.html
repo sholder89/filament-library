@@ -196,6 +196,23 @@
   </div>
 
   <ol class="timeline activity-list" id="activityList"></ol>
+
+  <div class="activity-pager" id="activityPager" hidden>
+    <label class="pager-size">
+      <span>Per page</span>
+      <select id="activityPerPage" aria-label="Entries per page">
+        <option value="25">25</option>
+        <option value="50" selected>50</option>
+        <option value="100">100</option>
+        <option value="250">250</option>
+      </select>
+    </label>
+    <div class="pager-nav">
+      <button type="button" class="btn ghost" id="activityPrev">Previous</button>
+      <span class="pager-count" id="activityCount"></span>
+      <button type="button" class="btn ghost" id="activityNext">Next</button>
+    </div>
+  </div>
 </section>
 
 

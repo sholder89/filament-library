@@ -190,7 +190,14 @@ const EVENT_HAYSTACK = `(
  * same typo pass against the words the library actually uses — so "flexible"
  * finds the TPU here too and there is only one search to learn.
  */
-export function searchEvents({ q = '', action = '', filamentId = '', limit = 200, offset = 0 } = {}) {
+/**
+ * The WHERE for a narrowed activity query, shared by the page and its count.
+ *
+ * Built once and used twice: a paginated list has to know how many rows it is
+ * a page of, and a count that filtered even slightly differently from the list
+ * would put the wrong number of pages under it.
+ */
+function eventFilter({ q = '', action = '', filamentId = '' } = {}) {
   const where = [];
   const params = [];
 
@@ -200,7 +207,7 @@ export function searchEvents({ q = '', action = '', filamentId = '', limit = 200
   const text = String(q ?? '').trim();
   if (text) {
     const words = normalizeQuery(text).split(/\s+/).filter(Boolean).slice(0, 8);
-    const like = (w) => `%${w.replace(/[\%_]/g, '\$&')}%`;
+    const like = (w) => `%${w.replace(/[\\%_]/g, '\\$&')}%`;
     const vocabulary = vocabularyFrom(
       db.prepare('SELECT brand, material, color_name, finish FROM filaments').all(),
     );
@@ -214,16 +221,36 @@ export function searchEvents({ q = '', action = '', filamentId = '', limit = 200
     }
   }
 
-  const sql = `
+  return { clause: where.length ? `WHERE ${where.join(' AND ')}` : '', params };
+}
+
+/**
+ * One page of activity, plus how many rows there are to page through.
+ *
+ * Search is widened exactly as the filament list widens it — same synonyms,
+ * same typo pass against the words the library actually uses — so "flexible"
+ * finds the TPU here too and there is only one search to learn.
+ */
+export function searchEvents({ q = '', action = '', filamentId = '', limit = 50, offset = 0 } = {}) {
+  const { clause, params } = eventFilter({ q, action, filamentId });
+
+  const events = db.prepare(`
     SELECT e.id, e.at, e.kind, e.field, e.from_value, e.to_value,
            f.id AS filament_id, f.brand, f.material, f.color_name, f.finish,
            f.color_hex, f.color_hex2, f.color_hex3
     FROM filament_events e
     JOIN filaments f ON f.id = e.filament_id
-    ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+    ${clause}
     ORDER BY e.at DESC, e.id DESC
     LIMIT ? OFFSET ?
-  `;
+  `).all(...params, limit, offset);
 
-  return db.prepare(sql).all(...params, limit, offset);
+  const { total } = db.prepare(`
+    SELECT COUNT(*) AS total
+    FROM filament_events e
+    JOIN filaments f ON f.id = e.filament_id
+    ${clause}
+  `).get(...params);
+
+  return { events, total };
 }

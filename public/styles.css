@@ -2608,3 +2608,37 @@ input[type="range"] {
 /* The window scrolls this list, not the list itself - it is a page, so running
    out of entries should feel like the bottom of a page. */
 .activity-view .activity-list { max-height: none; overflow: visible; margin-top: 14px; }
+
+/* The pager. Sits under the list because that is where you are when you run
+   out of entries and want the next lot. */
+.activity-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.pager-size { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.pager-size select { min-height: 38px; }
+
+.pager-nav { display: inline-flex; align-items: center; gap: 10px; }
+.pager-nav .btn { min-height: 38px; padding: 0 14px; }
+.pager-nav .btn:disabled { opacity: .45; cursor: default; }
+
+.pager-count {
+  font-size: 13px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 8.5em;
+  text-align: center;
+}
+
+/* On a phone the two halves stack rather than squeezing the count to nothing. */
+@media (max-width: 520px) {
+  .activity-pager { flex-direction: column; align-items: stretch; }
+  .pager-nav { justify-content: space-between; }
+}

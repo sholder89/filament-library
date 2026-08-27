@@ -99,13 +99,20 @@ app.get('/api/events', (req, res) => {
   const action = String(req.query.action ?? "");
   const filamentId = String(req.query.filament ?? "");
 
-  // The plain recent list is the common case and stays on its own prepared
-  // statement; anything narrowed goes through the search builder.
-  const events = q || action || filamentId || offset
-    ? searchEvents({ q, action, filamentId, limit, offset })
-    : recentEvents(limit);
+  /*
+   * The activity page always needs a total, including on its unfiltered first
+   * page — otherwise the pager has nothing to count. It says so rather than
+   * being inferred from the absence of filters, which is what the dropdown
+   * also looks like. The dropdown wants the newest few and no count, and keeps
+   * the cheap prepared statement.
+   */
+  if (req.query.count !== '1' && !q && !action && !filamentId && !offset) {
+    res.json({ events: recentEvents(limit), actions: ACTION_KEYS });
+    return;
+  }
 
-  res.json({ events, actions: ACTION_KEYS });
+  const { events, total } = searchEvents({ q, action, filamentId, limit, offset });
+  res.json({ events, total, actions: ACTION_KEYS });
 });
 
 /**
@@ -223,9 +230,10 @@ app.use(express.static(PUBLIC_DIR, {
   },
 }));
 
-// Client-side routes (/f/<id> is what the QR codes point at) fall through to
-// the app shell, which reads the path and opens that spool.
-app.get(/^\/(f\/.*)?$/, (_req, res) => {
+// Client-side routes fall through to the app shell, which reads the path and
+// opens what it names: /f/<id> is what the QR codes point at, /activity is the
+// history page.
+app.get(/^\/(f\/.*|activity)?$/, (_req, res) => {
   res.sendFile(join(PUBLIC_DIR, 'index.html'));
 });
 

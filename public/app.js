@@ -3811,7 +3811,26 @@ const ACTION_FILTERS = [
   ['edit', 'Edits'],
 ];
 
-const activityState = { q: '', action: '', filamentId: '', label: '' };
+/**
+ * Page size is remembered because it is a preference about this screen, not
+ * about this visit — someone who wants 100 at a time wants that next time.
+ * The page number is deliberately not remembered: coming back to page 6 of a
+ * list that has moved on since is disorienting.
+ */
+const PER_PAGE_KEY = 'activity-per-page';
+const PER_PAGE = [25, 50, 100, 250];
+
+const savedPerPage = Number(localStorage.getItem(PER_PAGE_KEY));
+
+const activityState = {
+  q: '',
+  action: '',
+  filamentId: '',
+  label: '',
+  page: 0,
+  perPage: PER_PAGE.includes(savedPerPage) ? savedPerPage : 50,
+  total: 0,
+};
 
 function renderActionChips() {
   $('#activityActions').innerHTML = ACTION_FILTERS.map(([key, label]) => {
@@ -3861,21 +3880,52 @@ let activityToken = 0;
 
 async function loadActivity() {
   const mine = ++activityToken;
-  const params = new URLSearchParams({ limit: '300' });
+  const params = new URLSearchParams({
+    limit: String(activityState.perPage),
+    offset: String(activityState.page * activityState.perPage),
+    // Ask for the total explicitly: the first page of an unfiltered list looks
+    // exactly like the dropdown's request, and that one skips the count.
+    count: '1',
+  });
   if (activityState.q) params.set('q', activityState.q);
   if (activityState.action) params.set('action', activityState.action);
   if (activityState.filamentId) params.set('filament', activityState.filamentId);
 
   try {
-    const { events } = await api('/api/events?' + params);
+    const { events, total } = await api('/api/events?' + params);
     if (mine !== activityToken) return;
+    activityState.total = total ?? events.length;
     el.activityList.innerHTML = events.length
       ? events.map(activityRowHTML).join('')
       : '<li class="timeline-empty">Nothing matches that.</li>';
+    renderPager();
   } catch {
     if (mine !== activityToken) return;
     el.activityList.innerHTML = '<li class="timeline-empty">Could not load activity.</li>';
+    $('#activityPager').hidden = true;
   }
+}
+
+/** Which slice of what, in the words someone would use to say it out loud. */
+function renderPager() {
+  const { page, perPage, total } = activityState;
+  const pages = Math.max(1, Math.ceil(total / perPage));
+  const first = total === 0 ? 0 : page * perPage + 1;
+  const last = Math.min(total, (page + 1) * perPage);
+
+  // Hidden only when there is nothing at all: the per-page control is still
+  // worth reaching when everything happens to fit on one page.
+  $('#activityPager').hidden = total === 0;
+  $('#activityCount').textContent = total === 0
+    ? ''
+    : `${first}\u2013${last} of ${total}`;
+  $('#activityPrev').disabled = page <= 0;
+  $('#activityNext').disabled = page >= pages - 1;
+}
+
+/** Any change to what is being shown starts again at the first page. */
+function resetActivityPage() {
+  activityState.page = 0;
 }
 
 function syncActivityScope() {
@@ -3899,29 +3949,69 @@ function showLibraryParts(on) {
   }
 }
 
-function openActivity({ filamentId = '', label = '' } = {}) {
+function openActivity({ filamentId = '', label = '', push = true } = {}) {
   activityState.filamentId = filamentId;
   activityState.label = label;
   activityState.q = '';
   activityState.action = '';
   $('#activitySearch').value = '';
   $('#activitySearchClear').hidden = true;
+  activityState.page = 0;
   renderActionChips();
   syncActivityScope();
+  $('#activityPerPage').value = String(activityState.perPage);
+  $('#activityPager').hidden = true;
   el.activityList.innerHTML = '<li class="timeline-empty">Loading…</li>';
 
   showLibraryParts(false);
   el.activityView.hidden = false;
   scrollTo({ top: 0 });
+
+  /*
+   * Skipped in an installed app for the same reason opening a spool is: iOS
+   * drops camera permission on a URL change, so a scan would have to ask for
+   * it again. There is no address bar there to make the route worth that.
+   */
+  if (push && !STANDALONE && location.pathname !== '/activity') {
+    history.pushState({ activity: true }, '', '/activity');
+  }
+
   loadActivity();
 }
 
-function closeActivity() {
+function closeActivity({ push = true } = {}) {
   el.activityView.hidden = true;
   showLibraryParts(true);
+  if (push && !STANDALONE && location.pathname === '/activity') {
+    history.pushState({}, '', '/');
+  }
 }
 
 $('#activityBack').addEventListener('click', closeActivity);
+
+$('#activityPrev').addEventListener('click', () => {
+  if (activityState.page <= 0) return;
+  activityState.page -= 1;
+  loadActivity();
+  el.activityView.scrollIntoView({ block: 'start' });
+});
+
+$('#activityNext').addEventListener('click', () => {
+  const pages = Math.ceil(activityState.total / activityState.perPage);
+  if (activityState.page >= pages - 1) return;
+  activityState.page += 1;
+  loadActivity();
+  el.activityView.scrollIntoView({ block: 'start' });
+});
+
+$('#activityPerPage').addEventListener('change', (e) => {
+  const size = Number(e.target.value);
+  if (!PER_PAGE.includes(size)) return;
+  activityState.perPage = size;
+  localStorage.setItem(PER_PAGE_KEY, String(size));
+  resetActivityPage();
+  loadActivity();
+});
 
 $('#feedAllBtn').addEventListener('click', () => {
   closeFeed();
@@ -3934,6 +4024,7 @@ $('#activityActions').addEventListener('click', (e) => {
   // Pressing the active one clears it, so there is always a way back to all.
   activityState.action = activityState.action === chip.dataset.action ? '' : chip.dataset.action;
   renderActionChips();
+  resetActivityPage();
   loadActivity();
 });
 
@@ -3944,6 +4035,7 @@ $('#activitySearch').addEventListener('input', (e) => {
   clearTimeout(activitySearchTimer);
   activitySearchTimer = setTimeout(() => {
     activityState.q = value.trim();
+    resetActivityPage();
     loadActivity();
   }, 220);
 });
@@ -3953,6 +4045,7 @@ $('#activitySearchClear').addEventListener('click', () => {
   $('#activitySearch').value = '';
   $('#activitySearchClear').hidden = true;
   activityState.q = '';
+  resetActivityPage();
   loadActivity();
   $('#activitySearch').focus();
 });
@@ -3961,6 +4054,7 @@ $('#activityScopeClear').addEventListener('click', () => {
   activityState.filamentId = '';
   activityState.label = '';
   syncActivityScope();
+  resetActivityPage();
   loadActivity();
 });
 
@@ -4341,6 +4435,12 @@ $('#importFile').addEventListener('change', async (e) => {
 // ── Routing ──────────────────────────────────────────────────────────────────
 
 function routeFromPath() {
+  const onActivity = location.pathname === '/activity';
+  // Driven by the URL here rather than pushing back to it, or a Back gesture
+  // out of the page would immediately put you into it again.
+  if (onActivity && el.activityView.hidden) openActivity({ push: false });
+  else if (!onActivity && !el.activityView.hidden) closeActivity({ push: false });
+
   const match = /^\/f\/([^/]+)$/.exec(location.pathname);
   if (match) showDetail(decodeURIComponent(match[1]));
   else if (el.detail.open) closeSheet(el.detail);
