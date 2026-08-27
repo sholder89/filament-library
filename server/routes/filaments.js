@@ -210,6 +210,24 @@ router.get('/', (req, res) => {
     params.push(...finishes.map((f) => `%, ${f.replace(/[\\%_]/g, '\\$&')}, %`));
   }
 
+  /*
+   * Where the spool is. An exact match on the name, because that is what the
+   * column holds and what the saved list is keyed by.
+   *
+   * "__none__" is the one value that is not a place: it asks for the spools
+   * with nowhere recorded, which is the commonest reason to open this filter
+   * at all. An empty string cannot survive a comma-separated list, so it
+   * travels as a name no location could have.
+   */
+  const places = str(req.query.location).split(',').map((s) => s.trim()).filter(Boolean).slice(0, 24);
+  if (places.length) {
+    const named = places.filter((p) => p !== '__none__');
+    const parts = named.map(() => 'location = ? COLLATE NOCASE');
+    if (places.length !== named.length) parts.push("TRIM(location) = ''");
+    where.push(`(${parts.join(' OR ')})`);
+    params.push(...named);
+  }
+
   // Default view hides used-up spools; the record is still there behind
   // ?status=empty or ?include_empty=1.
   if (!str(req.query.status) && str(req.query.include_empty) !== '1') {

@@ -27,7 +27,7 @@ const state = {
   // of `filters`: it isn't remembered between visits, since it answers a
   // question you had once rather than describing how you like the shelf.
   matchColor: null,
-  filters: { status: 'active', brand: [], material: [], finish: [], q: '', sort: 'newest' },
+  filters: { status: 'active', brand: [], material: [], finish: [], location: [], q: '', sort: 'newest' },
   // Group keys the user has fanned open; everything else stays stacked.
   expandedGroups: new Set(),
   // Section headings the user has folded away in a grouped view.
@@ -582,6 +582,7 @@ function loadSavedFilters() {
   state.filters.brand = list(saved.brand);
   state.filters.material = list(saved.material);
   state.filters.finish = list(saved.finish);
+  state.filters.location = list(saved.location);
 }
 
 /**
@@ -594,8 +595,11 @@ function pruneFilters() {
   if (!all.length) return;
   let changed = false;
 
-  for (const [kind, field] of [['brand', 'brand'], ['material', 'material'], ['finish', 'finish']]) {
+  for (const [kind, field] of [['brand', 'brand'], ['material', 'material'],
+    ['finish', 'finish'], ['location', 'location']]) {
     const present = new Set(all.map((f) => f[field]).filter(Boolean));
+    // The sentinel names no value in the column, so it can never be "gone".
+    if (kind === 'location') present.add(NO_PLACE_VALUE);
     const kept = state.filters[kind].filter((v) => present.has(v));
     if (kept.length !== state.filters[kind].length) {
       state.filters[kind] = kept;
@@ -647,6 +651,7 @@ const FILTER_KINDS = {
   brand:    { btn: 'brandFilterBtn',    noun: 'brands',   title: 'Filter by brand' },
   material: { btn: 'materialFilterBtn', noun: 'types',    title: 'Filter by type' },
   finish:   { btn: 'finishFilterBtn',   noun: 'finishes', title: 'Filter by finish' },
+  location: { btn: 'locationFilterBtn', noun: 'places',   title: 'Filter by place' },
 };
 
 function tally(field) {
@@ -658,6 +663,49 @@ function tally(field) {
   return [...counts.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([value, count]) => ({ value, count }));
+}
+
+/** Stands in for an empty location, since a filter value cannot be nothing. */
+const NO_PLACE_VALUE = '__none__';
+const NO_PLACE_LABEL = 'Not put away';
+
+/**
+ * Places to filter by, which is not quite a tally of the column.
+ *
+ * Spools with nowhere recorded are the point of the thing — "what have I not
+ * put away" is the question this answers most often — and an empty string
+ * cannot travel as a filter value, so it goes as a sentinel with a name.
+ *
+ * Order follows the saved list rather than the alphabet, so printers stay at
+ * the top where they are in every other list of places. Anywhere written on a
+ * spool but never saved still appears, at the end, because the spool is really
+ * there whatever the settings say.
+ */
+function locationOptions() {
+  const all = state.allFilaments ?? [];
+  const counts = new Map();
+  let loose = 0;
+
+  for (const f of all) {
+    const name = (f.location || '').trim();
+    if (!name) { loose++; continue; }
+    counts.set(name, (counts.get(name) ?? 0) + 1);
+  }
+
+  const out = [];
+  if (loose) out.push({ value: NO_PLACE_VALUE, label: NO_PLACE_LABEL, count: loose, icon: null });
+
+  const seen = new Set();
+  for (const l of state.locations) {
+    const count = counts.get(l.name) ?? 0;
+    seen.add(l.name.toLowerCase());
+    if (count) out.push({ value: l.name, label: l.name, count, icon: l.icon });
+  }
+  for (const [name, count] of counts) {
+    if (!seen.has(name.toLowerCase())) out.push({ value: name, label: name, count, icon: null });
+  }
+
+  return out;
 }
 
 const filterBtn = (kind) => document.getElementById(FILTER_KINDS[kind].btn);
@@ -688,8 +736,10 @@ function familyLabel(selected) {
 
 function filterLabel(kind, selected) {
   const { noun } = FILTER_KINDS[kind];
-  if (!selected.length) return `All ${noun}`;
-  if (selected.length === 1) return selected[0];
+  if (!selected.length) return kind === 'location' ? 'Anywhere' : `All ${noun}`;
+  if (selected.length === 1) {
+    return selected[0] === NO_PLACE_VALUE ? NO_PLACE_LABEL : selected[0];
+  }
   if (kind === 'material') return familyLabel(selected) || `${selected.length} ${noun}`;
   return `${selected.length} ${noun}`;
 }
@@ -754,7 +804,7 @@ function syncPickerHint() {
 }
 
 function renderPickerOptions() {
-  const options = tally(pickerKind);
+  const options = pickerKind === 'location' ? locationOptions() : tally(pickerKind);
   const selected = state.filters[pickerKind];
 
   if (!options.length) {
@@ -766,16 +816,24 @@ function renderPickerOptions() {
 
   $('#pickerOptions').innerHTML = pickerKind === 'material'
     ? materialTreeHTML(options, selected)
-    : options.map(({ value, count }) => optionRowHTML(value, count, selected.includes(value))).join('');
+    : options.map(({ value, count, label, icon }) =>
+      optionRowHTML(value, count, selected.includes(value),
+        '', label ?? value, icon === undefined ? null : icon)).join('');
 }
 
 const TICK = `<span class="tick"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 13 4 4L19 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>`;
 
-const optionRowHTML = (value, count, pressed, extra = '') => `
+/**
+ * `label` splits from `value` for the one option whose value is a sentinel;
+ * `icon` is only ever set for places, and marks the row so a cabinet is
+ * picked the same way here as everywhere else.
+ */
+const optionRowHTML = (value, count, pressed, extra = '', label = value, icon = null) => `
   <button type="button" class="option-row${extra ? ` ${extra}` : ''}" data-value="${esc(value)}"
           aria-pressed="${pressed}">
     ${TICK}
-    <span>${esc(value)}</span>
+    ${icon ? `<i class="option-icon">${locIconSVG(icon)}</i>` : ''}
+    <span>${esc(label)}</span>
     <span class="count">${count}</span>
   </button>`;
 
@@ -989,12 +1047,13 @@ const statCard = (cls, value, label, unit = '') =>
 
 async function loadFilaments() {
   const p = new URLSearchParams();
-  const { status, brand, material, finish, q, sort } = state.filters;
+  const { status, brand, material, finish, location, q, sort } = state.filters;
   if (status !== 'active') p.set('status', status);
   // The API takes these comma-separated and matches any of them.
   if (brand.length) p.set('brand', brand.join(','));
   if (material.length) p.set('material', material.join(','));
   if (finish.length) p.set('finish', finish.join(','));
+  if (location.length) p.set('location', location.join(','));
   if (q) p.set('q', q);
   p.set('sort', sort);
 
@@ -1013,7 +1072,8 @@ async function loadFilaments() {
 
   renderGrid();
 
-  const active = brand.length || material.length || finish.length || q || status !== 'active';
+  const active = brand.length || material.length || finish.length || location.length
+    || q || status !== 'active';
   el.clearFilters.hidden = !active;
 }
 
@@ -1437,7 +1497,13 @@ function groupFilaments(filaments) {
     // `loaded` is part of the key because a spool in a printer is not
     // interchangeable with one on the shelf — hiding it inside a stack would
     // defeat the point of flagging it.
-    const key = [f.brand, f.material, f.color_name, f.color_hex, f.status, f.loaded, f.spool_weight_g]
+    //
+    // So is the location, now that there is one. Two identical spools in two
+    // different cabinets are not "any of these will do" when the point of
+    // asking is which cabinet to walk to — and a stack shows one location
+    // icon, which for a split stack would have been quietly wrong.
+    const key = [f.brand, f.material, f.color_name, f.color_hex, f.status, f.loaded,
+      f.spool_weight_g, (f.location || '').trim().toLowerCase()]
       .map((v) => encodeURIComponent(String(v ?? '').toLowerCase())).join('|');
     if (!groups.has(key)) groups.set(key, { key, items: [] });
     groups.get(key).items.push(f);
@@ -3081,7 +3147,8 @@ el.sortBy.addEventListener('change', () => {
 });
 
 el.clearFilters.addEventListener('click', () => {
-  state.filters = { status: 'active', brand: [], material: [], finish: [], q: '', sort: el.sortBy.value };
+  state.filters = { status: 'active', brand: [], material: [], finish: [], location: [],
+    q: '', sort: el.sortBy.value };
   el.search.value = '';
   syncSearchClear();
   state.collapsedSections.clear();

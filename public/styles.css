@@ -988,8 +988,12 @@ select {
   color: #fff;
   pointer-events: none;
 }
-/* A loaded card already has a mark in that corner. */
-.card.is-loaded .stack-count { top: 36px; }
+/* The printer mark sits in that same corner, and it is drawn whether a spool
+   is in a printer or not — only its state changes. Keying the offset off
+   .is-loaded therefore moved the count clear of the mark exactly when the mark
+   was filled in, and let it collide the rest of the time. Any card that has a
+   mark gets the offset. */
+.card:has(.loaded-flag) .stack-count { top: 36px; }
 
 /* ── Grouped view sections ───────────────────────────────────────────────── */
 
@@ -2289,10 +2293,16 @@ input[type="range"] {
   /* Room for the Clear button, which only appears once a filter is on.
      Wrapping is decided on flex-basis rather than the size things end up, so
      the row has to be able to hold Clear even while it isn't there — otherwise
-     picking a filter bumps the view switch onto a second line. Only the basis
-     comes down: these all grow, so with Clear absent they expand to fill the
-     row exactly as before and nothing looks any different. */
-  .filter-wrap { flex: 1 1 112px; }
+     picking a filter bumps the view switch onto a second line.
+
+     112 was the number that kept four things and Clear on one line. A fourth
+     filter broke that arithmetic: everything still fit, and every label was
+     cut to "All bran…". Measured across 112 to 170, one line is only
+     achievable by truncating all of them, and anything from 130 up wraps to
+     two and truncates none — with the same line count whether Clear is there
+     or not, which is what the rule above was protecting. Two readable rows
+     beat one row of abbreviations. */
+  .filter-wrap { flex: 1 1 140px; }
 
   .fab { right: 32px; bottom: 32px; }
 }
@@ -2832,10 +2842,10 @@ input[type="range"] {
   max-width: 55%;
   font-size: 11.5px;
 }
-/* Sized up to 18: the drawing is the only thing identifying the place on this
+/* Sized up to 22: the drawing is the only thing identifying the place on this
    density, so it gets the room the brand line has spare rather than being
    scaled to sit politely beside text that is not there. */
-.grid.view-medium .loc-head svg { width: 18px; height: 18px; }
+.grid.view-medium .loc-head svg { width: 22px; height: 22px; }
 .grid.view-medium .card-title-row,
 .grid.view-medium .card-color,
 .grid.view-medium .card-extra { grid-column: 1 / -1; }
@@ -2897,3 +2907,8 @@ input[type="range"] {
 .grid.view-medium .loc-head .loc-name { display: none; }
 .grid.view-medium .loc-head { max-width: none; padding: 2px 4px; }
 .loc-name { font-weight: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* A place's icon, in the filter list. */
+.option-icon { display: inline-flex; flex: none; color: var(--muted); }
+.option-icon svg { width: 17px; height: 17px; }
+.option-row[aria-pressed="true"] .option-icon { color: var(--accent); }
