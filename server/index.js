@@ -6,7 +6,7 @@ import { db } from './db.js';
 import { router as filamentsRouter, importHandler } from './routes/filaments.js';
 import { router as catalogRouter } from './routes/catalog.js';
 import { router as taresRouter, allTares } from './routes/tares.js';
-import { allEvents } from './events.js';
+import { allEvents, recentEvents } from './events.js';
 import { router as appSettingsRouter } from './routes/app-settings.js';
 import { router as printRouter, printMode } from './routes/print.js';
 import { router as scanRouter, scanEnabled } from './routes/scan.js';
@@ -83,6 +83,18 @@ app.use('/api/catalog', catalogRouter);
 app.use('/api/tares', taresRouter);
 app.use('/api/settings', appSettingsRouter);
 app.use('/api/print', printRouter);
+
+/**
+ * Recent activity across every spool.
+ *
+ * Capped rather than paged: this answers "what have I been doing lately",
+ * and a feed nobody scrolls to the end of does not need a cursor.
+ */
+app.get('/api/events', (req, res) => {
+  const asked = parseInt(req.query.limit, 10);
+  const limit = Math.min(200, Math.max(1, Number.isFinite(asked) ? asked : 60));
+  res.json({ events: recentEvents(limit) });
+});
 
 /**
  * The same inventory as a spreadsheet.

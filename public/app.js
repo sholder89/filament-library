@@ -38,6 +38,8 @@ const state = {
 const $ = (sel) => document.querySelector(sel);
 const el = {
   stats: $('#stats'),
+  feedPanel: $('#feedPanel'),
+  feedList: $('#feedList'),
   grid: $('#grid'),
   statusFilter: $('#statusFilter'),
   search: $('#search'),
@@ -3581,6 +3583,168 @@ document.addEventListener('click', (e) => {
   }
 });
 addEventListener('keydown', (e) => { if (e.key === 'Escape' && !el.picker2.hidden) closePicker2(); });
+
+// ── Recent activity ───────────────────────────────────────────
+
+/**
+ * Short enough to sit at the end of a row.
+ *
+ * ago() is day-granular, which is right on a spool that was opened last March
+ * and useless in a feed where four things can happen in an afternoon.
+ */
+function agoShort(iso) {
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return '';
+  const mins = Math.round((Date.now() - then) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m`;
+  if (mins < 60 * 24) return `${Math.round(mins / 60)}h`;
+  const days = Math.round(mins / (60 * 24));
+  if (days < 7) return `${days}d`;
+  return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+}
+
+/**
+ * One save can change several fields, and the diff files one row per field.
+ * That is right in a spool history, where each line is a fact — but a feed
+ * asking "what did I do lately" should answer once per thing done, so events
+ * sharing a spool and a timestamp collapse into a single entry.
+ */
+function groupFeed(events) {
+  const out = [];
+  const seen = new Map();
+  for (const e of events) {
+    const key = `${e.filament_id}@${e.at}`;
+    const at = seen.get(key);
+    if (at !== undefined) {
+      out[at].parts.push(describeEvent(e));
+      out[at].spool.actionKeys.push(actionKey(e));
+      continue;
+    }
+    seen.set(key, out.length);
+    out.push({ spool: { ...e, actionKeys: [actionKey(e)] }, parts: [describeEvent(e)] });
+  }
+  return out;
+}
+
+/**
+ * What kind of thing happened, at the grain a glance needs.
+ *
+ * Finer than event.kind, because loading and unloading are one kind in the
+ * table and opposite actions to a reader.
+ */
+function actionKey(e) {
+  if (e.kind === 'added') return 'added';
+  if (e.kind === 'status') {
+    return e.to_value === 'empty' ? 'empty' : e.to_value === 'opened' ? 'opened' : 'sealed';
+  }
+  if (e.kind === 'loaded') return e.to_value === '1' ? 'loaded' : 'unloaded';
+  if (e.kind === 'remaining') return 'remaining';
+  if (e.kind === 'weighed') return 'weighed';
+  return 'edit';
+}
+
+/**
+ * A badge per action, in the colors the rest of the app already uses for
+ * status - amber for opened, purple for in-the-printer, gray for used up. A
+ * second palette would have meant learning the feed separately.
+ *
+ * Shapes are kept blunt because these render at about ten pixels: a play
+ * triangle for starting a spool, a tick for finishing one, arrows for in and
+ * out of the printer. Detail at this size just turns to mud.
+ */
+const ACTIONS = {
+  added:     { tone: 'new',    icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>' },
+  opened:    { tone: 'opened', icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7z" fill="currentColor"/></svg>' },
+  empty:     { tone: 'empty',  icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4L19 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' },
+  sealed:    { tone: 'muted',  icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' },
+  loaded:    { tone: 'loaded', icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10m0 0l-4-4m4 4l4-4M4 19h16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>' },
+  unloaded:  { tone: 'muted',  icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V6m0 0L8 10m4-4l4 4M4 19h16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>' },
+  remaining: { tone: 'accent', icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="9" width="18" height="6" rx="2.5" fill="none" stroke="currentColor" stroke-width="2.2"/><rect x="6" y="11.4" width="6" height="1.9" rx="1" fill="currentColor"/></svg>' },
+  weighed:   { tone: 'accent', icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="9" r="4" fill="currentColor"/><path d="M4 18h16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>' },
+  edit:      { tone: 'muted',  icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19.5 8.5l-4-4L4 16z" fill="currentColor"/></svg>' },
+};
+
+/*
+ * Which action speaks for a grouped row. Creation outranks everything, then
+ * the lifecycle, then the printer, and an ordinary field edit only wins when
+ * nothing more interesting happened in the same save.
+ */
+const ACTION_RANK = ['added', 'empty', 'opened', 'sealed', 'loaded', 'unloaded', 'weighed', 'remaining', 'edit'];
+
+const leadAction = (keys) =>
+  ACTION_RANK.find((k) => keys.includes(k)) ?? 'edit';
+
+function feedRowHTML({ spool, parts }) {
+  const name = [nameOf(spool), spool.color_name].filter(Boolean).join(" · ");
+  const act = ACTIONS[leadAction(spool.actionKeys)] ?? ACTIONS.edit;
+  return `<button type="button" class="feed-row" data-feed-id="${esc(spool.filament_id)}">
+    <span class="feed-mark">
+      <i class="feed-dot" style="background:${colorCSS(spool)}"></i>
+      <span class="feed-badge tone-${act.tone}">${act.icon}</span>
+    </span>
+    <span class="feed-text">
+      <span class="feed-name">${esc(name)}</span>
+      <span class="feed-what">${esc(parts.join(" · "))}</span>
+    </span>
+    <span class="feed-when">${esc(agoShort(spool.at))}</span>
+  </button>`;
+}
+
+async function openFeed() {
+  // Reopening from the button closes it, matching the other dropdowns.
+  if (!el.feedPanel.hidden) return closeFeed();
+
+  el.feedList.innerHTML = '<p class="feed-empty">Loading...</p>';
+  el.feedPanel.hidden = false;
+  $('#feedBtn').setAttribute('aria-expanded', 'true');
+  placeFeed();
+
+  try {
+    const { events } = await api('/api/events?limit=60');
+    el.feedList.innerHTML = events.length
+      ? groupFeed(events).map(feedRowHTML).join('')
+      : `<p class="feed-empty">Nothing has happened yet.</p>`;
+  } catch {
+    el.feedList.innerHTML = `<p class="feed-empty">Could not load recent activity.</p>`;
+  }
+  placeFeed();
+}
+
+/**
+ * Anchored under the button in viewport coordinates, and clamped so it cannot
+ * hang off a narrow screen - the same reasoning as the card menu.
+ */
+function placeFeed() {
+  const btn = $('#feedBtn');
+  const box = btn.getBoundingClientRect();
+  const panel = el.feedPanel.getBoundingClientRect();
+  const left = Math.min(Math.max(8, box.right - panel.width), innerWidth - panel.width - 8);
+  el.feedPanel.style.left = `${Math.max(8, left)}px`;
+  el.feedPanel.style.top = `${box.bottom + 8}px`;
+}
+
+function closeFeed() {
+  el.feedPanel.hidden = true;
+  $('#feedBtn').setAttribute('aria-expanded', 'false');
+}
+
+$('#feedBtn').addEventListener('click', openFeed);
+
+el.feedPanel.addEventListener('click', (e) => {
+  const row = e.target.closest('[data-feed-id]');
+  if (!row) return;
+  closeFeed();
+  showDetail(row.dataset.feedId, true);
+});
+
+addEventListener('click', (e) => {
+  if (el.feedPanel.hidden) return;
+  if (e.target.closest('#feedPanel') || e.target.closest('#feedBtn')) return;
+  closeFeed();
+});
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && !el.feedPanel.hidden) closeFeed(); });
+addEventListener('resize', () => { if (!el.feedPanel.hidden) placeFeed(); });
 
 // ── Theme ────────────────────────────────────────────────────────────────────
 

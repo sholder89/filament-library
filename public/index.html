@@ -51,6 +51,9 @@
     <button class="icon-btn bare" id="matchBtn" title="Find the closest color" aria-label="Find filaments closest to a color">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.66 5.41l.92.92-2.69 2.69-.92-.92 2.69-2.69M17.67 3c-.26 0-.51.1-.71.29l-3.12 3.12-1.93-1.91-1.41 1.41 1.42 1.42L3 16.25V21h4.75l8.92-8.92 1.42 1.42 1.41-1.41-1.92-1.92 3.12-3.12c.4-.4.4-1.03.01-1.42l-2.34-2.34c-.2-.19-.45-.29-.7-.29zM6.92 19L5 17.08l8.06-8.06 1.92 1.92L6.92 19z" fill="currentColor"/></svg>
     </button>
+    <button class="icon-btn" id="feedBtn" title="Recent activity" aria-label="Recent activity" aria-haspopup="true" aria-expanded="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 2.6-6.4M3 4.5V10h5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 7.5V12l3 1.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
     <button class="icon-btn" id="themeBtn" title="Toggle theme" aria-label="Toggle light or dark theme">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z" fill="currentColor"/></svg>
     </button>
@@ -592,6 +595,13 @@
     </div>
   </div>
 </dialog>
+
+<!-- Recent activity. Pinned to the document rather than nested in the header,
+     which is a stacking and clipping context of its own. -->
+<div id="feedPanel" class="feed-panel" role="dialog" aria-label="Recent activity" hidden>
+  <div class="feed-head">Recent activity</div>
+  <div class="feed-list" id="feedList"></div>
+</div>
 
 <!-- Moved inside whichever sheet is open — see toastHost() in app.js. Left on
      the body it would be both painted under an open <dialog> and inert. -->

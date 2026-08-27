@@ -2350,3 +2350,116 @@ input[type="range"] {
   .timeline li { grid-template-columns: 1fr; gap: 1px; }
   .timeline-when { font-size: 12.5px; }
 }
+
+/* Recent activity, hung under the topbar button.
+
+   Fixed rather than absolute: the header scrolls away on a phone, and a panel
+   that scrolled with it would leave the button behind. */
+.feed-panel {
+  position: fixed;
+  z-index: 60;
+  width: min(380px, calc(100vw - 16px));
+  max-height: min(70vh, 560px);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 18px 44px rgb(0 0 0 / .34);
+  overflow: hidden;
+}
+.feed-panel[hidden] { display: none; }
+
+.feed-head {
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.feed-list { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+.feed-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 11px;
+  align-items: center;
+  padding: 11px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.feed-row:last-child { border-bottom: 0; }
+.feed-row:hover { background: var(--surface-2, rgb(128 128 128 / .10)); }
+
+/* The spool, with a badge for what happened to it - the arrangement a
+   notifications list uses, because the same two questions are being answered:
+   which thing, and what happened. */
+.feed-mark { position: relative; width: 32px; height: 32px; flex: none; }
+
+.feed-dot {
+  display: block;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid rgb(128 128 128 / .45);
+  /* A spool read small: a ring of filament around an empty hub. */
+  mask: radial-gradient(circle, transparent 30%, #000 31%);
+}
+
+.feed-badge {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 17px;
+  height: 17px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  /* Ringed in the panel's own background so it reads as sitting on top of the
+     spool rather than punched into it. */
+  box-shadow: 0 0 0 2px var(--surface);
+  color: #fff;
+}
+.feed-badge svg { width: 11px; height: 11px; display: block; }
+
+/* The status colors the rest of the app already uses, so the feed does not
+   have to be learned separately. */
+.feed-badge.tone-new    { background: var(--new); color: #08110c; }
+.feed-badge.tone-opened { background: var(--opened); color: #23180a; }
+.feed-badge.tone-empty  { background: var(--empty); }
+.feed-badge.tone-loaded { background: var(--loaded); }
+.feed-badge.tone-accent { background: var(--accent); color: var(--accent-ink); }
+.feed-badge.tone-muted  { background: var(--muted); color: var(--surface); }
+
+.feed-text { min-width: 0; display: grid; gap: 1px; }
+.feed-name {
+  font-size: 13.5px;
+  font-weight: 640;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.feed-what {
+  font-size: 12.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.feed-when {
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.feed-empty { margin: 0; padding: 22px 14px; color: var(--muted); font-size: 13.5px; }

@@ -112,3 +112,23 @@ export function importEvents(rows, keepIds) {
   }
   return n;
 }
+
+/**
+ * Recent activity across the whole library, for the feed.
+ *
+ * Joined rather than fetched per spool: the feed needs the brand and color of
+ * each spool to draw a row, and sixty rows would otherwise be sixty lookups.
+ * An inner join also means an event can never outlive the spool it describes —
+ * deleting one already clears its history, and this is the second guard.
+ */
+const recent = db.prepare(`
+  SELECT e.id, e.at, e.kind, e.field, e.from_value, e.to_value,
+         f.id AS filament_id, f.brand, f.material, f.color_name, f.finish,
+         f.color_hex, f.color_hex2, f.color_hex3
+  FROM filament_events e
+  JOIN filaments f ON f.id = e.filament_id
+  ORDER BY e.at DESC, e.id DESC
+  LIMIT ?
+`);
+
+export const recentEvents = (limit = 60) => recent.all(limit);
