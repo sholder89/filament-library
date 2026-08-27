@@ -2290,3 +2290,29 @@ input[type="range"] {
   .detail-hero { grid-template-columns: 1fr; justify-items: center; text-align: center; }
   .detail-hero .chips { justify-content: center; }
 }
+
+/* Hex codes on the detail sheet. A tap target rather than plain text: the
+   reason to look one up is almost always to paste it somewhere else. */
+.spec .hex {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 6px 0 0;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  letter-spacing: .02em;
+  cursor: pointer;
+}
+.spec .hex i {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid rgb(128 128 128 / .45);
+}
+.spec .hex:hover { border-color: var(--accent); }

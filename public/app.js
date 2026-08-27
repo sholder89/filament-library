@@ -1876,6 +1876,17 @@ function pctFromTotal(total, f) {
 
 // ── Detail ───────────────────────────────────────────────────────────────────
 
+/**
+ * The hex codes a spool actually carries, uppercased for reading.
+ *
+ * Filtered against the pattern rather than trusted: these go straight into a
+ * style attribute, and a stored value that is not a hex has no business there.
+ * Gradients keep all three, in the order the swatch paints them.
+ */
+const hexesOf = (f) => [f.color_hex, f.color_hex2, f.color_hex3]
+  .filter((h) => /^#[0-9a-f]{6}$/i.test(h ?? ''))
+  .map((h) => h.toUpperCase());
+
 async function showDetail(id, push = false) {
   let f;
   try {
@@ -1888,6 +1899,11 @@ async function showDetail(id, push = false) {
   const spec = (label, value) => value == null || value === '' || value === '—'
     ? ''
     : `<div class="spec"><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`;
+
+  // Same row, but the value is markup rather than text.
+  const specHTML = (label, html) => html
+    ? `<div class="spec"><dt>${esc(label)}</dt><dd>${html}</dd></div>`
+    : '';
 
   const remainingG = Math.round(f.spool_weight_g * f.remaining_pct / 100);
 
@@ -1984,6 +2000,9 @@ async function showDetail(id, push = false) {
       ${spec('Brand', f.brand)}
       ${spec('Type', f.material)}
       ${spec('Finish', f.finish)}
+      ${specHTML('Color', hexesOf(f).map((h) =>
+        `<button type="button" class="hex" data-hex="${h}" title="Copy ${h}">`
+        + `<i style="background:${h}"></i>${h}</button>`).join(''))}
       ${spec('Spool', `${f.spool_weight_g} g`)}
       ${spec('Nozzle', f.nozzle_temp ? `${f.nozzle_temp} °C` : '')}
       ${spec('Bed', f.bed_temp ? `${f.bed_temp} °C` : '')}
@@ -2025,6 +2044,21 @@ async function showDetail(id, push = false) {
 }
 
 el.detail.addEventListener('click', async (e) => {
+  const hex = e.target.closest('.hex');
+  if (hex) {
+    const code = hex.dataset.hex;
+    try {
+      await navigator.clipboard.writeText(code);
+      toast(`Copied ${code}`);
+    } catch {
+      // The clipboard needs a secure context and can still be refused; if it
+      // is, selecting the code leaves them something to act on.
+      getSelection()?.selectAllChildren(hex);
+      toast('Copy was blocked, so the code is selected instead', true);
+    }
+    return;
+  }
+
   const quick = e.target.closest('.remaining-quick button');
   if (quick) {
     const pct = Number(quick.dataset.pct);
