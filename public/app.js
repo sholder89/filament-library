@@ -1896,7 +1896,8 @@ const hexesOf = (f) => [f.color_hex, f.color_hex2, f.color_hex3]
  */
 const EVENT_TEXT = {
   added: (e) => (e.to_value ? `Added as a copy of ${e.to_value}` : 'Added to the library'),
-  status: (e) => `${(STATUS_LABEL[e.from_value] ?? e.from_value) || 'New'} to ${STATUS_LABEL[e.to_value] ?? e.to_value}`,
+  // Just where it landed. The previous state is the line above it.
+  status: (e) => STATUS_LABEL[e.to_value] ?? e.to_value,
   loaded: (e) => (e.to_value === '1' ? 'Loaded into the printer' : 'Taken out of the printer'),
   remaining: (e) => `Remaining ${e.from_value}% to ${e.to_value}%`,
   weighed: (e) => (e.to_value
