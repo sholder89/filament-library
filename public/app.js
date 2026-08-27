@@ -4209,11 +4209,19 @@ const LOCATION_ICONS = {
   bin:     '<path d="M5 7h14l-1 13a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 7zM9 4h6v3H9z"/>',
   bag:     '<path d="M6 8h12l-1 12H7L6 8zM9 8V5a3 3 0 0 1 6 0v3"/>',
   cabinet: '<path d="M5 3h14v18H5zM12 3v18M9 11h1M14 11h1"/>',
-  // A pair, so two of the same thing can be told apart at a glance: the body
-  // stays put and the open door swings out to one side. Which is the whole
-  // difference you need when the cabinets are left and right of each other.
-  'cabinet-left':  '<path d="M9 3h11v18H9zM9 4 4 6v12l5 2zM11.5 11v2"/>',
-  'cabinet-right': '<path d="M4 3h11v18H4zM15 4l5 2v12l-5 2zM12.5 11v2"/>',
+  /*
+   * The same cabinet with one door filled in, rather than one door drawn ajar.
+   *
+   * The first attempt mirrored an open door and was a failure: at this size two
+   * mirrored outlines are the same amount of ink in nearly the same places, and
+   * you had to work out which was which instead of seeing it. A solid block on
+   * one side is not subtle, which is the entire requirement — these exist to
+   * tell two cabinets standing next to each other apart across a room.
+   */
+  'cabinet-left':  '<path d="M5 3h14v18H5zM12 3v18M15.5 11v2"/>'
+                 + '<path d="M6.3 4.3h4.4v15.4H6.3z" fill="currentColor" stroke="none"/>',
+  'cabinet-right': '<path d="M5 3h14v18H5zM12 3v18M8.5 11v2"/>'
+                 + '<path d="M13.3 4.3h4.4v15.4h-4.4z" fill="currentColor" stroke="none"/>',
   cart:    '<path d="M4 5h3l2 10h9M6 19a1.6 1.6 0 1 0 3 0 1.6 1.6 0 1 0-3 0M15 19a1.6 1.6 0 1 0 3 0 1.6 1.6 0 1 0-3 0M9 11h11l1-5H8"/>',
   desk:    '<path d="M3 9h18M4 9v11M20 9v11M4 5h16v4H4zM9 13h6"/>',
   closet:  '<path d="M4 3h16v18H4zM4 9h16M12 5v2M9 15h6"/>',
@@ -4420,7 +4428,7 @@ async function saveLocation(id, patch) {
 function chooseIcon(anchor, current, onPick) {
   el.locPickerList.innerHTML = `<div class="icon-grid">${ICON_CHOICES.map((key) =>
     `<button type="button" class="icon-pick${key === current ? ' on' : ''}" data-icon="${key}"
-      aria-label="${key}">${locIconSVG(key)}</button>`).join('')}</div>`;
+      title="${key.replace('-', ' ')}" aria-label="${key}">${locIconSVG(key)}</button>`).join('')}</div>`;
   $('#locPickerOther').hidden = true;
   $('#locPickerClear').hidden = true;
   el.locPicker.hidden = false;
