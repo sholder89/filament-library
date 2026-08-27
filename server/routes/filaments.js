@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { db, newId, nowISO } from '../db.js';
 import { importTares } from './tares.js';
+import { recordEvent, recordChanges, eventsFor, deleteEvents, importEvents } from '../events.js';
 import { expandTerm, vocabularyFrom, normalizeQuery } from '../search-terms.js';
 
 export const router = Router();
@@ -300,6 +301,13 @@ router.get('/:id', (req, res) => {
   res.json(row);
 });
 
+// ── History ──────────────────────────────────────────────────────────────────
+
+router.get('/:id/events', (req, res) => {
+  if (!getFilament(req.params.id)) return res.status(404).json({ error: 'Filament not found.' });
+  res.json({ events: eventsFor(req.params.id) });
+});
+
 // ── Create ───────────────────────────────────────────────────────────────────
 
 router.post('/', (req, res) => {
@@ -329,6 +337,7 @@ router.post('/', (req, res) => {
     INSERT INTO filaments (id, ${COLUMNS.join(', ')}, created_at, updated_at)
     VALUES (?, ${COLUMNS.map(() => '?').join(', ')}, ?, ?)
   `).run(id, ...COLUMNS.map((c) => row[c]), now, now);
+  recordEvent(id, 'added', { at: now });
 
   // Support adding several identical spools in one go.
   const extra = Math.min(19, Math.max(0, (num(body.quantity, { min: 1, max: 20, int: true }) ?? 1) - 1));
@@ -339,6 +348,7 @@ router.post('/', (req, res) => {
       INSERT INTO filaments (id, ${COLUMNS.join(', ')}, created_at, updated_at)
       VALUES (?, ${COLUMNS.map(() => '?').join(', ')}, ?, ?)
     `).run(dupId, ...COLUMNS.map((c) => row[c]), now, now);
+    recordEvent(dupId, 'added', { at: now });
     created.push(getFilament(dupId));
   }
 
@@ -360,10 +370,12 @@ router.patch('/:id', (req, res) => {
     ? reconcileLifecycle(merged)
     : merged;
 
+  const at = nowISO();
   db.prepare(`
     UPDATE filaments SET ${COLUMNS.map((c) => `${c} = ?`).join(', ')}, updated_at = ?
     WHERE id = ?
-  `).run(...COLUMNS.map((c) => row[c]), nowISO(), req.params.id);
+  `).run(...COLUMNS.map((c) => row[c]), at, req.params.id);
+  recordChanges(req.params.id, existing, row, at);
 
   res.json(getFilament(req.params.id));
 });
@@ -406,6 +418,7 @@ router.post('/:id/duplicate', (req, res) => {
   for (let i = 0; i < count; i++) {
     const id = newId();
     insert.run(id, ...COLUMNS.map((c) => row[c]), now, now);
+    recordEvent(id, 'added', { at: now, field: 'Copied from', to: source.id });
     created.push(getFilament(id));
   }
 
@@ -419,10 +432,12 @@ function transition(id, status, res) {
   if (!existing) return res.status(404).json({ error: 'Filament not found.' });
 
   const row = reconcileLifecycle({ ...existing, status });
+  const at = nowISO();
   db.prepare(`
     UPDATE filaments SET ${COLUMNS.map((c) => `${c} = ?`).join(', ')}, updated_at = ?
     WHERE id = ?
-  `).run(...COLUMNS.map((c) => row[c]), nowISO(), id);
+  `).run(...COLUMNS.map((c) => row[c]), at, id);
+  recordChanges(id, existing, row, at);
 
   res.json(getFilament(id));
 }
@@ -479,7 +494,16 @@ export function importHandler(req, res, next) {
     // which matters most for 'replace' — it has already cleared the table.
     db.exec('BEGIN');
     try {
-      if (mode === 'replace') db.exec('DELETE FROM filaments');
+      if (mode === 'replace') {
+        db.exec('DELETE FROM filaments');
+        // History belongs to the spools that just went; leaving it would
+        // attach a stranger's past to whatever id happens to match next.
+        db.exec('DELETE FROM filament_events');
+      }
+
+      // Which spools this file actually brought in — history is only
+      // restored for those, since a merge skips ids already here.
+      const landed = new Set();
 
       for (const [i, raw] of rows.entries()) {
         try {
@@ -511,6 +535,7 @@ export function importHandler(req, res, next) {
             insert.run(id, ...COLUMNS.map((c) => row[c]), created, updated);
             result.imported += 1;
           }
+          landed.add(id);
         } catch (err) {
           result.failed += 1;
           // Enough to find the bad row without returning the whole file back.
@@ -520,6 +545,19 @@ export function importHandler(req, res, next) {
       // Inside the same transaction, so a file that fails partway leaves the
       // spool weights alone too.
       result.tares = importTares(body.spool_tares);
+
+      /*
+       * History rides along with the spools.
+       *
+       * A backup that restored the shelf but not how it got that way would
+       * quietly reset every spool to "added today". Where the file predates
+       * this feature there is simply nothing to restore, and a spool that
+       * arrives without history still gets its own "added" line below.
+       */
+      result.events = importEvents(body.events, landed);
+      for (const id of landed) {
+        if (!eventsFor(id).length) recordEvent(id, 'added', { at: getFilament(id)?.created_at });
+      }
 
       /*
        * 'replace' empties the table first, so a file that turns out to be
@@ -559,5 +597,6 @@ router.delete('/:id', (req, res) => {
   const existing = getFilament(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Filament not found.' });
   db.prepare('DELETE FROM filaments WHERE id = ?').run(req.params.id);
+  deleteEvents(req.params.id);
   res.json({ ok: true, deleted: existing });
 });

@@ -109,7 +109,7 @@ db.exec('PRAGMA foreign_keys = ON');
  * Schema is versioned through PRAGMA user_version so upgrades are additive and
  * never lose a spool record. Bump SCHEMA_VERSION and add a migration below.
  */
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;
 
 function migrate() {
   const current = db.prepare('PRAGMA user_version').get().user_version;
@@ -273,6 +273,58 @@ function migrate() {
       );
     `);
     db.exec(`PRAGMA user_version = 8`);
+  }
+
+  if (current < 9) {
+    /*
+     * What happened to a spool, and when.
+     *
+     * The filament row only ever holds the current state, so "I marked this
+     * used up last week" and "someone loaded it twice in a day" were both
+     * unanswerable. This keeps the changes themselves.
+     *
+     * from_value/to_value are text for every field regardless of its real
+     * type: this table is read to be displayed, never to be computed with,
+     * and one shape beats a column per type.
+     */
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS filament_events (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        filament_id TEXT NOT NULL,
+        at          TEXT NOT NULL,
+        kind        TEXT NOT NULL,
+        field       TEXT NOT NULL DEFAULT '',
+        from_value  TEXT NOT NULL DEFAULT '',
+        to_value    TEXT NOT NULL DEFAULT ''
+      );
+      CREATE INDEX IF NOT EXISTS filament_events_by_spool
+        ON filament_events (filament_id, at);
+    `);
+
+    /*
+     * Backfill what the spools can still tell us.
+     *
+     * Only three moments survive in the filament row itself, so that is all
+     * there is to recover — every other change made before today happened
+     * without anywhere to write it down and is simply gone. Better a sparse
+     * early history than a timeline that pretends to start at zero.
+     */
+    db.exec(`
+      INSERT INTO filament_events (filament_id, at, kind, field, from_value, to_value)
+      SELECT id, created_at, 'added', '', '', '' FROM filaments WHERE created_at <> '';
+    `);
+    db.exec(`
+      INSERT INTO filament_events (filament_id, at, kind, field, from_value, to_value)
+      SELECT id, opened_at, 'status', 'status', 'new', 'opened'
+      FROM filaments WHERE opened_at IS NOT NULL AND opened_at <> '';
+    `);
+    db.exec(`
+      INSERT INTO filament_events (filament_id, at, kind, field, from_value, to_value)
+      SELECT id, finished_at, 'status', 'status', 'opened', 'empty'
+      FROM filaments WHERE finished_at IS NOT NULL AND finished_at <> '';
+    `);
+
+    db.exec(`PRAGMA user_version = 9`);
   }
 }
 

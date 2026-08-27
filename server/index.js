@@ -6,6 +6,7 @@ import { db } from './db.js';
 import { router as filamentsRouter, importHandler } from './routes/filaments.js';
 import { router as catalogRouter } from './routes/catalog.js';
 import { router as taresRouter, allTares } from './routes/tares.js';
+import { allEvents } from './events.js';
 import { router as appSettingsRouter } from './routes/app-settings.js';
 import { router as printRouter, printMode } from './routes/print.js';
 import { router as scanRouter, scanEnabled } from './routes/scan.js';
@@ -175,6 +176,10 @@ app.get('/api/export', (_req, res) => {
     // the ones that can't be looked up again — a backup without them restores a
     // library that has quietly gone back to guessing.
     spool_tares: allTares(),
+    // Without this a restore brings back the shelf but not how it got that
+    // way, and every spool reads as though it arrived on the day of the
+    // restore. It is a few rows per spool, not a meaningful size.
+    events: allEvents(),
   });
 });
 

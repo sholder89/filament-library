@@ -1887,6 +1887,63 @@ const hexesOf = (f) => [f.color_hex, f.color_hex2, f.color_hex3]
   .filter((h) => /^#[0-9a-f]{6}$/i.test(h ?? ''))
   .map((h) => h.toUpperCase());
 
+/**
+ * One line of history, in the words someone would use for it.
+ *
+ * Keyed on kind rather than field so the things you actually do to a spool
+ * read as events - loaded, used up - while ordinary edits fall through to a
+ * plain before-and-after, which is all there is to say about a changed price.
+ */
+const EVENT_TEXT = {
+  added: (e) => (e.to_value ? `Added as a copy of ${e.to_value}` : 'Added to the library'),
+  status: (e) => `${(STATUS_LABEL[e.from_value] ?? e.from_value) || 'New'} to ${STATUS_LABEL[e.to_value] ?? e.to_value}`,
+  loaded: (e) => (e.to_value === '1' ? 'Loaded into the printer' : 'Taken out of the printer'),
+  remaining: (e) => `Remaining ${e.from_value}% to ${e.to_value}%`,
+  weighed: (e) => (e.to_value
+    ? `Empty spool weighed at ${e.to_value} g`
+    : 'Empty spool weight cleared'),
+};
+
+function describeEvent(e) {
+  const known = EVENT_TEXT[e.kind];
+  if (known) return known(e);
+  const from = e.from_value || 'blank';
+  const to = e.to_value || 'blank';
+  return `${e.field}: ${from} to ${to}`;
+}
+
+/** Date and time both, since several things can happen to a spool in a day. */
+const fmtWhen = (iso) => {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString(undefined, {
+    dateStyle: 'medium', timeStyle: 'short',
+  });
+};
+
+/**
+ * Fetched separately rather than riding along with the spool: it is only
+ * read when the sheet is open, and it grows for the life of the record.
+ */
+async function loadHistory(id) {
+  const list = $('#historyList');
+  if (!list) return;
+  try {
+    const { events } = await api(`/api/filaments/${encodeURIComponent(id)}/events`);
+    if (!events.length) {
+      list.innerHTML = `<li class="timeline-empty">Nothing recorded yet.</li>`;
+      return;
+    }
+    list.innerHTML = events.map((e) => `<li>
+      <span class="timeline-when">${esc(fmtWhen(e.at))}</span>
+      <span class="timeline-what">${esc(describeEvent(e))}</span>
+    </li>`).join('');
+  } catch {
+    // The spool is on screen and readable; a missing history is not worth
+    // an error banner over the top of it.
+    list.innerHTML = `<li class="timeline-empty">History could not be loaded.</li>`;
+  }
+}
+
 async function showDetail(id, push = false) {
   let f;
   try {
@@ -2030,11 +2087,17 @@ async function showDetail(id, push = false) {
       <code>${esc(state.print.base_url || location.origin)}/f/${esc(f.id)}</code>
     </div>
 
+    <details class="more history-block">
+      <summary>History</summary>
+      <ol class="timeline" id="historyList"><li class="timeline-empty">Loading...</li></ol>
+    </details>
+
     <button class="btn danger wide" data-act="delete">Delete this record permanently</button>
   `;
 
   el.detailBody.dataset.id = f.id;
   state.currentFilament = f;
+  loadHistory(f.id);
   if (!el.detail.open) openSheet(el.detail);
   el.detailBody.scrollTop = 0;
 
