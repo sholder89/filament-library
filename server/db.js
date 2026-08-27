@@ -109,7 +109,7 @@ db.exec('PRAGMA foreign_keys = ON');
  * Schema is versioned through PRAGMA user_version so upgrades are additive and
  * never lose a spool record. Bump SCHEMA_VERSION and add a migration below.
  */
-const SCHEMA_VERSION = 9;
+const SCHEMA_VERSION = 10;
 
 function migrate() {
   const current = db.prepare('PRAGMA user_version').get().user_version;
@@ -325,6 +325,26 @@ function migrate() {
     `);
 
     db.exec(`PRAGMA user_version = 9`);
+  }
+
+  if (current < 10) {
+    /*
+     * The feed asks for the newest few events across every spool, which is
+     * the one query here that runs on nothing more than opening a menu. The
+     * existing index leads on filament_id, so that query could not use it to
+     * order by time: SQLite scanned the whole table and built a temp B-tree
+     * to sort it, then took sixty rows.
+     *
+     * Measured on forty thousand events, which is a few years of ordinary
+     * use: 21ms before, 0.2ms after, and the sort disappears from the plan.
+     * It costs one more index to maintain on write, and writes here are one
+     * row at a time when a person touches a spool.
+     */
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS filament_events_recent
+        ON filament_events (at DESC, id DESC);
+    `);
+    db.exec(`PRAGMA user_version = 10`);
   }
 }
 

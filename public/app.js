@@ -2359,7 +2359,15 @@ el.detail.addEventListener('change', (e) => {
 
 function dismissDetail() {
   closeSheet(el.detail);
-  if (!STANDALONE && location.pathname.startsWith('/f/')) history.pushState({}, '', '/');
+  if (STANDALONE || !location.pathname.startsWith('/f/')) return;
+
+  /*
+   * Back to whichever screen is actually underneath. Opening a spool from the
+   * activity page and closing it used to leave the URL at / while the page on
+   * screen was still the activity one — so the next Back went forward into the
+   * spool again instead of leaving.
+   */
+  history.pushState({}, '', el.activityView.hidden ? '/' : '/activity');
 }
 
 el.detail.addEventListener('cancel', (e) => {

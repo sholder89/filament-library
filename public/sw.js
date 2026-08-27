@@ -1,6 +1,6 @@
 /* Filament Library service worker — app shell offline, inventory read-only offline. */
 
-const VERSION = 'v82';
+const VERSION = 'v83';
 const SHELL = `shell-${VERSION}`;
 const DATA = `data-${VERSION}`;
 
@@ -62,10 +62,24 @@ self.addEventListener('fetch', (event) => {
 
   // Inventory data: fresh when online, last-known when not.
   if (url.pathname.startsWith('/api/')) {
+    /*
+     * Searches and deep pages are answered but never kept.
+     *
+     * The cache is keyed by full URL, and searching is per keystroke, so
+     * typing "black" filed five entries — q=b, q=bl, q=bla, q=blac, q=black
+     * — and each one stayed until the next deploy. None of them can ever be
+     * used again either: coming back offline only helps if you retype the
+     * same half-finished word. It was unbounded growth buying nothing.
+     *
+     * What is worth having offline is the plain list, the stats, the catalog
+     * and a spool you opened, and those all still cache.
+     */
+    const transient = url.searchParams.has('q') || url.searchParams.has('offset');
+
     event.respondWith(
       fetch(request)
         .then((res) => {
-          if (res.ok) {
+          if (res.ok && !transient) {
             const copy = res.clone();
             caches.open(DATA).then((cache) => cache.put(request, copy));
           }
