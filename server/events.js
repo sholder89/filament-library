@@ -247,3 +247,24 @@ export function searchEvents({ q = '', action = '', filamentId = '', limit = 50,
 
   return { events, total };
 }
+
+/** Every event written by one save — they share a spool and a timestamp. */
+const atMoment = db.prepare(`
+  SELECT kind, field, from_value, to_value FROM filament_events
+  WHERE filament_id = ? AND at = ?
+`);
+export const eventsAt = (filamentId, at) => atMoment.all(filamentId, at);
+
+/**
+ * Forgets one save.
+ *
+ * Undoing is not a second change to be filed next to the first — the two
+ * together mean nothing happened, and a history that says so twice is a
+ * history you have to read carefully to learn nothing. So the record goes
+ * with the change.
+ */
+const dropMoment = db.prepare('DELETE FROM filament_events WHERE filament_id = ? AND at = ?');
+export const deleteEventsAt = (filamentId, at) => dropMoment.run(filamentId, at).changes;
+
+/** Column names by the label their events are filed under. */
+export const COLUMN_FOR_LABEL = new Map(TRACKED.map(([column, label]) => [label, column]));

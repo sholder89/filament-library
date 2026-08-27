@@ -1,6 +1,6 @@
 /* Filament Library service worker — app shell offline, inventory read-only offline. */
 
-const VERSION = 'v84';
+const VERSION = 'v85';
 const SHELL = `shell-${VERSION}`;
 const DATA = `data-${VERSION}`;
 

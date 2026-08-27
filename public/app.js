@@ -163,13 +163,53 @@ const UNDO_FIELDS = ['status', 'loaded', 'remaining_pct', 'opened_at', 'finished
 const snapshot = (f) => Object.fromEntries(UNDO_FIELDS.map((k) => [k, f[k]]));
 
 /** Hands back a function that puts `before` back, for passing to toast(). */
+/**
+ * The undo offered on a toast.
+ *
+ * The moment is captured now rather than when the button is pressed: every
+ * event from one save shares a timestamp, which is also the row's updated_at,
+ * and by the time the toast exists the caller has already refreshed — so the
+ * spool in hand is the one that was just written. Undoing then deletes those
+ * events instead of filing a reversal beside them.
+ *
+ * `before` still goes along because it is the fuller record: it carries the
+ * fields the history deliberately does not keep, like the date a spool was
+ * opened, which the events alone could not put back.
+ */
 function undoer(id, before, done) {
+  const at = (state.filaments.find((f) => f.id === id) ?? state.currentFilament)?.updated_at;
+
   return async () => {
-    await api(`/api/filaments/${encodeURIComponent(id)}`, { method: 'PATCH', body: before });
+    await api(`/api/filaments/${encodeURIComponent(id)}/undo`, {
+      method: 'POST', body: { at, fields: before },
+    });
     await refresh();
     if (el.detail.open && el.detailBody.dataset.id === id) await showDetail(id);
     toast(done);
   };
+}
+
+/**
+ * Undoing straight from the history, where nothing was remembered in advance
+ * — so the server reads the old values back out of the events themselves.
+ *
+ * Asks first. This sits on a row in a long list that is otherwise entirely
+ * safe to poke at, and the whole point of a history is that you can read it
+ * without changing anything.
+ */
+async function undoFromHistory(id, at, what) {
+  if (!confirm(`Undo this?\n\n${what}\n\nThe spool goes back to how it was, and this drops out of the history.`)) return;
+
+  try {
+    await api(`/api/filaments/${encodeURIComponent(id)}/undo`, { method: 'POST', body: { at } });
+    await refresh();
+    if (el.detail.open && el.detailBody.dataset.id === id) await showDetail(id);
+    if (!el.activityView.hidden) await loadActivity();
+    if (!el.feedPanel.hidden) await openFeed();
+    toast('Undone');
+  } catch (err) {
+    toast(err.message, true);
+  }
 }
 
 const STATUS_LABEL = { new: 'Sealed', opened: 'Opened', empty: 'Used up' };
@@ -1458,6 +1498,9 @@ function cardHTML(f, stack = 0) {
     </div>
     <div class="card-text">
       <span class="card-brand">${esc(f.brand)}</span>
+      <span class="card-meta loc-meta loc-head" role="button" data-loc-open data-id="${f.id}"
+        title="${f.location ? `In ${esc(f.location)} — tap to move` : 'Tap to put this away'}">
+        ${f.location ? locationChipHTML(f.location) : NO_PLACE}</span>
       <span class="card-title-row">
         <span class="card-title">${esc(f.material)}</span>
         ${stack > 1 ? `<span class="stack-count">×${stack}</span>` : ''}
@@ -1469,7 +1512,7 @@ function cardHTML(f, stack = 0) {
           : `<span class="card-bar ${lowClass(f.remaining_pct)}"><i style="width:${f.remaining_pct}%"></i></span>
              <span class="card-meta ${lowClass(f.remaining_pct)}">${f.remaining_pct}% left · ${grams} g</span>`}
         <span class="card-meta loc-meta" role="button" data-loc-open data-id="${f.id}"
-          title="Move this spool">${f.location ? locationChipHTML(f.location) : '<span class="loc-chip is-empty">Put away…</span>'}</span>
+          title="Move this spool">${f.location ? locationChipHTML(f.location) : NO_PLACE}</span>
       </div>
     </div>
   </button>`;
@@ -1608,7 +1651,16 @@ const CARD_ACTIONS = {
     opened: [['unopen', "It's still sealed"], ['empty', 'Mark as used up']],
     empty:  [['restore', 'Put back in the library']],
   }[f.status] ?? []),
-  printer: (f) => [[f.loaded ? 'unload' : 'load', f.loaded ? 'Unload' : 'Load']],
+  /*
+   * Loading offers the printers by name once any are set up, because "which
+   * printer" is the actual question when there is more than one. With none
+   * saved it stays the yes-or-no it has always been.
+   */
+  printer: (f) => {
+    if (f.loaded) return [['unload', 'Unload']];
+    const list = printers();
+    return list.length ? list.map((p) => [`loc:${p.name}`, `Load into ${p.name}`]) : [['load', 'Load']];
+  },
 };
 
 let cardMenuFor = null;
@@ -1658,6 +1710,9 @@ el.cardMenu.addEventListener('click', async (e) => {
   const act = btn.dataset.cardAct;
   const f = state.filaments.find((x) => x.id === id);
   closeCardMenu();
+
+  // Naming a printer is just moving the spool there; the printer flag follows.
+  if (act.startsWith('loc:')) return moveSpool(id, act.slice(4));
 
   // Taken before the write, since that's the only moment the old values exist.
   const before = f ? snapshot(f) : null;
@@ -1948,6 +2003,11 @@ async function loadHistory(id) {
     list.innerHTML = events.map((e) => `<li>
       <span class="timeline-when">${esc(fmtWhen(e.at))}</span>
       <span class="timeline-what">${esc(describeEvent(e))}</span>
+      <button type="button" class="undo-btn" data-undo-at="${esc(e.at)}" data-undo-id="${esc(id)}"
+        data-undo-what="${esc(describeEvent(e))}" title="Undo this">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 4 12l5 5M4 12h11a5 5 0 0 1 0 10h-1"
+          fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
     </li>`).join('');
   } catch {
     // The spool is on screen and readable; a missing history is not worth
@@ -2008,16 +2068,27 @@ async function showDetail(id, push = false) {
           ${f.status !== 'empty' ? `<span class="chip" id="remainingChip">${f.remaining_pct}% left · ~${remainingG} g</span>` : ''}
           <span class="chip">${esc(f.diameter)} mm</span>
           <button type="button" class="chip loc-open" data-loc-open data-id="${f.id}">
-            ${f.location ? locationChipHTML(f.location) : '<span class="loc-chip is-empty">Put away…</span>'}</button>
+            ${f.location ? locationChipHTML(f.location) : NO_PLACE}</button>
         </div>
       </div>
     </div>
 
     <div class="action-grid">
       ${f.status !== 'empty' ? `
+      ${!f.loaded && printers().length ? `<span class="split-load span2">
+        <button class="btn" data-act="loaded">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10m0 0-4-4m4 4 4-4M4 19h16"
+            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Mark as loaded in a printer</button>
+        <button class="btn split-caret" data-loc-open data-printers-only data-id="${f.id}"
+          aria-label="Choose which printer">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </span>` : `
       <button class="btn span2 ${f.loaded ? 'loaded-on' : ''}" data-act="loaded">
         <svg viewBox="0 0 24 24"><path d="M12 3v9m0 0 3.5-3.5M12 12 8.5 8.5M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        ${f.loaded ? 'Loaded in a printer — take it out' : 'Mark as loaded in a printer'}</button>` : ''}
+        ${f.loaded ? 'Loaded in a printer — take it out' : 'Mark as loaded in a printer'}</button>`}` : ''}
       ${statusAction}
       <button class="btn" data-act="edit">
         <svg viewBox="0 0 24 24"><path d="M4 20h4L20 8l-4-4L4 16z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
@@ -3791,12 +3862,21 @@ function closeFeed() {
 $('#feedBtn').addEventListener('click', openFeed);
 
 addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-undo-at]');
+  if (!btn) return;
+  // Stops the row underneath opening the spool behind the confirm.
+  e.preventDefault();
+  e.stopPropagation();
+  undoFromHistory(btn.dataset.undoId, btn.dataset.undoAt, btn.dataset.undoWhat);
+}, true);
+
+addEventListener('click', (e) => {
   const open = e.target.closest('[data-loc-open]');
   if (!open) return;
   // Stops a card click opening the spool underneath the picker.
   e.preventDefault();
   e.stopPropagation();
-  openLocationPicker(open, open.dataset.id);
+  openLocationPicker(open, open.dataset.id, { printersOnly: open.hasAttribute('data-printers-only') });
 }, true);
 
 el.feedPanel.addEventListener('click', (e) => {
@@ -3892,6 +3972,12 @@ function activityRowHTML(e) {
     + '<span class="feed-when" role="button" tabindex="0" title="' + esc(fmtWhen(e.at)) + '">'
     + esc(when)
     + '</span>'
+    + '</button>'
+    + '<button type="button" class="undo-btn" data-undo-at="' + esc(e.at) + '"'
+    + ' data-undo-id="' + esc(e.filament_id) + '" data-undo-what="' + esc(describeEvent(e)) + '"'
+    + ' title="Undo this">'
+    + '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 4 12l5 5M4 12h11a5 5 0 0 1 0 10h-1"'
+    + ' fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
     + '</button>'
     + '</li>';
 }
@@ -4133,6 +4219,9 @@ function locIconSVG(key) {
 }
 
 /** The saved place with this name, if it is one. Names are the key. */
+/** The places that are printers, in the order the list shows them. */
+const printers = () => state.locations.filter((l) => l.kind === 'printer');
+
 const savedLocation = (name) => state.locations.find(
   (l) => l.name.toLowerCase() === String(name ?? '').trim().toLowerCase(),
 );
@@ -4141,8 +4230,23 @@ const savedLocation = (name) => state.locations.find(
 function locationChipHTML(name) {
   if (!name) return '';
   const saved = savedLocation(name);
-  return `<span class="loc-chip${saved?.kind === 'printer' ? ' is-printer' : ''}">${saved ? locIconSVG(saved.icon) : locIconSVG('box')}${esc(name)}</span>`;
+  return `<span class="loc-chip${saved?.kind === 'printer' ? ' is-printer' : ''}">`
+    + `${saved ? locIconSVG(saved.icon) : locIconSVG('box')}`
+    + `<b class="loc-name">${esc(name)}</b></span>`;
 }
+
+/**
+ * Nowhere in particular, as a mark rather than a word.
+ *
+ * A medium card has room for an icon and not much else, and every icon in the
+ * set is a place — using one of them for "no place" would say the opposite of
+ * what is meant. So this is a plus, which reads as somewhere to put something.
+ */
+const NO_PLACE = '<span class="loc-chip is-empty">'
+  + '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"'
+  + ' stroke-linecap="round"><circle cx="12" cy="12" r="8.5" stroke-dasharray="3 3"/>'
+  + '<path d="M12 8.5v7M8.5 12h7"/></svg>'
+  + '<b class="loc-name">Put away…</b></span>';
 
 async function loadLocations() {
   try {
@@ -4160,22 +4264,24 @@ async function loadLocations() {
  */
 let locPickerFor = null;
 
-function openLocationPicker(anchor, id) {
+function openLocationPicker(anchor, id, { printersOnly = false } = {}) {
   const f = state.filaments.find((x) => x.id === id) ?? state.currentFilament;
   if (!f) return;
   if (locPickerFor === id && !el.locPicker.hidden) return closeLocationPicker();
 
   locPickerFor = id;
   const here = (f.location || '').toLowerCase();
+  // Narrowed when the question was "which printer" rather than "where".
+  const places = printersOnly ? printers() : state.locations;
 
-  el.locPickerList.innerHTML = state.locations.length
-    ? state.locations.map((l) => `<button type="button" class="loc-opt${l.name.toLowerCase() === here ? ' on' : ''}"
+  el.locPickerList.innerHTML = places.length
+    ? places.map((l) => `<button type="button" class="loc-opt${l.name.toLowerCase() === here ? ' on' : ''}"
         data-loc="${esc(l.name)}">${locIconSVG(l.icon)}<span>${esc(l.name)}</span>
         ${l.kind === 'printer' ? '<i class="loc-tag">printer</i>' : ''}</button>`).join('')
     : '<p class="loc-empty">No saved places yet. Add some in Settings, or use Somewhere else.</p>';
 
-  $('#locPickerOther').hidden = false;
-  $('#locPickerClear').hidden = false;
+  $('#locPickerOther').hidden = printersOnly;
+  $('#locPickerClear').hidden = printersOnly;
   el.locPicker.dataset.mode = 'move';
   el.locPicker.onIconPick = null;
   el.locPicker.hidden = false;

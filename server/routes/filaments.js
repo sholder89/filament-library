@@ -1,7 +1,10 @@
 import { Router } from 'express';
 import { db, newId, nowISO } from '../db.js';
 import { importTares } from './tares.js';
-import { recordEvent, recordChanges, eventsFor, deleteEvents, importEvents } from '../events.js';
+import {
+  recordEvent, recordChanges, eventsFor, deleteEvents, importEvents,
+  eventsAt, deleteEventsAt, COLUMN_FOR_LABEL,
+} from '../events.js';
 import { isPrinterLocation, importLocations } from './locations.js';
 import { expandTerm, vocabularyFrom, normalizeQuery } from '../search-terms.js';
 
@@ -453,6 +456,74 @@ router.post('/:id/duplicate', (req, res) => {
   }
 
   res.status(201).json(created.length === 1 ? created[0] : created);
+});
+
+// ── Undo ────────────────────────────────────────────────────────────────────
+
+/**
+ * Puts one save back, and takes it out of the history.
+ *
+ * An undo is not a second change to file next to the first. Together they
+ * mean nothing happened, and a timeline that records both makes you read two
+ * entries to find that out — so the events written by that save are deleted
+ * rather than answered.
+ *
+ * A save is identified by its moment: every event from one write shares a
+ * timestamp, which is also the row's updated_at, so the caller has it.
+ *
+ * `fields` is what the client remembers of the spool before the change, and
+ * is preferred when offered because it is complete — it carries values that
+ * are deliberately not in the history, like the date a spool was opened.
+ * Without it the values are read back out of the events themselves, which is
+ * how undoing from the history works, where there is nothing remembered.
+ */
+router.post('/:id/undo', (req, res) => {
+  const existing = getFilament(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Filament not found.' });
+
+  const at = str(req.body?.at);
+  if (!at) throw new BadRequest('Which change should be undone?');
+
+  const events = eventsAt(req.params.id, at);
+  const offered = req.body?.fields;
+
+  let fields;
+  if (offered && typeof offered === 'object') {
+    fields = readBody(offered, { partial: true });
+  } else {
+    if (!events.length) {
+      throw new BadRequest('There is no record of that change to undo.');
+    }
+    // Back to what each field was before, read off the events themselves.
+    const was = {};
+    for (const e of events) {
+      const column = COLUMN_FOR_LABEL.get(e.field);
+      if (column) was[column] = e.from_value;
+    }
+    if (!Object.keys(was).length) throw new BadRequest('That change cannot be undone.');
+    fields = readBody(was, { partial: true });
+  }
+
+  const merged = { ...existing, ...fields };
+  const row = reconcileLocation(existing, fields.status && fields.status !== existing.status
+    ? reconcileLifecycle(merged)
+    : merged, fields);
+
+  db.exec('BEGIN');
+  try {
+    db.prepare(`
+      UPDATE filaments SET ${COLUMNS.map((c) => `${c} = ?`).join(', ')}, updated_at = ?
+      WHERE id = ?
+    `).run(...COLUMNS.map((c) => row[c]), nowISO(), req.params.id);
+
+    deleteEventsAt(req.params.id, at);
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+
+  res.json(getFilament(req.params.id));
 });
 
 // ── Lifecycle shortcuts ──────────────────────────────────────────────────────

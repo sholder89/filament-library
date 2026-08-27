@@ -2814,3 +2814,83 @@ input[type="range"] {
 }
 .loc-row-del svg { width: 16px; height: 16px; }
 .loc-row-del:hover { color: var(--danger); background: rgb(255 93 93 / .12); }
+
+/* The location on a card's brand line, opposite the brand — the medium density
+   has no spare row for it, and this is the one gap that reads as deliberate. */
+.loc-head { display: none; }
+.grid.view-medium .card-text {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+}
+.grid.view-medium .card-brand { grid-column: 1; }
+.grid.view-medium .loc-head {
+  display: inline-flex;
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  max-width: 55%;
+  font-size: 11.5px;
+}
+.grid.view-medium .loc-head svg { width: 12px; height: 12px; }
+.grid.view-medium .card-title-row,
+.grid.view-medium .card-color,
+.grid.view-medium .card-extra { grid-column: 1 / -1; }
+
+/* Large already has room on its own line, so it keeps the fuller one there. */
+.grid.view-large .loc-head,
+.grid.view-list .loc-head { display: none; }
+
+/* Undo, on a history row. Quiet until reached for: the list is there to be
+   read, and a button that draws the eye on every line would make an archive
+   look like a control panel. */
+.undo-btn {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  opacity: .45;
+  cursor: pointer;
+}
+.undo-btn svg { width: 15px; height: 15px; }
+.undo-btn:hover { opacity: 1; color: var(--text); background: rgb(128 128 128 / .16); }
+.timeline li:hover .undo-btn, .feed-row:hover + .undo-btn { opacity: .85; }
+
+.timeline li { grid-template-columns: minmax(0, 11em) 1fr auto; }
+.activity-list li { display: flex; align-items: center; }
+.activity-list .feed-row { flex: 1; min-width: 0; }
+
+/* A button with a chooser hung off its end. */
+.split-load { display: flex; gap: 2px; }
+.split-load .btn:first-child {
+  flex: 1;
+  border-top-right-radius: 4px;
+  border-bottom-right-radius: 4px;
+}
+.split-load .split-caret {
+  flex: none;
+  width: 44px;
+  padding: 0;
+  border-top-left-radius: 4px;
+  border-bottom-left-radius: 4px;
+}
+.split-load .split-caret svg { width: 18px; height: 18px; }
+
+@media (max-width: 520px) {
+  .timeline li { grid-template-columns: 1fr auto; }
+  .timeline-when { grid-column: 1; }
+  .timeline-what { grid-column: 1; }
+  .timeline li .undo-btn { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+}
+
+/* A medium card has room for the icon and not the name. The name is still in
+   the title attribute, and one tap shows it — truncating "Ender 3" to "En"
+   told you less than the icon does. */
+.grid.view-medium .loc-head .loc-name { display: none; }
+.grid.view-medium .loc-head { max-width: none; padding: 2px 4px; }
+.loc-name { font-weight: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
