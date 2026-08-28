@@ -49,7 +49,6 @@ const el = {
   activityList: $('#activityList'),
   feedList: $('#feedList'),
   grid: $('#grid'),
-  statusFilter: $('#statusFilter'),
   search: $('#search'),
   brandFilterBtn: $('#brandFilterBtn'),
   materialFilterBtn: $('#materialFilterBtn'),
@@ -618,9 +617,6 @@ function pruneFilters() {
 /** Pushes restored filters back onto the controls that display them. */
 function applyFiltersToUI() {
   el.sortBy.value = state.filters.sort;
-  for (const b of el.statusFilter.children) {
-    b.classList.toggle('on', b.dataset.status === state.filters.status);
-  }
   syncFilterButtons();
   applyView();
 }
@@ -1027,17 +1023,21 @@ addEventListener('keydown', (e) => {
 async function loadStats() {
   const s = await api('/api/filaments/stats');
   el.stats.innerHTML = `
-    ${statCard('is-new', s.new, 'Sealed')}
-    ${statCard('is-opened', s.opened, 'Opened')}
-    ${statCard('', formatKg(s.active_grams), 'On hand', 'kg')}
     ${/*
-      * Used up was here, and it is already a tab three rows down — the only
-      * card that repeated something you could reach anyway. This one answers a
-      * question nothing else does: what is nearly gone. Which is a question you
-      * ask before starting a print, not after.
+      * These were figures above a row of tabs that said the same words. Now
+      * they are the tabs: the count and the way to see what it counts are one
+      * thing, which is a row shorter and one control instead of two saying
+      * Sealed and Opened at each other.
+      *
+      * There is no All. Pressing the lit one puts it out, which is the same
+      * gesture as every other filter in here and needs no button of its own.
       */''}
-    ${statCard('is-low' + (state.filters.low ? ' on' : ''), s.low ?? 0, 'Running low', '',
-      { act: 'low', pressed: state.filters.low })}
+    ${statFilter('is-new', s.new, 'Sealed', 'new')}
+    ${statFilter('is-opened', s.opened, 'Opened', 'opened')}
+    ${statFilter('is-empty', s.empty, 'Used up', 'empty')}
+    ${statFilter('is-low', s.low ?? 0, 'Running low', 'low')}
+    ${/* The one figure that is not a view of the shelf, so not a button. */''}
+    ${statCard('is-hand', formatKg(s.active_grams), 'On hand', 'kg')}
   `;
 }
 
@@ -1052,21 +1052,24 @@ const formatKg = (grams) => {
  * can sit alongside the number instead of wrapping onto its own line and making
  * this card taller than the three beside it.
  */
-/**
- * A figure, and sometimes a way to act on it.
- *
- * The ones that only report stay plain <div>s — a button that does nothing
- * when pressed is worse than a number that never offered.
- */
-const statCard = (cls, value, label, unit = '', act = null) => {
-  const inner = `<b>${esc(value)}${unit ? `<i>${esc(unit)}</i>` : ''}</b>
-     <span>${esc(label)}</span>`;
+const statInner = (value, unit, label) => `<b>${esc(value)}${
+  unit ? `<i>${esc(unit)}</i>` : ''}</b><span>${esc(label)}</span>`;
 
-  return act
-    ? `<button type="button" class="stat ${cls}" data-stat="${esc(act.act)}"
-         aria-pressed="${act.pressed}">${inner}</button>`
-    : `<div class="stat ${cls}">${inner}</div>`;
-};
+/** A figure that only reports. */
+const statCard = (cls, value, label, unit = '') =>
+  `<div class="stat ${cls}">${statInner(value, unit, label)}</div>`;
+
+/**
+ * A figure that is also the way to see what it counts.
+ *
+ * `low` is not a status — it is opened spools under a threshold — so it is
+ * tracked apart and clears the status rather than replacing it.
+ */
+function statFilter(cls, value, label, key) {
+  const on = key === 'low' ? state.filters.low : (!state.filters.low && state.filters.status === key);
+  return `<button type="button" class="stat ${cls}${on ? ' on' : ''}" data-stat="${key}"
+    aria-pressed="${on}">${statInner(value, '', label)}</button>`;
+}
 
 async function loadFilaments() {
   const p = new URLSearchParams();
@@ -3220,14 +3223,6 @@ form.addEventListener('submit', async (e) => {
 
 // ── Filters ──────────────────────────────────────────────────────────────────
 
-el.statusFilter.addEventListener('click', (e) => {
-  const btn = e.target.closest('button[data-status]');
-  if (!btn) return;
-  for (const b of el.statusFilter.children) b.classList.toggle('on', b === btn);
-  state.filters.status = btn.dataset.status;
-  saveFilters();
-  loadFilaments();
-});
 
 let searchTimer;
 const syncSearchClear = () => { $('#searchClear').hidden = !el.search.value; };
@@ -3260,32 +3255,26 @@ el.sortBy.addEventListener('change', () => {
   loadFilaments();
 });
 
-/** The tab the shelf was on before Running low borrowed it. */
-let statusBeforeLow = null;
-
 el.stats.addEventListener('click', (e) => {
-  const stat = e.target.closest('[data-stat="low"]');
+  const stat = e.target.closest('[data-stat]');
   if (!stat) return;
+  const key = stat.dataset.stat;
 
-  state.filters.low = !state.filters.low;
-
-  /*
-   * Running low is about spools in use, so it takes the status tab with it —
-   * asking for the nearly-empty ones while the tab says Sealed would return
-   * nothing and look broken rather than empty.
-   *
-   * And it gives the tab back. Switching a filter off should leave you where
-   * you were, not somewhere the filter chose on your behalf and then abandoned
-   * you in. Only if the tab is still where this put it: moving it yourself in
-   * the meantime is a decision worth more than the one being undone.
-   */
-  if (state.filters.low) {
-    statusBeforeLow = state.filters.status;
-    state.filters.status = 'opened';
-  } else if (statusBeforeLow !== null) {
-    if (state.filters.status === 'opened') state.filters.status = statusBeforeLow;
-    statusBeforeLow = null;
+  if (key === 'low') {
+    /*
+     * Not a status of its own but a slice of one, so turning it on says which
+     * status it is a slice of. Turning it off returns the shelf to everything,
+     * which is where pressing any lit card lands you.
+     */
+    state.filters.low = !state.filters.low;
+    state.filters.status = state.filters.low ? 'opened' : 'active';
+  } else {
+    // Pressing the lit one puts it out and shows everything again.
+    const already = !state.filters.low && state.filters.status === key;
+    state.filters.status = already ? 'active' : key;
+    state.filters.low = false;
   }
+
   applyFiltersToUI();
   saveFilters();
   loadFilaments();

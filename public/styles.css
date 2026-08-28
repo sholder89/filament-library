@@ -214,7 +214,7 @@ input, textarea { -webkit-text-fill-color: var(--text); }
 
 .stats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 8px;
   padding: 14px 16px 4px;
 }
@@ -2208,7 +2208,7 @@ input[type="range"] {
   .topbar, .stats, .toolbar, .grid { max-width: 1180px; margin-inline: auto; }
   .topbar { padding-inline: 24px; }
   .stats, .toolbar, .grid { padding-inline: 24px; }
-  .stats { grid-template-columns: repeat(4, minmax(0, 210px)); }
+  .stats { grid-template-columns: repeat(5, minmax(0, 210px)); }
   /* Sets the variable rather than `gap` directly: .section-body reads it too,
      and the two have to agree or cards inside a five-column section come out a
      few pixels wider than cards inside a one-column section beside it. The
@@ -2247,7 +2247,10 @@ input[type="range"] {
 }
 
 @media (max-width: 380px) {
-  .stats { grid-template-columns: repeat(2, 1fr); }
+  /* Three, not two: five cards across two columns is three rows, which is no
+     less of the screen than the four cards and the row of tabs they replaced.
+     Three columns puts them in two rows and the saving is real. */
+  .stats { grid-template-columns: repeat(3, 1fr); }
   .grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
   .detail-hero { grid-template-columns: 1fr; justify-items: center; text-align: center; }
   .detail-hero .chips { justify-content: center; }
@@ -2873,3 +2876,11 @@ button.stat:hover { border-color: var(--border); background: var(--elevated); }
   border-color: var(--opened);
   background: color-mix(in srgb, var(--opened) 12%, var(--surface));
 }
+
+/* Colors carried over from the tabs these replaced, so the same word is the
+   same color in both places it appears. */
+.stat.is-empty b { color: var(--empty); }
+.stat.on { border-color: currentColor; }
+.stat.is-new.on { background: color-mix(in srgb, var(--new) 12%, var(--surface)); border-color: var(--new); }
+.stat.is-opened.on { background: color-mix(in srgb, var(--opened) 12%, var(--surface)); border-color: var(--opened); }
+.stat.is-empty.on { background: color-mix(in srgb, var(--empty) 14%, var(--surface)); border-color: var(--empty); }
