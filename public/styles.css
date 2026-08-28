@@ -586,10 +586,17 @@ select {
 .card.is-loaded {
   border-color: var(--loaded);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--loaded) 42%, transparent);
+  /* Tinted as well as ringed. A ring is only visible at the card's edge, which
+     is where two cards meet and the eye is least likely to be — the wash reads
+     from the middle of the card, where you are already looking at the spool.
+     Kept low: the filament's own color is the thing being scanned for, and a
+     card repainted purple would compete with it. */
+  background: color-mix(in srgb, var(--loaded) 9%, var(--surface));
 }
 .card.is-loaded:hover {
   border-color: var(--loaded);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--loaded) 55%, transparent), var(--shadow);
+  background: color-mix(in srgb, var(--loaded) 13%, var(--surface));
 }
 
 .card-spool { position: relative; width: 100%; aspect-ratio: 1; margin-bottom: 8px; }
