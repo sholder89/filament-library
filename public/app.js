@@ -1606,9 +1606,15 @@ function renderGroup(group) {
       .join('');
   }
 
+  /*
+   * One edge per spool behind the front one, up to two. A pair was drawing
+   * three thicknesses, which says three spools to anyone reading the picture
+   * rather than the number on it. Past three the edges stop counting and just
+   * mean "several" — the badge carries the exact figure.
+   */
   return `
     <div class="stack" data-expand="${esc(group.key)}">
-      <span class="stack-layer l2"></span>
+      ${count > 2 ? '<span class="stack-layer l2"></span>' : ''}
       <span class="stack-layer l1"></span>
       ${cardHTML(first, count)}
     </div>`;
