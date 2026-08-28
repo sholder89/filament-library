@@ -183,7 +183,17 @@ input, textarea { -webkit-text-fill-color: var(--text); }
 }
 
 .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.brand h1 { font-size: 19px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Wraps between the two words rather than being cut to "Filament Li…".
+   Four icon buttons and a 28px mark leave about 150px for the title on a phone,
+   which "Filament Library" does not fit on one line at this size — so it takes
+   two, and the header grows by one line instead of the name losing its end. */
+.brand h1 {
+  /* Shrinks on a phone, where it is two lines beside the icons and 19px made
+     the header top-heavy. Full size again once there is room for one line. */
+  font-size: clamp(15.5px, 4.4vw, 19px);
+  line-height: 1.12;
+  overflow-wrap: anywhere;
+}
 .brand-mark { width: 28px; height: 28px; color: var(--accent); flex: none; }
 
 .topbar-actions { display: flex; gap: 6px; flex: none; }
