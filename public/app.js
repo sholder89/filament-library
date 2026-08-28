@@ -1040,10 +1040,15 @@ async function loadStats() {
     ${statFilter('is-all', s.new + s.opened, 'All', 'active')}
     ${statFilter('is-new', s.new, 'Sealed', 'new')}
     ${statFilter('is-opened', s.opened, 'Opened', 'opened')}
-    ${statFilter('is-empty', s.empty, 'Used up', 'empty')}
+    ${/*
+      * Second row: the ones you go looking for, then the total, then the
+      * archive. Used up sits last because it is the only view that is history
+      * rather than stock.
+      */''}
     ${statFilter('is-low', s.low ?? 0, 'Running low', 'low')}
     ${/* A figure, not a view of the shelf — so not a button. */''}
     ${statCard('is-hand', formatKg(s.active_grams), 'On hand', 'kg')}
+    ${statFilter('is-empty', s.empty, 'Used up', 'empty')}
   `;
 }
 
