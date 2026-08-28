@@ -214,7 +214,11 @@ input, textarea { -webkit-text-fill-color: var(--text); }
 
 .stats {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  /* Three across on anything phone-sized, five only where there is room for
+     them — the wide rule below does that. Five was the base for a while, which
+     covered every phone wider than 380px: an iPhone is 390 to 430, so the
+     common case got five cards in about 400 pixels and every label was cut. */
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
   padding: 14px 16px 4px;
 }
@@ -246,7 +250,23 @@ input, textarea { -webkit-text-fill-color: var(--text); }
   margin-left: 2px;
   opacity: .8;
 }
-.stat span { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The label wraps rather than truncating.
+   
+   These are the names of the views now, not captions under figures — a card
+   reading "RUNNING…" is a control whose purpose has been cut off. Wrapping
+   costs a few pixels of height on the narrowest phones and only there:
+   "Running low" needs 109px of card to sit on one line, which three across
+   gives from about 375px up. Below that it takes two lines and stays legible
+   instead of becoming an ellipsis. */
+.stat span {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
 .stat.is-new b    { color: var(--new); }
 .stat.is-opened b { color: var(--opened); }
 
@@ -2247,10 +2267,6 @@ input[type="range"] {
 }
 
 @media (max-width: 380px) {
-  /* Three, not two: five cards across two columns is three rows, which is no
-     less of the screen than the four cards and the row of tabs they replaced.
-     Three columns puts them in two rows and the saving is real. */
-  .stats { grid-template-columns: repeat(3, 1fr); }
   .grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
   .detail-hero { grid-template-columns: 1fr; justify-items: center; text-align: center; }
   .detail-hero .chips { justify-content: center; }
