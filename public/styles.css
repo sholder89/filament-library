@@ -2857,3 +2857,19 @@ input[type="range"] {
 }
 .stack-count.is-collapse svg { width: 12px; height: 12px; }
 .stack-count.is-collapse:hover { border-color: var(--accent); color: var(--accent); }
+
+/* The one stat you can act on. It looks like the others until it is pressed —
+   the number is the point, and a card shouting for a tap alongside three that
+   do nothing would read as an advert rather than a figure. */
+button.stat {
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+button.stat:hover { border-color: var(--border); background: var(--elevated); }
+.stat.is-low b { color: var(--opened); }
+.stat.on {
+  border-color: var(--opened);
+  background: color-mix(in srgb, var(--opened) 12%, var(--surface));
+}

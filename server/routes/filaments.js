@@ -12,6 +12,15 @@ export const router = Router();
 
 const STATUSES = ['new', 'opened', 'empty'];
 
+/*
+ * What counts as running low, as a percentage remaining.
+ *
+ * The same figure the card's fill bar already turns amber at, so the stat and
+ * the color agree — a spool that looks low in the grid is one of the ones the
+ * number is counting.
+ */
+const LOW_AT = 25;
+
 const SORTS = {
   newest:   'created_at DESC',
   oldest:   'created_at ASC',
@@ -228,6 +237,12 @@ router.get('/', (req, res) => {
     params.push(...named);
   }
 
+  // Opened and nearly gone. Pairs with the stat of the same name.
+  if (str(req.query.low) === '1') {
+    where.push(`status = 'opened' AND remaining_pct <= ?`);
+    params.push(LOW_AT);
+  }
+
   // Default view hides used-up spools; the record is still there behind
   // ?status=empty or ?include_empty=1.
   if (!str(req.query.status) && str(req.query.include_empty) !== '1') {
@@ -332,10 +347,21 @@ router.get('/stats', (_req, res) => {
     FROM filaments WHERE status != 'empty'
   `).get().grams;
 
+  /*
+   * Spools worth worrying about before a print starts. Sealed ones are excluded
+   * however low the number reads — a sealed spool is full by definition, and one
+   * recorded otherwise is a typo rather than something to go and buy.
+   */
+  const low = db.prepare(`
+    SELECT COUNT(*) AS n FROM filaments
+    WHERE status = 'opened' AND remaining_pct <= ?
+  `).get(LOW_AT).n;
+
   res.json({
     ...byStatus,
     total: byStatus.new + byStatus.opened + byStatus.empty,
     active_grams: Math.round(active),
+    low,
     brands: db.prepare(`SELECT COUNT(DISTINCT brand) AS n FROM filaments WHERE status != 'empty'`).get().n,
     materials: db.prepare(`SELECT COUNT(DISTINCT material) AS n FROM filaments WHERE status != 'empty'`).get().n,
   });

@@ -27,7 +27,8 @@ const state = {
   // of `filters`: it isn't remembered between visits, since it answers a
   // question you had once rather than describing how you like the shelf.
   matchColor: null,
-  filters: { status: 'active', brand: [], material: [], finish: [], location: [], q: '', sort: 'newest' },
+  filters: { status: 'active', brand: [], material: [], finish: [], location: [],
+    low: false, q: '', sort: 'newest' },
   // Group keys the user has fanned open; everything else stays stacked.
   expandedGroups: new Set(),
   // Section headings the user has folded away in a grouped view.
@@ -558,9 +559,13 @@ const FILTERS_KEY = 'filters';
  * like data had gone missing.
  */
 function saveFilters() {
-  const { status, brand, material, finish, sort } = state.filters;
+  // Everything the list is narrowed by, or coming back finds a different shelf
+  // than the one you left. Location was missed when it was added, so a filtered
+  // view forgot its place on reload.
+  const { status, brand, material, finish, location, low, sort } = state.filters;
   try {
-    localStorage.setItem(FILTERS_KEY, JSON.stringify({ status, brand, material, finish, sort }));
+    localStorage.setItem(FILTERS_KEY,
+      JSON.stringify({ status, brand, material, finish, location, low, sort }));
   } catch { /* private mode, or storage full — not worth failing over */ }
 }
 
@@ -583,6 +588,7 @@ function loadSavedFilters() {
   state.filters.material = list(saved.material);
   state.filters.finish = list(saved.finish);
   state.filters.location = list(saved.location);
+  state.filters.low = saved.low === true;
 }
 
 /**
@@ -1024,7 +1030,14 @@ async function loadStats() {
     ${statCard('is-new', s.new, 'Sealed')}
     ${statCard('is-opened', s.opened, 'Opened')}
     ${statCard('', formatKg(s.active_grams), 'On hand', 'kg')}
-    ${statCard('', s.empty, 'Used up')}
+    ${/*
+      * Used up was here, and it is already a tab three rows down — the only
+      * card that repeated something you could reach anyway. This one answers a
+      * question nothing else does: what is nearly gone. Which is a question you
+      * ask before starting a print, not after.
+      */''}
+    ${statCard('is-low' + (state.filters.low ? ' on' : ''), s.low ?? 0, 'Running low', '',
+      { act: 'low', pressed: state.filters.low })}
   `;
 }
 
@@ -1039,21 +1052,32 @@ const formatKg = (grams) => {
  * can sit alongside the number instead of wrapping onto its own line and making
  * this card taller than the three beside it.
  */
-const statCard = (cls, value, label, unit = '') =>
-  `<div class="stat ${cls}">
-     <b>${esc(value)}${unit ? `<i>${esc(unit)}</i>` : ''}</b>
-     <span>${esc(label)}</span>
-   </div>`;
+/**
+ * A figure, and sometimes a way to act on it.
+ *
+ * The ones that only report stay plain <div>s — a button that does nothing
+ * when pressed is worse than a number that never offered.
+ */
+const statCard = (cls, value, label, unit = '', act = null) => {
+  const inner = `<b>${esc(value)}${unit ? `<i>${esc(unit)}</i>` : ''}</b>
+     <span>${esc(label)}</span>`;
+
+  return act
+    ? `<button type="button" class="stat ${cls}" data-stat="${esc(act.act)}"
+         aria-pressed="${act.pressed}">${inner}</button>`
+    : `<div class="stat ${cls}">${inner}</div>`;
+};
 
 async function loadFilaments() {
   const p = new URLSearchParams();
-  const { status, brand, material, finish, location, q, sort } = state.filters;
+  const { status, brand, material, finish, location, low, q, sort } = state.filters;
   if (status !== 'active') p.set('status', status);
   // The API takes these comma-separated and matches any of them.
   if (brand.length) p.set('brand', brand.join(','));
   if (material.length) p.set('material', material.join(','));
   if (finish.length) p.set('finish', finish.join(','));
   if (location.length) p.set('location', location.join(','));
+  if (low) p.set('low', '1');
   if (q) p.set('q', q);
   p.set('sort', sort);
 
@@ -1073,7 +1097,7 @@ async function loadFilaments() {
   renderGrid();
 
   const active = brand.length || material.length || finish.length || location.length
-    || q || status !== 'active';
+    || low || q || status !== 'active';
   el.clearFilters.hidden = !active;
 }
 
@@ -3236,9 +3260,41 @@ el.sortBy.addEventListener('change', () => {
   loadFilaments();
 });
 
+/** The tab the shelf was on before Running low borrowed it. */
+let statusBeforeLow = null;
+
+el.stats.addEventListener('click', (e) => {
+  const stat = e.target.closest('[data-stat="low"]');
+  if (!stat) return;
+
+  state.filters.low = !state.filters.low;
+
+  /*
+   * Running low is about spools in use, so it takes the status tab with it —
+   * asking for the nearly-empty ones while the tab says Sealed would return
+   * nothing and look broken rather than empty.
+   *
+   * And it gives the tab back. Switching a filter off should leave you where
+   * you were, not somewhere the filter chose on your behalf and then abandoned
+   * you in. Only if the tab is still where this put it: moving it yourself in
+   * the meantime is a decision worth more than the one being undone.
+   */
+  if (state.filters.low) {
+    statusBeforeLow = state.filters.status;
+    state.filters.status = 'opened';
+  } else if (statusBeforeLow !== null) {
+    if (state.filters.status === 'opened') state.filters.status = statusBeforeLow;
+    statusBeforeLow = null;
+  }
+  applyFiltersToUI();
+  saveFilters();
+  loadFilaments();
+  loadStats();
+});
+
 el.clearFilters.addEventListener('click', () => {
   state.filters = { status: 'active', brand: [], material: [], finish: [], location: [],
-    q: '', sort: el.sortBy.value };
+    low: false, q: '', sort: el.sortBy.value };
   el.search.value = '';
   syncSearchClear();
   state.collapsedSections.clear();
