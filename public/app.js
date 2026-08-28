@@ -1546,7 +1546,8 @@ function cardHTML(f, stack = 0, collapseKey = '') {
 
   return `
   <button class="card ${f.status === 'empty' ? 'is-empty' : ''}${f.loaded ? ' is-loaded' : ''}"
-          style="--fc:${colorCSS(f)}" data-id="${esc(f.id)}">
+          style="--fc:${colorCSS(f)}; view-transition-name: card-${esc(f.id)}"
+          data-id="${esc(f.id)}">
     <span class="badge ${esc(f.status)}" data-menu="status">${esc(STATUS_LABEL[f.status])}</span>
     <div class="card-spool">
       ${spoolSVG(f)}
@@ -1626,16 +1627,39 @@ function renderGridSmooth() {
     return;
   }
 
-  const before = runNames();
+  const beforeRuns = runNames();
+  const beforeCards = cardNames();
+
   const transition = document.startViewTransition(() => {
     renderGrid();
-    const after = runNames();
-    animateLeaving(before.filter((name) => !after.includes(name)));
+    // Both read once: each is a DOM query, and asking inside a filter would run
+    // it per name.
+    const afterRuns = new Set(runNames());
+    const afterCards = cardNames();
+    const wasThere = new Set(beforeCards);
+    const afterSet = new Set(afterCards);
+    animateLeaving(
+      beforeRuns.filter((name) => !afterRuns.has(name)),
+      /*
+       * Fanning a stack open turns one card into several. The one that was
+       * already there is the same card and the browser moves it; the rest are
+       * new, and left alone they would fade in on the spot as if they had
+       * always been where they landed. Growing them from the size of nothing
+       * reads as them coming out of the stack. Collapsing runs the same thing
+       * backwards.
+       */
+      afterCards.filter((name) => !wasThere.has(name)),
+      beforeCards.filter((name) => !afterSet.has(name)),
+    );
   });
 
-  const clear = () => animateLeaving([]);
+  const clear = () => animateLeaving([], [], []);
   transition.finished.then(clear, clear);
 }
+
+const cardNames = () => [...el.grid.querySelectorAll('.card')]
+  .map((card) => card.style.viewTransitionName)
+  .filter(Boolean);
 
 const runNames = () => [...el.grid.querySelectorAll('.section')]
   .map((section) => section.style.viewTransitionName)
@@ -1652,22 +1676,50 @@ const runNames = () => [...el.grid.querySelectorAll('.section')]
  * carries the transform that puts it on the page and animating that would tear
  * it out of position.
  */
-function animateLeaving(names) {
+/**
+ * Rules written per transition, because a view transition pseudo-element can
+ * only be reached by the name it was given — there is no class to hang a
+ * stylesheet rule on.
+ */
+function animateLeaving(runsLeaving, cardsArriving = [], cardsLeaving = []) {
   let sheet = document.getElementById('vt-leaving');
   if (!sheet) {
     sheet = document.createElement('style');
     sheet.id = 'vt-leaving';
     document.head.append(sheet);
   }
-  sheet.textContent = names.length
-    ? `@keyframes fl-run-leave { to { opacity: 0; transform: scale(.78); } }
-       ${names.map((n) => `::view-transition-old(${n})`).join(',')} {
-         animation-name: fl-run-leave;
-         animation-duration: .44s;
-         animation-timing-function: cubic-bezier(.4, 0, .55, 1);
-         transform-origin: top left;
-       }`
-    : '';
+
+  const rules = [];
+
+  if (runsLeaving.length) {
+    rules.push(`@keyframes fl-run-leave { to { opacity: 0; transform: scale(.78); } }
+      ${runsLeaving.map((n) => `::view-transition-old(${n})`).join(',')} {
+        animation-name: fl-run-leave;
+        animation-duration: .44s;
+        animation-timing-function: cubic-bezier(.4, 0, .55, 1);
+        transform-origin: top left;
+      }`);
+  }
+
+  if (cardsArriving.length) {
+    rules.push(`@keyframes fl-card-in { from { opacity: 0; transform: scale(.86); } }
+      ${cardsArriving.map((n) => `::view-transition-new(${n})`).join(',')} {
+        animation-name: fl-card-in;
+        animation-duration: .34s;
+        animation-timing-function: cubic-bezier(.2, .8, .3, 1);
+      }`);
+  }
+
+  if (cardsLeaving.length) {
+    rules.push(`@keyframes fl-card-out { to { opacity: 0; transform: scale(.86); } }
+      ${cardsLeaving.map((n) => `::view-transition-old(${n})`).join(',')} {
+        animation-name: fl-card-out;
+        animation-duration: .26s;
+        animation-timing-function: cubic-bezier(.4, 0, .55, 1);
+      }`);
+  }
+
+  sheet.textContent = rules.join('\n');
 }
 
 el.grid.addEventListener('click', (e) => {
