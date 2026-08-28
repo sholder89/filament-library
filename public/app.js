@@ -1415,7 +1415,7 @@ function slotsFor(section) {
   const out = [];
   for (const group of groupFilaments(section.items)) {
     if (group.items.length > 1 && state.expandedGroups.has(group.key)) {
-      out.push(...group.items.map(cardHTML), restackHTML(group));
+      out.push(...group.items.map((f) => cardHTML(f)), restackHTML(group));
     } else {
       out.push(renderGroup(group));
     }
@@ -1586,13 +1586,16 @@ function renderGroup(group) {
   const count = group.items.length;
   if (count === 1) return cardHTML(first);
 
+  /*
+   * Fanned open, a group is just its spools followed by the tile that stacks
+   * them again — the same shape the grouped view uses, and for the same reason.
+   * The full-width header this used to carry spanned every column, which forces
+   * a row break either side of it: expanding a stack sitting fifth in a row
+   * sent its spools to a fresh row below, leaving a hole where they had been.
+   * A card-sized tile takes one slot and the run carries on unbroken.
+   */
   if (state.expandedGroups.has(group.key)) {
-    return `
-      <div class="group-header">
-        <span>${count} × ${esc([first.brand, first.material, first.color_name].filter(Boolean).join(' '))}</span>
-        <button type="button" data-collapse="${esc(group.key)}">Stack them back up</button>
-      </div>
-      ${group.items.map(cardHTML).join('')}`;
+    return group.items.map((f) => cardHTML(f)).join('') + restackHTML(group);
   }
 
   return `

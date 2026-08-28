@@ -1129,26 +1129,6 @@ select {
   .section-chevron { transition: none; }
 }
 
-.group-header {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 4px 0 -4px;
-  font-size: 13px;
-  color: var(--muted);
-}
-.group-header button {
-  min-height: 36px;
-  padding: 0 12px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--muted);
-  font-size: 13px;
-  cursor: pointer;
-}
-.group-header button:hover { border-color: var(--accent); color: var(--text); }
 
 @media (prefers-reduced-motion: reduce) {
   .card::before { transition: none; }
