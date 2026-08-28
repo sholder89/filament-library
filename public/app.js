@@ -1032,21 +1032,18 @@ async function loadStats() {
       * There is no All. Pressing the lit one puts it out, which is the same
       * gesture as every other filter in here and needs no button of its own.
       */''}
+    ${/*
+      * All counts what it will show you — the spools you still have. Used up
+      * ones are history rather than filament, and a card whose figure does not
+      * match the shelf it produces is the bug this row was meant to remove.
+      */''}
+    ${statFilter('is-all', s.new + s.opened, 'All', 'active')}
     ${statFilter('is-new', s.new, 'Sealed', 'new')}
     ${statFilter('is-opened', s.opened, 'Opened', 'opened')}
     ${statFilter('is-empty', s.empty, 'Used up', 'empty')}
     ${statFilter('is-low', s.low ?? 0, 'Running low', 'low')}
-    ${/*
-      * And this is All, which is why there is no All.
-      *
-      * "On hand" already counts exactly what that tab showed — everything
-      * except the used-up ones — so the button was sitting here the whole time
-      * wearing a different label. It lights when nothing else is chosen, which
-      * keeps the row to the one-of-these-is-on shape the tabs had, and gives
-      * the way back somewhere obvious to live rather than relying on you
-      * guessing that pressing the lit card puts it out.
-      */''}
-    ${statFilter('is-hand', formatKg(s.active_grams), 'On hand', 'active', 'kg')}
+    ${/* A figure, not a view of the shelf — so not a button. */''}
+    ${statCard('is-hand', formatKg(s.active_grams), 'On hand', 'kg')}
   `;
 }
 

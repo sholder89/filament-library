@@ -2228,7 +2228,7 @@ input[type="range"] {
   .topbar, .stats, .toolbar, .grid { max-width: 1180px; margin-inline: auto; }
   .topbar { padding-inline: 24px; }
   .stats, .toolbar, .grid { padding-inline: 24px; }
-  .stats { grid-template-columns: repeat(5, minmax(0, 210px)); }
+  .stats { grid-template-columns: repeat(6, minmax(0, 210px)); }
   /* Sets the variable rather than `gap` directly: .section-body reads it too,
      and the two have to agree or cards inside a five-column section come out a
      few pixels wider than cards inside a one-column section beside it. The
@@ -2900,7 +2900,7 @@ button.stat:hover { border-color: var(--border); background: var(--elevated); }
 .stat.is-new.on { background: color-mix(in srgb, var(--new) 12%, var(--surface)); border-color: var(--new); }
 .stat.is-opened.on { background: color-mix(in srgb, var(--opened) 12%, var(--surface)); border-color: var(--opened); }
 .stat.is-empty.on { background: color-mix(in srgb, var(--empty) 14%, var(--surface)); border-color: var(--empty); }
-.stat.is-hand.on {
+.stat.is-all.on {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 12%, var(--surface));
 }
