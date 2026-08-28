@@ -575,7 +575,21 @@ select {
      a line mixed from the text color lands between them in both. */
   box-shadow: inset -1px 0 0 color-mix(in srgb, var(--text) 22%, transparent);
   pointer-events: none;
+  transition: width .16s ease;
 }
+
+/* Hovering widens the swatch.
+   
+   The bar is the only honest patch of the color on a card — the spool graphic
+   winds less of it the emptier the roll gets, so the spools you most need to
+   identify are the ones showing least. This grows the patch without moving
+   anything: only the bar's own width changes, never --bar, because the card's
+   left padding is derived from that and the text would slide sideways under
+   the pointer. Each density stops about 3px short of where its text begins. */
+.card { --bar-open: 18px; }
+.grid.view-small .card { --bar-open: 14px; }
+.grid.view-large .card { --bar-open: 20px; }
+.card:hover::before { width: var(--bar-open); }
 .card:hover { transform: translateY(-3px); border-color: var(--border); box-shadow: var(--shadow); }
 .card:active { transform: translateY(-1px) scale(.99); }
 .card.is-empty { opacity: .58; }
@@ -1133,6 +1147,7 @@ select {
 
 @media (prefers-reduced-motion: reduce) {
   .stack-layer { transition: none; }
+  .card::before { transition: none; }
 }
 
 /* ── Card density ────────────────────────────────────────────────────────── */

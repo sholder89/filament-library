@@ -4542,7 +4542,7 @@ $('#locAddBtn').addEventListener('click', async () => {
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
   localStorage.setItem('theme', theme);
-  // bg.js listens for this to recolour the background effect without a full
+  // bg.js listens for this to recolor the background effect without a full
   // reinit — it has no other way to know the theme just changed.
   dispatchEvent(new CustomEvent('themechange', { detail: { theme } }));
 }
