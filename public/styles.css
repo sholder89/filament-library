@@ -924,25 +924,30 @@ select {
 
 /* ── Stacked duplicates ──────────────────────────────────────────────────── */
 
-/* Identical spools collapse into one card sitting on a paper stack. Hovering
-   fans the stack out; clicking expands the group into individual cards so a
-   particular spool can be opened (touch has no hover, so the tap does both). */
-.stack { position: relative; }
+/* Identical spools collapse into one card sitting on a stack of its duplicates.
+   Clicking expands the group into individual cards so a particular spool can be
+   opened.
+
+   Drawn as edges peeking out under the card rather than whole sheets fanned
+   behind it. The fanned version rotated full-size copies, which put their
+   corners outside the grid cell and into the cards either side — a stack could
+   not be looked at without also looking at what it was colliding with. These
+   only ever extend downward, into the gap the grid already leaves between rows,
+   and are inset horizontally so nothing reaches sideways at all. */
+.stack { position: relative; --peek: 4px; }
 
 .stack-layer {
   position: absolute;
-  inset: 0;
+  /* Tall enough that its top is hidden behind the card; only the peek shows. */
+  height: 16px;
   background: var(--surface);
   border: 1px solid var(--border-sm);
-  border-radius: var(--radius);
-  transform-origin: 50% 100%;
-  transition: transform .22s cubic-bezier(.2, .8, .3, 1);
+  border-top: 0;
+  border-radius: 0 0 var(--radius) var(--radius);
   pointer-events: none;
 }
-.stack .l1 { transform: translate(5px, 5px) rotate(1.5deg); }
-.stack .l2 { transform: translate(9px, 9px) rotate(3deg); }
-.stack:hover .l1 { transform: translate(13px, -7px) rotate(6deg); }
-.stack:hover .l2 { transform: translate(-11px, -5px) rotate(-6deg); }
+.stack .l1 { left: 7px; right: 7px; bottom: calc(var(--peek) * -1); }
+.stack .l2 { left: 15px; right: 15px; bottom: calc(var(--peek) * -2); }
 /* A <button> shrink-wraps its content. A card that's a direct grid item gets
    stretched by the grid, but one nested inside .stack has a block parent
    instead and would sit narrower than the layers behind it. */
@@ -1146,7 +1151,6 @@ select {
 .group-header button:hover { border-color: var(--accent); color: var(--text); }
 
 @media (prefers-reduced-motion: reduce) {
-  .stack-layer { transition: none; }
   .card::before { transition: none; }
 }
 
@@ -1155,6 +1159,11 @@ select {
 /* Small: the spool with its type on top. Everything else waits for a hover or
    a tap through to the detail page. */
 .grid.view-small { --card-gap: 10px; grid-template-columns: repeat(auto-fill, minmax(98px, 1fr)); }
+/* Narrower cards and a tighter gap: less room to peek into, and less width
+   to inset from. */
+.grid.view-small .stack { --peek: 3px; }
+.grid.view-small .stack .l1 { left: 5px; right: 5px; }
+.grid.view-small .stack .l2 { left: 10px; right: 10px; }
 /* The only cue on a small card — there's no text under it to carry a swatch. */
 .grid.view-small .card { padding: 8px 8px 8px calc(8px + var(--bar)); }
 .grid.view-small .card-spool { margin-bottom: 0; }
@@ -1199,6 +1208,7 @@ select {
 
 /* List: one row per spool, densest of the four. */
 .grid.view-list { --card-gap: 8px; grid-template-columns: 1fr; }
+.grid.view-list .stack { --peek: 3px; }
 .grid.view-list .card {
   border-radius: var(--radius-sm);
   flex-direction: row;
