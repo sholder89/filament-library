@@ -1036,8 +1036,17 @@ async function loadStats() {
     ${statFilter('is-opened', s.opened, 'Opened', 'opened')}
     ${statFilter('is-empty', s.empty, 'Used up', 'empty')}
     ${statFilter('is-low', s.low ?? 0, 'Running low', 'low')}
-    ${/* The one figure that is not a view of the shelf, so not a button. */''}
-    ${statCard('is-hand', formatKg(s.active_grams), 'On hand', 'kg')}
+    ${/*
+      * And this is All, which is why there is no All.
+      *
+      * "On hand" already counts exactly what that tab showed — everything
+      * except the used-up ones — so the button was sitting here the whole time
+      * wearing a different label. It lights when nothing else is chosen, which
+      * keeps the row to the one-of-these-is-on shape the tabs had, and gives
+      * the way back somewhere obvious to live rather than relying on you
+      * guessing that pressing the lit card puts it out.
+      */''}
+    ${statFilter('is-hand', formatKg(s.active_grams), 'On hand', 'active', 'kg')}
   `;
 }
 
@@ -1065,10 +1074,12 @@ const statCard = (cls, value, label, unit = '') =>
  * `low` is not a status — it is opened spools under a threshold — so it is
  * tracked apart and clears the status rather than replacing it.
  */
-function statFilter(cls, value, label, key) {
-  const on = key === 'low' ? state.filters.low : (!state.filters.low && state.filters.status === key);
+function statFilter(cls, value, label, key, unit = '') {
+  const on = key === 'low'
+    ? state.filters.low
+    : (!state.filters.low && state.filters.status === key);
   return `<button type="button" class="stat ${cls}${on ? ' on' : ''}" data-stat="${key}"
-    aria-pressed="${on}">${statInner(value, '', label)}</button>`;
+    aria-pressed="${on}">${statInner(value, unit, label)}</button>`;
 }
 
 async function loadFilaments() {
@@ -3268,8 +3279,12 @@ el.stats.addEventListener('click', (e) => {
      */
     state.filters.low = !state.filters.low;
     state.filters.status = state.filters.low ? 'opened' : 'active';
+  } else if (key === 'active') {
+    // The way back. Already there is a no-op rather than a toggle into nothing.
+    state.filters.status = 'active';
+    state.filters.low = false;
   } else {
-    // Pressing the lit one puts it out and shows everything again.
+    // Pressing the lit one puts it out, which lands on the same place All does.
     const already = !state.filters.low && state.filters.status === key;
     state.filters.status = already ? 'active' : key;
     state.filters.low = false;

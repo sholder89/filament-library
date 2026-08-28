@@ -2884,3 +2884,7 @@ button.stat:hover { border-color: var(--border); background: var(--elevated); }
 .stat.is-new.on { background: color-mix(in srgb, var(--new) 12%, var(--surface)); border-color: var(--new); }
 .stat.is-opened.on { background: color-mix(in srgb, var(--opened) 12%, var(--surface)); border-color: var(--opened); }
 .stat.is-empty.on { background: color-mix(in srgb, var(--empty) 14%, var(--surface)); border-color: var(--empty); }
+.stat.is-hand.on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+}
