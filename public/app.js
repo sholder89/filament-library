@@ -1415,7 +1415,8 @@ function slotsFor(section) {
   const out = [];
   for (const group of groupFilaments(section.items)) {
     if (group.items.length > 1 && state.expandedGroups.has(group.key)) {
-      out.push(...group.items.map((f) => cardHTML(f)), restackHTML(group));
+      out.push(...group.items.map((f, i) =>
+        cardHTML(f, i === 0 ? group.items.length : 0, i === 0 ? group.key : '')));
     } else {
       out.push(renderGroup(group));
     }
@@ -1449,11 +1450,6 @@ function runHTML(section, spec, slots, { span, collapsed, continued, id }) {
     </section>`;
 }
 
-const restackHTML = (group) => `
-  <button type="button" class="restack" data-collapse="${esc(group.key)}">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V5m0 0L8 9m4-4 4 4M4 19h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    <span>Stack these ${group.items.length} back up</span>
-  </button>`;
 
 // The column count decides where every group breaks, so a width change means
 // re-running the layout rather than nudging it. Height is ignored on purpose:
@@ -1543,7 +1539,7 @@ export function colorCSS(f) {
  * having one doesn't push the color, fill bar or status badge out of line with
  * the rows that don't.
  */
-function cardHTML(f, stack = 0) {
+function cardHTML(f, stack = 0, collapseKey = '') {
   const detail = [f.color_name || '—', f.finish].filter(Boolean).join(' · ');
   const grams = Math.round(f.spool_weight_g * f.remaining_pct / 100);
   const sub = [f.brand, f.color_name].filter(Boolean).join(' · ');
@@ -1566,7 +1562,13 @@ function cardHTML(f, stack = 0) {
         ${f.location ? locationChipHTML(f.location) : NO_PLACE}</span>
       <span class="card-title-row">
         <span class="card-title">${esc(f.material)}</span>
-        ${stack > 1 ? `<span class="stack-count">×${stack}</span>` : ''}
+        ${collapseKey
+          ? `<span class="stack-count is-collapse" role="button" data-collapse="${esc(collapseKey)}"
+              title="Stack these ${stack} back up">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V5m0 0L8 9m4-4 4 4M4 19h16"
+                fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                stroke-linejoin="round"/></svg>${stack}</span>`
+          : (stack > 1 ? `<span class="stack-count">×${stack}</span>` : '')}
       </span>
       <span class="card-color"><i class="color-chip"></i><span>${esc(detail)}</span></span>
       <div class="card-extra">
@@ -1587,15 +1589,21 @@ function renderGroup(group) {
   if (count === 1) return cardHTML(first);
 
   /*
-   * Fanned open, a group is just its spools followed by the tile that stacks
-   * them again — the same shape the grouped view uses, and for the same reason.
-   * The full-width header this used to carry spanned every column, which forces
-   * a row break either side of it: expanding a stack sitting fifth in a row
-   * sent its spools to a fresh row below, leaving a hole where they had been.
-   * A card-sized tile takes one slot and the run carries on unbroken.
+   * Fanned open, a group is exactly its spools — no wider than it was tall.
+   *
+   * Two earlier shapes both cost a slot the group had not asked for. A
+   * full-width header spans every column, which forces a row break either
+   * side of it, so a stack sitting fifth in a row could not open in place. A
+   * card-sized tile fixed the break but still stood in the grid as a card
+   * that is not a spool.
+   *
+   * The way back rides on the first card instead, in the corner the count was
+   * already using — which is also the corner that was clicked to open it.
    */
   if (state.expandedGroups.has(group.key)) {
-    return group.items.map((f) => cardHTML(f)).join('') + restackHTML(group);
+    return group.items
+      .map((f, i) => cardHTML(f, i === 0 ? count : 0, i === 0 ? group.key : ''))
+      .join('');
   }
 
   return `

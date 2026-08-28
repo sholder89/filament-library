@@ -1078,27 +1078,6 @@ select {
   border-radius: 999px;
 }
 
-/* Takes a card's slot in the run, so fanning a stack open doesn't need a
-   full-width bar — which would have had to break the row it sits in. */
-.restack {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 12px;
-  background: transparent;
-  border: 1px dashed var(--border);
-  border-radius: var(--radius);
-  color: var(--muted);
-  font: inherit;
-  font-size: 13px;
-  line-height: 1.35;
-  text-align: center;
-  cursor: pointer;
-}
-.restack:hover { border-color: var(--accent); color: var(--text); }
-.restack svg { width: 22px; height: 22px; flex: none; }
 
 /* Folding a group re-flows the ones after it, sometimes by a whole screen. The
    runs are named in app.js so each one eases to its new place rather than
@@ -2861,3 +2840,20 @@ input[type="range"] {
 .option-icon { display: inline-flex; flex: none; color: var(--muted); }
 .option-icon svg { width: 17px; height: 17px; }
 .option-row[aria-pressed="true"] .option-icon { color: var(--accent); }
+
+/* The way out of an expanded stack, in the corner its count came from — which
+   is also the corner that was clicked to open it. A span rather than a button
+   because the card is one, and the grid's click handler catches data-collapse
+   before it reaches the card underneath. */
+.stack-count.is-collapse {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  pointer-events: auto;
+  cursor: pointer;
+  background: var(--elevated);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.stack-count.is-collapse svg { width: 12px; height: 12px; }
+.stack-count.is-collapse:hover { border-color: var(--accent); color: var(--accent); }
