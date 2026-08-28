@@ -193,6 +193,9 @@ input, textarea { -webkit-text-fill-color: var(--text); }
   font-size: clamp(15.5px, 4.4vw, 19px);
   line-height: 1.12;
   overflow-wrap: anywhere;
+  /* Only shows on the phone, where the name is two lines — a single line
+     shrink-wraps in the flex row and has nothing to center within. */
+  text-align: center;
 }
 .brand-mark { width: 28px; height: 28px; color: var(--accent); flex: none; }
 
@@ -1256,7 +1259,7 @@ select {
   font-size: 11.5px;
   /* It shares the type's line, which is the lower of the two the row stacks, so
      left alone it hangs below the row's middle. Lifting it by half of what sits
-     above — the brand's line box and the gap under it — centres it on the pair
+     above — the brand's line box and the gap under it — centers it on the pair
      rather than on the line it happens to be in. */
   top: calc((var(--brand-size, 11.5px) * var(--brand-leading, 1.45) + var(--text-row-gap, 2px)) / -2);
 }
