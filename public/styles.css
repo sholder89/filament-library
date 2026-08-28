@@ -592,53 +592,6 @@ select {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--loaded) 55%, transparent), var(--shadow);
 }
 
-/* A printer mark rather than a worded pill. The card already carries the ring,
-   so the badge only has to say which kind of thing it is — and at four to a row
-   the words were more furniture than information. Pinned to the corner in every
-   density, so no row has to make space for it and nothing shifts when a spool
-   goes into a printer. */
-.loaded-flag {
-  position: absolute;
-  left: calc(var(--bar) + 5px);
-  top: 7px;
-  z-index: 4;
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  color: var(--accent-ink);
-  background: var(--loaded);
-  border-radius: 7px;
-}
-.loaded-flag svg { width: 14px; height: 14px; }
-.loaded-flag[data-menu] { cursor: pointer; }
-
-/* The mark for a spool that isn't in a printer. Kept out of the way until the
-   pointer is on the card, so the grid doesn't gain a symbol on every tile just
-   to make one action reachable. */
-.loaded-flag.is-off {
-  opacity: 0;
-  color: var(--muted);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  transition: opacity .14s ease, color .14s ease;
-}
-.card:hover .loaded-flag.is-off,
-.card:focus-visible .loaded-flag.is-off { opacity: 1; }
-.loaded-flag.is-off:hover { color: var(--loaded); border-color: var(--loaded); }
-
-/* No pointer, no hover — a phone reaches this from the spool's own page, where
-   the same action is a labeled button, rather than from a mark it can never
-   be shown. */
-@media (hover: none) {
-  .loaded-flag.is-off { display: none; }
-}
-.grid.view-small .loaded-flag,
-.grid.view-list .loaded-flag { width: 19px; height: 19px; border-radius: 6px; }
-.grid.view-small .loaded-flag svg,
-.grid.view-list .loaded-flag svg { width: 12px; height: 12px; }
-.grid.view-list .loaded-flag { top: 5px; }
-
 .card-spool { position: relative; width: 100%; aspect-ratio: 1; margin-bottom: 8px; }
 .card-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 /* The type, and the stack count that belongs to it. */
@@ -988,12 +941,7 @@ select {
   color: #fff;
   pointer-events: none;
 }
-/* The printer mark sits in that same corner, and it is drawn whether a spool
-   is in a printer or not — only its state changes. Keying the offset off
-   .is-loaded therefore moved the count clear of the mark exactly when the mark
-   was filled in, and let it collide the rest of the time. Any card that has a
-   mark gets the offset. */
-.card:has(.loaded-flag) .stack-count { top: 36px; }
+/* Nothing shares this corner any more, so the count sits where it belongs. */
 
 /* ── Grouped view sections ───────────────────────────────────────────────── */
 
@@ -1303,17 +1251,6 @@ select {
     align-content: center;
   }
 
-  /* The printer mark moves to a gutter at the end of the row. On a row this
-     short the corner it sits in elsewhere belongs to the spool, and it looked
-     wedged against it. Every row leaves the gutter open, whether or not it has
-     a mark, so nothing shifts when a spool goes into a printer. */
-  .grid.view-list .card { padding-right: 46px; }
-  .grid.view-list .loaded-flag {
-    left: auto;
-    right: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-  }
 }
 
 @media (max-width: 380px) {

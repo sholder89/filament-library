@@ -1551,16 +1551,6 @@ function cardHTML(f, stack = 0) {
   return `
   <button class="card ${f.status === 'empty' ? 'is-empty' : ''}${f.loaded ? ' is-loaded' : ''}"
           style="--fc:${colorCSS(f)}" data-id="${esc(f.id)}">
-    ${f.status === 'empty' ? '' : `<span class="loaded-flag ${f.loaded ? 'is-on' : 'is-off'}" data-menu="printer"
-      title="${f.loaded ? 'Unload' : 'Load'}"
-      ${f.loaded
-        ? 'role="img" aria-label="Loaded in a printer"'
-        // Nothing to announce when it's only an affordance — the same action is
-        // a labeled button on the spool's own page, which is the route a
-        // keyboard or a screen reader takes anyway.
-        : 'aria-hidden="true"'}>
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V4h10v4M7 17H6a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-1M7 14h10v6H7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
-    </span>`}
     <span class="badge ${esc(f.status)}" data-menu="status">${esc(STATUS_LABEL[f.status])}</span>
     <div class="card-spool">
       ${spoolSVG(f)}
@@ -1724,16 +1714,6 @@ const CARD_ACTIONS = {
     opened: [['unopen', "It's still sealed"], ['empty', 'Mark as used up']],
     empty:  [['restore', 'Put back in the library']],
   }[f.status] ?? []),
-  /*
-   * Loading offers the printers by name once any are set up, because "which
-   * printer" is the actual question when there is more than one. With none
-   * saved it stays the yes-or-no it has always been.
-   */
-  printer: (f) => {
-    if (f.loaded) return [['unload', 'Unload']];
-    const list = printers();
-    return list.length ? list.map((p) => [`loc:${p.name}`, `Load into ${p.name}`]) : [['load', 'Load']];
-  },
 };
 
 let cardMenuFor = null;
