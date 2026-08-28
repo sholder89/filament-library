@@ -585,11 +585,11 @@ select {
    color of the filament itself — which is the thing you're scanning for. */
 .card.is-loaded {
   border-color: var(--loaded);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--loaded) 42%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--loaded) 42%, transparent);
 }
 .card.is-loaded:hover {
   border-color: var(--loaded);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--loaded) 55%, transparent), var(--shadow);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--loaded) 55%, transparent), var(--shadow);
 }
 
 .card-spool { position: relative; width: 100%; aspect-ratio: 1; margin-bottom: 8px; }
