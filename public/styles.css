@@ -2886,21 +2886,25 @@ button.stat {
   text-align: left;
   cursor: pointer;
 }
-button.stat:hover { border-color: var(--border); background: var(--elevated); }
-.stat.is-low b { color: var(--opened); }
-.stat.on {
-  border-color: var(--opened);
-  background: color-mix(in srgb, var(--opened) 12%, var(--surface));
-}
+/* Hover is for cards that are not already chosen.
+   
+   Written as :not(.on) rather than relying on order, because `button.stat:hover`
+   outranks `.stat.on` — a class and a pseudo-class beat one class — so a lit
+   card sitting under the pointer was painted as though it were merely hovered.
+   Every card except Running low happened to have a two-class lit rule that won
+   anyway, which is why only that one looked wrong. On a phone there is no
+   pointer to move away, so the hover stuck from the tap until you touched
+   something else and it looked like the highlight simply did not work. */
+button.stat:not(.on):hover { border-color: var(--border); background: var(--elevated); }
 
 /* Colors carried over from the tabs these replaced, so the same word is the
    same color in both places it appears. */
+.stat.is-low b   { color: var(--opened); }
 .stat.is-empty b { color: var(--empty); }
-.stat.on { border-color: currentColor; }
-.stat.is-new.on { background: color-mix(in srgb, var(--new) 12%, var(--surface)); border-color: var(--new); }
+
+/* One lit rule per card, so none of them falls back to a weaker selector. */
+.stat.is-all.on    { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); border-color: var(--accent); }
+.stat.is-new.on    { background: color-mix(in srgb, var(--new) 12%, var(--surface));    border-color: var(--new); }
 .stat.is-opened.on { background: color-mix(in srgb, var(--opened) 12%, var(--surface)); border-color: var(--opened); }
-.stat.is-empty.on { background: color-mix(in srgb, var(--empty) 14%, var(--surface)); border-color: var(--empty); }
-.stat.is-all.on {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
-}
+.stat.is-empty.on  { background: color-mix(in srgb, var(--empty) 14%, var(--surface));  border-color: var(--empty); }
+.stat.is-low.on    { background: color-mix(in srgb, var(--opened) 12%, var(--surface)); border-color: var(--opened); }
