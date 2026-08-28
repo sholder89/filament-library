@@ -1546,8 +1546,7 @@ function cardHTML(f, stack = 0, collapseKey = '') {
 
   return `
   <button class="card ${f.status === 'empty' ? 'is-empty' : ''}${f.loaded ? ' is-loaded' : ''}"
-          style="--fc:${colorCSS(f)}; view-transition-name: card-${esc(f.id)}"
-          data-id="${esc(f.id)}">
+          style="--fc:${colorCSS(f)}" data-id="${esc(f.id)}">
     <span class="badge ${esc(f.status)}" data-menu="status">${esc(STATUS_LABEL[f.status])}</span>
     <div class="card-spool">
       ${spoolSVG(f)}
@@ -1621,17 +1620,59 @@ function renderGroup(group) {
  * it snapshots the grid as it stands, lets the re-render happen, and eases
  * between the two. Where it isn't supported the render just lands, as before.
  */
+/**
+ * The cards worth animating: the ones on screen, plus a screen either side.
+ *
+ * Every named element costs the browser a snapshot before anything can move —
+ * measured at roughly 1.7ms each, so a library of three hundred spent about
+ * 600ms sitting still before the first card budged. Naming only what can be
+ * seen ties that cost to the size of the screen instead of the size of the
+ * library: a card scrolled out of sight has nothing to show you on its way to
+ * a new place.
+ */
+function visibleCardIds(margin = innerHeight) {
+  const ids = new Set();
+  for (const card of el.grid.querySelectorAll('.card')) {
+    const box = card.getBoundingClientRect();
+    if (box.bottom > -margin && box.top < innerHeight + margin) ids.add(card.dataset.id);
+  }
+  return ids;
+}
+
+function nameCards(ids) {
+  for (const card of el.grid.querySelectorAll('.card')) {
+    card.style.viewTransitionName = ids.has(card.dataset.id) ? `card-${card.dataset.id}` : '';
+  }
+}
+
+/** Off by choice, or off because the machine was told to keep still. */
+const ANIMATE_KEY = 'animate-grid';
+const gridAnimates = () => localStorage.getItem(ANIMATE_KEY) !== 'off'
+  && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 function renderGridSmooth() {
-  if (!document.startViewTransition || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  if (!document.startViewTransition || !gridAnimates()) {
     renderGrid();
     return;
   }
+
+  // Named before the snapshot is taken, because that is what it snapshots.
+  const onScreen = visibleCardIds();
+  nameCards(onScreen);
 
   const beforeRuns = runNames();
   const beforeCards = cardNames();
 
   const transition = document.startViewTransition(() => {
     renderGrid();
+    /*
+     * The new cards are fresh elements and carry no name yet. They get the
+     * same set, widened by whatever is on screen now — a card leaving the view
+     * still needs a name to be animated out of it, and one arriving needs one
+     * to be animated in.
+     */
+    nameCards(new Set([...onScreen, ...visibleCardIds()]));
+
     // Both read once: each is a DOM query, and asking inside a filter would run
     // it per name.
     const afterRuns = new Set(runNames());
@@ -4495,6 +4536,29 @@ addEventListener('click', (e) => {
 });
 addEventListener('keydown', (e) => { if (e.key === 'Escape' && !el.locPicker.hidden) closeLocationPicker(); });
 
+// ── Movement ────────────────────────────────────────────────────────────────
+
+function syncAnimateSetting() {
+  const on = localStorage.getItem(ANIMATE_KEY) !== 'off';
+  const btn = $('#animateBtn');
+  btn.textContent = on ? 'Animating — turn it off' : 'Not animating — turn it on';
+  btn.classList.toggle('loaded-on', on);
+  /*
+   * Said plainly when the machine has already decided. The switch still works
+   * and is still remembered, but nothing will move while the system asks for
+   * reduced motion, and a control that looks on while nothing happens is worse
+   * than one that explains itself.
+   */
+  $('#animateHint').hidden = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+$('#animateBtn').addEventListener('click', () => {
+  const on = localStorage.getItem(ANIMATE_KEY) !== 'off';
+  localStorage.setItem(ANIMATE_KEY, on ? 'off' : 'on');
+  syncAnimateSetting();
+  toast(on ? 'The grid will change without animating' : 'The grid will animate again');
+});
+
 // ── Managing places ─────────────────────────────────────────────────────────
 
 function renderLocManage() {
@@ -4651,6 +4715,7 @@ async function showSettings() {
   renderTareTable();
   loadVisionState();
   renderLocManage();
+  syncAnimateSetting();
   const facts = $('#settingsFacts');
   facts.innerHTML = '<div class="spec"><dt>Loading…</dt><dd></dd></div>';
 
