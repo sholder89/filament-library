@@ -4885,6 +4885,20 @@ $('#locAddBtn').addEventListener('click', async () => {
  * list the view renders, so what comes out is the whole palette however long it
  * is, at a size worth sending.
  */
+/** What the page is currently painted in, for anything drawn to a canvas. */
+function themeColors() {
+  const css = getComputedStyle(document.documentElement);
+  const pick = (name, fallback) => css.getPropertyValue(name).trim() || fallback;
+  const dark = luminance(pick('--bg', '#ffffff')) < 0.5;
+  return {
+    bg: pick('--bg', '#ffffff'),
+    text: pick('--text', '#10131a'),
+    muted: pick('--muted', '#667085'),
+    checkA: dark ? '#2a2f3a' : '#ffffff',
+    checkB: dark ? '#3a4150' : '#c8ccd4',
+  };
+}
+
 const TILE = 240;
 const GAP = 12;
 const PAD = 28;
@@ -4904,9 +4918,10 @@ function paintSwatch(ctx, f, x, y, n) {
   // Translucency is shown the way the view shows it: a checker underneath, the
   // color at less than full strength over it.
   if (clear) {
-    ctx.fillStyle = '#ffffff';
+    const check = themeColors();
+    ctx.fillStyle = check.checkA;
     ctx.fillRect(x, y, w, h);
-    ctx.fillStyle = '#c8ccd4';
+    ctx.fillStyle = check.checkB;
     for (let cy = 0; cy < h; cy += 16) {
       for (let cx = 0; cx < w; cx += 16) {
         if (((cx / 16) + (cy / 16)) % 2 === 0) ctx.fillRect(x + cx, y + cy, 16, 16);
@@ -5000,12 +5015,18 @@ async function shareSwatchImage() {
   const ctx = canvas.getContext('2d');
   ctx.scale(scale, scale);
 
-  ctx.fillStyle = '#ffffff';
+  /*
+   * Painted in the theme the page is wearing. An export that is always white
+   * arrives as a bright rectangle from someone whose app is dark, and looks
+   * like a different product than the one they were just shown.
+   */
+  const paper = themeColors();
+  ctx.fillStyle = paper.bg;
   ctx.fillRect(0, 0, w, h);
-  ctx.fillStyle = '#10131a';
+  ctx.fillStyle = paper.text;
   ctx.font = '700 30px system-ui, -apple-system, Segoe UI, sans-serif';
   ctx.fillText('Filament colors', PAD, PAD + 30);
-  ctx.fillStyle = '#667085';
+  ctx.fillStyle = paper.muted;
   ctx.font = '500 17px system-ui, -apple-system, Segoe UI, sans-serif';
   ctx.fillText(items.length + ' available', PAD, PAD + 54);
 
