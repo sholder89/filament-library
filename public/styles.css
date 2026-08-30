@@ -2924,60 +2924,92 @@ button.stat:not(.on):hover { border-color: var(--border); background: var(--elev
 
 /* ── Swatches ────────────────────────────────────────────────────────────── */
 
-/* A palette rather than an inventory: big blocks of the color itself, a name,
-   and what it is made of. Nothing about stock, because this is the view you
-   turn the screen around for. */
+/* A palette rather than an inventory: the color edge to edge, with its number
+   and name laid over it. Nothing about stock, because this is the view you turn
+   the screen around for. */
 .grid.view-swatch {
-  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
-  --card-gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  --card-gap: 8px;
 }
 
 .palette-item {
   margin: 0;
-  display: grid;
-  gap: 7px;
-  /* Explicit rather than trusting the default stretch: a <figure> here was
-     shrink-wrapping to its caption and coming out 30px wide inside a 152px
-     column. */
+  position: relative;
   width: 100%;
   justify-self: stretch;
-  /* And not stretched down the row: the grid stretches items to the tallest in
-     their row, which squashed the chip out of square and pushed the caption
-     out of sight. */
   align-self: start;
-}
-
-.palette-chip {
-  display: block;
   aspect-ratio: 1;
-  border-radius: 14px;
-  background: var(--fc, #808080);
+  border-radius: 12px;
+  overflow: hidden;
   /* A hairline so a white filament still has an edge on the light theme and a
-     near-black one has one on the dark — the same problem the card's color bar
-     has, solved the same way. */
+     near-black one has one on the dark. */
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 20%, transparent);
 }
 
-.palette-item figcaption { display: grid; gap: 1px; min-width: 0; padding: 0 2px; }
+.palette-chip { position: absolute; inset: 0; background: var(--fc, #808080); }
+
+/* Translucent stock reads as translucent: the color at less than full strength
+   over a checker, which is how every tool that has to say "you can see through
+   this" says it. The checker is on the tile and the color is a layer above, so
+   this works whether --fc is one color or a gradient. */
+.palette-item.is-clear {
+  background-color: #fff;
+  background-image:
+    linear-gradient(45deg, #c8ccd4 25%, transparent 25%, transparent 75%, #c8ccd4 75%),
+    linear-gradient(45deg, #c8ccd4 25%, transparent 25%, transparent 75%, #c8ccd4 75%);
+  background-size: 14px 14px;
+  background-position: 0 0, 7px 7px;
+}
+.palette-item.is-clear .palette-chip { opacity: .62; }
+
+/* The scrim: a wash on the same side of the fence as the ink, so the words hold
+   up over a photo-busy gradient as well as a flat color. */
+.palette-item figcaption {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: grid;
+  gap: 0;
+  padding: 16px 8px 7px;
+  font-weight: 620;
+}
+.palette-item.on-dark figcaption {
+  color: #fff;
+  background: linear-gradient(to top, rgb(0 0 0 / .72), rgb(0 0 0 / .45) 55%, transparent);
+}
+.palette-item.on-light figcaption {
+  color: #10131a;
+  background: linear-gradient(to top, rgb(255 255 255 / .82), rgb(255 255 255 / .55) 55%, transparent);
+}
+
 .palette-item b {
-  font-size: 13.5px;
-  font-weight: 640;
+  font-size: 12.5px;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.palette-item figcaption > span {
+  font-size: 10.5px;
+  opacity: .82;
   line-height: 1.2;
   overflow-wrap: anywhere;
 }
-.palette-item figcaption span { font-size: 11.5px; color: var(--muted); }
+
+/* The number a customer reads back, in the corner away from the words. */
+.palette-no {
+  position: absolute;
+  top: -22px;
+  left: 8px;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+.palette-item.on-dark .palette-no { background: rgb(0 0 0 / .55); color: #fff; }
+.palette-item.on-light .palette-no { background: rgb(255 255 255 / .72); color: #10131a; }
 
 @media (min-width: 760px) {
-  .grid.view-swatch { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); }
-}
-
-/* The number a customer reads back. Tabular so a column of them lines up, and
-   set apart from the name rather than run into it. */
-.palette-no {
-  font-style: normal;
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-  margin-right: 5px;
+  .grid.view-swatch { grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); }
 }
 
 /* The fourth slot is one button or the other, never both — a fifth pushes the

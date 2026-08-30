@@ -1681,14 +1681,33 @@ function swatchesFrom(filaments) {
  * over the swatch has to be legible against every color in the library and
  * some of them are white.
  */
-const swatchHTML = (f, n) => `
-  <figure class="palette-item" style="--fc:${colorCSS(f)}">
+/**
+ * The tile itself: color edge to edge, with the number and the name laid over
+ * it rather than beneath.
+
+ * Which needs the text to be readable on every color in the library, so the ink
+ * follows the swatch's brightness and sits on a scrim — a wash the same side of
+ * the fence as the ink. The scrim is what makes a gradient safe: a single ink
+ * chosen from one end of it would be picked out against the other.
+ */
+const swatchHTML = (f, n) => {
+  const light = luminance(f.color_hex || '#808080') < 0.55;
+  // Translucent stock is shown as translucent: the color sits at less than full
+  // strength over a checker, the way every tool that has to say "you can see
+  // through this" says it.
+  const clear = /transl|clear/i.test(`${f.finish} ${f.color_name}`);
+
+  return `
+  <figure class="palette-item${clear ? ' is-clear' : ''}${light ? ' on-dark' : ' on-light'}"
+          style="--fc:${colorCSS(f)}">
     <span class="palette-chip"></span>
     <figcaption>
-      <b><i class="palette-no">${n}</i>${esc(f.color_name || 'Unnamed')}</b>
+      <i class="palette-no">${n}</i>
+      <b>${esc(f.color_name || 'Unnamed')}</b>
       <span>${esc(baseMaterial(f.material))}${f.finish ? ` · ${esc(f.finish)}` : ''}</span>
     </figcaption>
   </figure>`;
+};
 
 function renderGroup(group) {
   const [first] = group.items;
