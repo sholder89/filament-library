@@ -1206,6 +1206,20 @@ function renderGrid() {
     return;
   }
 
+  /*
+   * Swatches ignore grouping and stacking entirely. Sections would break a
+   * palette into headed blocks, and stacking counts spools, which is the one
+   * thing this view exists not to show.
+   */
+  if (state.view === 'swatch') {
+    const swatches = swatchesFrom(state.filaments);
+    el.grid.classList.remove('is-grouped');
+    el.grid.innerHTML = swatches.length
+      ? swatches.map((f, i) => swatchHTML(f, i + 1)).join('')
+      : `<div class="empty-state"><h3>No colors to show</h3><p>Nothing matches these filters.</p></div>`;
+    return;
+  }
+
   const spec = SECTIONS[state.filters.sort];
   // Drives the section row spacing, so it has to be off for the flat sorts and
   // for the empty state as well.
@@ -1622,6 +1636,47 @@ function cardHTML(f, stack = 0, collapseKey = '') {
     </div>
   </button>`;
 }
+
+/**
+ * The shelf as colors, for holding up to someone who is choosing one.
+ *
+ * Everything that answers "how much is left" is left out on purpose — a
+ * customer picking a color does not need to know a spool is a third gone,
+ * and telling them invites a question about it. What is here is the color, its
+ * name, and what it is made of, because that last one changes what the part
+ * will be like.
+ *
+ * Deduplicated by the color itself rather than by spool. Twelve rolls of the
+ * same black is one color to look at, and the grouping the grid uses
+ * elsewhere would keep them apart by brand, place and status — none of which
+ * mean anything to someone reading a palette.
+ */
+function swatchesFrom(filaments) {
+  const seen = new Map();
+  for (const f of filaments) {
+    if (f.status === 'empty') continue;
+    const key = [f.color_name, f.color_hex, f.color_hex2, f.color_hex3, baseMaterial(f.material)]
+      .map((v) => String(v ?? '').trim().toLowerCase()).join('|');
+    if (!seen.has(key)) seen.set(key, f);
+  }
+  return [...seen.values()];
+}
+
+/*
+ * Numbered so a customer can point at one without having to name it — "seven
+ * and twelve" rather than "the greeny yellow one". The number is positional
+ * and printed in the caption rather than on the color, because a badge laid
+ * over the swatch has to be legible against every color in the library and
+ * some of them are white.
+ */
+const swatchHTML = (f, n) => `
+  <figure class="palette-item" style="--fc:${colorCSS(f)}">
+    <span class="palette-chip"></span>
+    <figcaption>
+      <b><i class="palette-no">${n}</i>${esc(f.color_name || 'Unnamed')}</b>
+      <span>${esc(baseMaterial(f.material))}${f.finish ? ` · ${esc(f.finish)}` : ''}</span>
+    </figcaption>
+  </figure>`;
 
 function renderGroup(group) {
   const [first] = group.items;
