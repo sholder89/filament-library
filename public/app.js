@@ -1729,7 +1729,8 @@ const swatchHTML = (f, n) => {
 
   return `
   <figure class="palette-item${clear ? ' is-clear' : ''}${light ? ' on-dark' : ' on-light'}${finishes ? ` ${finishes}` : ''}"
-          style="--fc:${colorCSS(f)}">
+          style="--fc:${colorCSS(f)}" data-id="${esc(f.id)}" role="button" tabindex="0"
+          title="${esc([f.brand, f.material, f.color_name].filter(Boolean).join(' '))}">
     <span class="palette-chip"></span>
     <figcaption>
       <b><i class="palette-no">${n}</i>${esc(f.color_name || 'Unnamed')}</b>
@@ -1960,7 +1961,16 @@ el.grid.addEventListener('click', (e) => {
   }
 
   const card = e.target.closest('.card');
-  if (card) showDetail(card.dataset.id, true);
+  if (card) return showDetail(card.dataset.id, true);
+
+  /*
+   * A swatch opens the spool it stands for. It is one color deduplicated from
+   * however many rolls, so this opens the first of them — the same bargain a
+   * stack makes, and the only one available when the whole point of the tile is
+   * that the rolls behind it are interchangeable.
+   */
+  const tile = e.target.closest('.palette-item');
+  if (tile) showDetail(tile.dataset.id, true);
 });
 
 // ── Quick actions on a card ──────────────────────────────────────────────────
