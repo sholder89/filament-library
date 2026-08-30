@@ -2969,16 +2969,20 @@ button.stat:not(.on):hover { border-color: var(--border); background: var(--elev
   inset: auto 0 0 0;
   display: grid;
   gap: 0;
-  padding: 16px 8px 7px;
+  padding: 8px;
   font-weight: 620;
 }
+/* No wash behind the words — the color is the thing being shown, and a scrim
+   dims the bottom third of every tile to solve a problem the ink mostly solves
+   on its own. A shadow the opposite side of the ink does the rest: it costs a
+   pixel around each letter rather than a band across the swatch. */
 .palette-item.on-dark figcaption {
   color: #fff;
-  background: linear-gradient(to top, rgb(0 0 0 / .72), rgb(0 0 0 / .45) 55%, transparent);
+  text-shadow: 0 1px 2px rgb(0 0 0 / .55), 0 0 1px rgb(0 0 0 / .4);
 }
 .palette-item.on-light figcaption {
   color: #10131a;
-  background: linear-gradient(to top, rgb(255 255 255 / .82), rgb(255 255 255 / .55) 55%, transparent);
+  text-shadow: 0 1px 2px rgb(255 255 255 / .6), 0 0 1px rgb(255 255 255 / .5);
 }
 
 .palette-item b {
@@ -2993,20 +2997,13 @@ button.stat:not(.on):hover { border-color: var(--border); background: var(--elev
   overflow-wrap: anywhere;
 }
 
-/* The number a customer reads back, in the corner away from the words. */
+/* The number a customer reads back, in front of the name it belongs to. */
 .palette-no {
-  position: absolute;
-  top: -22px;
-  left: 8px;
   font-style: normal;
-  font-size: 11px;
-  font-weight: 700;
   font-variant-numeric: tabular-nums;
-  padding: 1px 6px;
-  border-radius: 999px;
+  opacity: .78;
+  margin-right: 5px;
 }
-.palette-item.on-dark .palette-no { background: rgb(0 0 0 / .55); color: #fff; }
-.palette-item.on-light .palette-no { background: rgb(255 255 255 / .72); color: #10131a; }
 
 @media (min-width: 760px) {
   .grid.view-swatch { grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); }

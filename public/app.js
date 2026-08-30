@@ -1671,7 +1671,22 @@ function swatchesFrom(filaments) {
       .map((v) => String(v ?? '').trim().toLowerCase()).join('|');
     if (!seen.has(key)) seen.set(key, f);
   }
-  return [...seen.values()];
+
+  /*
+   * The plain colors first, then the ones that are not one flat color.
+   *
+   * Rainbow order is the point of this view, and a translucent or a
+   * purple-to-teal fade has no single place on that spectrum — dropped in among
+   * the solids they read as gaps in the run rather than as colors of their own.
+   * Gathered at the end they read as a section, which is what they are. Stable,
+   * so within each half whatever sort is chosen still holds.
+   */
+  const odd = (f) => /transl|clear/i.test(`${f.finish} ${f.color_name}`)
+    || Boolean(f.color_hex2 || f.color_hex3)
+    || isRainbow(f.color_name);
+
+  const all = [...seen.values()];
+  return [...all.filter((f) => !odd(f)), ...all.filter(odd)];
 }
 
 /*
@@ -1702,8 +1717,7 @@ const swatchHTML = (f, n) => {
           style="--fc:${colorCSS(f)}">
     <span class="palette-chip"></span>
     <figcaption>
-      <i class="palette-no">${n}</i>
-      <b>${esc(f.color_name || 'Unnamed')}</b>
+      <b><i class="palette-no">${n}</i>${esc(f.color_name || 'Unnamed')}</b>
       <span>${esc(baseMaterial(f.material))}${f.finish ? ` · ${esc(f.finish)}` : ''}</span>
     </figcaption>
   </figure>`;
