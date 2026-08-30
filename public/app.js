@@ -639,6 +639,7 @@ const hiddenFourth = () => (fourthView() === 'small' ? 'swatch' : 'small');
 function applyView() {
   el.grid.className = `grid view-${state.view}`;
   $('#viewSwitch').dataset.fourth = fourthView();
+  $('#shareSwatches').hidden = state.view !== 'swatch';
   for (const b of $('#viewSwitch').children) {
     b.classList.toggle('on', b.dataset.view === state.view);
     b.setAttribute('aria-pressed', String(b.dataset.view === state.view));
@@ -1712,8 +1713,22 @@ const swatchHTML = (f, n) => {
   // through this" says it.
   const clear = /transl|clear/i.test(`${f.finish} ${f.color_name}`);
 
+  /*
+   * A specialty finish has to be visible on the swatch, or a silk and a matte
+   * of the same color are the same picture and the customer picks the wrong
+   * one. Named classes rather than one "special" flag: they look nothing alike
+   * and each is drawn its own way.
+   */
+  const look = `${f.finish} ${f.color_name}`;
+  const finishes = [
+    /glitter|sparkl/i.test(look) && 'is-glitter',
+    /silk|metallic|shiny|gloss/i.test(look) && 'is-silk',
+    /glow/i.test(look) && 'is-glow',
+    /carbon/i.test(look) && 'is-carbon',
+  ].filter(Boolean).join(' ');
+
   return `
-  <figure class="palette-item${clear ? ' is-clear' : ''}${light ? ' on-dark' : ' on-light'}"
+  <figure class="palette-item${clear ? ' is-clear' : ''}${light ? ' on-dark' : ' on-light'}${finishes ? ` ${finishes}` : ''}"
           style="--fc:${colorCSS(f)}">
     <span class="palette-chip"></span>
     <figcaption>
@@ -4857,6 +4872,179 @@ $('#locAddBtn').addEventListener('click', async () => {
   } catch (err) {
     toast(err.message, true);
   }
+});
+
+
+// ── The palette as a picture ────────────────────────────────────────────────
+
+/**
+ * Draws the swatch view to a canvas and hands it over.
+ *
+ * Not a screenshot of the page: a phone showing forty colors has most of them
+ * off screen, which is the whole reason this exists. It is drawn from the same
+ * list the view renders, so what comes out is the whole palette however long it
+ * is, at a size worth sending.
+ */
+const TILE = 240;
+const GAP = 12;
+const PAD = 28;
+const CAPTION = 66;
+
+function paintSwatch(ctx, f, x, y, n) {
+  const w = TILE, h = TILE;
+  const tones = [f.color_hex, f.color_hex2, f.color_hex3].filter(Boolean);
+  const look = (f.finish || '') + ' ' + (f.color_name || '');
+  const clear = /transl|clear/i.test(look);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, 14);
+  ctx.clip();
+
+  // Translucency is shown the way the view shows it: a checker underneath, the
+  // color at less than full strength over it.
+  if (clear) {
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = '#c8ccd4';
+    for (let cy = 0; cy < h; cy += 16) {
+      for (let cx = 0; cx < w; cx += 16) {
+        if (((cx / 16) + (cy / 16)) % 2 === 0) ctx.fillRect(x + cx, y + cy, 16, 16);
+      }
+    }
+    ctx.globalAlpha = 0.62;
+  }
+
+  if (isRainbow(f.color_name)) {
+    const g = ctx.createLinearGradient(x, y, x + w, y + h);
+    ['#ff5f5f', '#ffb020', '#ffe95e', '#3ddc97', '#4da3e8', '#a970ff'].forEach((c, i, a) =>
+      g.addColorStop(i / (a.length - 1), c));
+    ctx.fillStyle = g;
+  } else if (tones.length > 1) {
+    const g = ctx.createLinearGradient(x, y, x + w * 0.35, y + h);
+    tones.forEach((c, i) => g.addColorStop(i / (tones.length - 1), c));
+    ctx.fillStyle = g;
+  } else {
+    ctx.fillStyle = tones[0] || '#808080';
+  }
+  ctx.fillRect(x, y, w, h);
+  ctx.globalAlpha = 1;
+
+  // The finishes, in the same terms the tiles use.
+  if (/silk|metallic|shiny|gloss/i.test(look)) {
+    const g = ctx.createLinearGradient(x, y + h, x + w, y);
+    g.addColorStop(0.26, 'rgba(255,255,255,0)');
+    g.addColorStop(0.44, 'rgba(255,255,255,0.42)');
+    g.addColorStop(0.54, 'rgba(255,255,255,0.10)');
+    g.addColorStop(0.68, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(x, y, w, h);
+  }
+  if (/glitter|sparkl/i.test(look)) {
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    for (let i = 0; i < 40; i++) {
+      // Fixed pattern rather than random, so the same shelf exports the same
+      // picture twice.
+      const px = x + ((i * 97) % w), py = y + ((i * 61) % h);
+      ctx.beginPath();
+      ctx.arc(px, py, 1.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  if (/glow/i.test(look)) {
+    ctx.save();
+    ctx.shadowColor = 'rgba(190,255,170,0.85)';
+    ctx.shadowBlur = 26;
+    ctx.strokeStyle = 'rgba(190,255,170,0.5)';
+    ctx.lineWidth = 8;
+    ctx.strokeRect(x + 4, y + 4, w - 8, h - 8);
+    ctx.restore();
+  }
+
+  // An edge, so white on white still has a shape.
+  ctx.strokeStyle = 'rgba(128,128,128,0.45)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  ctx.restore();
+
+  const dark = luminance(tones[0] || '#808080') < 0.55;
+  ctx.fillStyle = dark ? '#ffffff' : '#10131a';
+  ctx.shadowColor = dark ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.6)';
+  ctx.shadowBlur = 3;
+  ctx.shadowOffsetY = 1;
+
+  ctx.font = '600 19px system-ui, -apple-system, Segoe UI, sans-serif';
+  ctx.fillText(n + '  ' + (f.color_name || 'Unnamed'), x + 12, y + h - 30, w - 24);
+  ctx.font = '500 15px system-ui, -apple-system, Segoe UI, sans-serif';
+  ctx.globalAlpha = 0.85;
+  ctx.fillText(baseMaterial(f.material) + (f.finish ? ' · ' + f.finish : ''), x + 12, y + h - 11, w - 24);
+  ctx.globalAlpha = 1;
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+}
+
+async function shareSwatchImage() {
+  const items = swatchesFrom(state.filaments);
+  if (!items.length) return toast('No colors to save', true);
+
+  const cols = Math.min(4, Math.max(2, Math.ceil(Math.sqrt(items.length))));
+  const rows = Math.ceil(items.length / cols);
+  const w = PAD * 2 + cols * TILE + (cols - 1) * GAP;
+  const h = PAD * 2 + CAPTION + rows * TILE + (rows - 1) * GAP;
+
+  const canvas = document.createElement('canvas');
+  // Twice the size, so it holds up when someone pinches into it.
+  const scale = 2;
+  canvas.width = w * scale;
+  canvas.height = h * scale;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = '#10131a';
+  ctx.font = '700 30px system-ui, -apple-system, Segoe UI, sans-serif';
+  ctx.fillText('Filament colors', PAD, PAD + 30);
+  ctx.fillStyle = '#667085';
+  ctx.font = '500 17px system-ui, -apple-system, Segoe UI, sans-serif';
+  ctx.fillText(items.length + ' available', PAD, PAD + 54);
+
+  items.forEach((f, i) => {
+    const x = PAD + (i % cols) * (TILE + GAP);
+    const y = PAD + CAPTION + Math.floor(i / cols) * (TILE + GAP);
+    paintSwatch(ctx, f, x, y, i + 1);
+  });
+
+  const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
+  if (!blob) return toast('Could not make the image', true);
+
+  const file = new File([blob], 'filament-colors.png', { type: 'image/png' });
+
+  /*
+   * The share sheet first, because this is made to be sent to someone and on a
+   * phone that is one step instead of save-then-find-then-attach. A download is
+   * the fallback where sharing a file is not offered.
+   */
+  if (navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: 'Filament colors' });
+      return;
+    } catch (err) {
+      if (err.name === 'AbortError') return;   // they closed the sheet
+    }
+  }
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'filament-colors.png';
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Saved the palette as an image');
+}
+
+$('#shareSwatches').addEventListener('click', () => {
+  shareSwatchImage().catch((err) => toast(err.message, true));
 });
 
 // ── Theme ────────────────────────────────────────────────────────────────────
