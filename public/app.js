@@ -572,7 +572,8 @@ function loadSavedFilters() {
   // Stored separately from the filters, so it has to be read before any of the
   // early returns below.
   const view = localStorage.getItem('view');
-  if (VIEWS.includes(view)) state.view = view;
+  // Only if its button is actually on the switch — see FOURTH_KEY below.
+  if (VIEWS.includes(view) && (view !== hiddenFourth())) state.view = view;
 
   let saved;
   try {
@@ -623,10 +624,21 @@ function applyFiltersToUI() {
 
 // ── Card density ─────────────────────────────────────────────────────────────
 
-const VIEWS = ['small', 'medium', 'large', 'list'];
+const VIEWS = ['small', 'medium', 'large', 'swatch', 'list'];
+
+/*
+ * The switch holds four buttons. On a phone it shares a row with the sort, and
+ * a fifth pushes it onto its own line — so the last slot is either the swatch
+ * palette or the small grid, and Settings decides which. Both stay in the
+ * markup: the choice is which one is shown, not which one exists.
+ */
+const FOURTH_KEY = 'fourth-view';
+const fourthView = () => (localStorage.getItem(FOURTH_KEY) === 'small' ? 'small' : 'swatch');
+const hiddenFourth = () => (fourthView() === 'small' ? 'swatch' : 'small');
 
 function applyView() {
   el.grid.className = `grid view-${state.view}`;
+  $('#viewSwitch').dataset.fourth = fourthView();
   for (const b of $('#viewSwitch').children) {
     b.classList.toggle('on', b.dataset.view === state.view);
     b.setAttribute('aria-pressed', String(b.dataset.view === state.view));
@@ -4682,6 +4694,33 @@ $('#animateBtn').addEventListener('click', () => {
   toast(on ? 'The grid will change without animating' : 'The grid will animate again');
 });
 
+// ── Which view sits in the fourth slot ──────────────────────────────────────
+
+function syncFourthView() {
+  const btn = $('#fourthViewBtn');
+  if (!btn) return;
+  btn.textContent = fourthView() === 'swatch'
+    ? 'Showing Swatches — switch to Small'
+    : 'Showing Small — switch to Swatches';
+}
+
+$('#fourthViewBtn').addEventListener('click', () => {
+  const next = hiddenFourth();
+  try { localStorage.setItem(FOURTH_KEY, next); } catch { /* private mode */ }
+
+  // Standing in the view that is about to lose its button would leave no way
+  // out of it, so step back to medium first.
+  if (state.view === hiddenFourth()) {
+    state.view = 'medium';
+    try { localStorage.setItem('view', state.view); } catch { /* private mode */ }
+  }
+
+  applyView();
+  renderGrid();
+  syncFourthView();
+  toast(next === 'swatch' ? 'Swatches is on the switch' : 'Small cards are on the switch');
+});
+
 // ── Managing places ─────────────────────────────────────────────────────────
 
 function renderLocManage() {
@@ -4839,6 +4878,7 @@ async function showSettings() {
   loadVisionState();
   renderLocManage();
   syncAnimateSetting();
+  syncFourthView();
   const facts = $('#settingsFacts');
   facts.innerHTML = '<div class="spec"><dt>Loading…</dt><dd></dd></div>';
 

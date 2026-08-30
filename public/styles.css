@@ -2979,3 +2979,8 @@ button.stat:not(.on):hover { border-color: var(--border); background: var(--elev
   color: var(--muted);
   margin-right: 5px;
 }
+
+/* The fourth slot is one button or the other, never both — a fifth pushes the
+   switch onto its own line on a phone. Settings picks which. */
+.view-switch[data-fourth="swatch"] [data-view="small"],
+.view-switch[data-fourth="small"] [data-view="swatch"] { display: none; }
