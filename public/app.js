@@ -1973,6 +1973,8 @@ el.grid.addEventListener('click', (e) => {
   if (tile) showDetail(tile.dataset.id, true);
 });
 
+const DUPLICATE_ICON = `<svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
+
 // ── Quick actions on a card ──────────────────────────────────────────────────
 
 /*
@@ -2364,13 +2366,26 @@ async function showDetail(id, push = false) {
 
   const remainingG = Math.round(f.spool_weight_g * f.remaining_pct / 100);
 
+  /*
+   * Buying two of the same roll is common enough that duplicating one belongs
+   * next to the thing you do to a roll, not parked at the bottom of the grid.
+   * So the two share a line, and the status action gives up its full width.
+   *
+   * An empty spool is the exception: putting it back is a sentence, not a
+   * label, and it keeps the line to itself.
+   */
+  const duplicateBtn = (cls = '') => `
+      <button class="btn ${cls}" data-act="duplicate">
+        ${DUPLICATE_ICON}
+        Duplicate roll</button>`;
+
   const statusAction = {
-    new: `<button class="btn primary span2" data-act="open">
+    new: `<button class="btn primary" data-act="open">
             <svg viewBox="0 0 24 24"><path d="M4 8h16v12H4zM4 8l2-4h12l2 4M12 8v12" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
             Mark as opened</button>`,
-    opened: `<button class="btn warn span2" data-act="empty">
+    opened: `<button class="btn warn" data-act="empty">
             <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 12h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-            Mark as used up</button>`,
+            Used up</button>`,
     empty: `<button class="btn primary span2" data-act="restore">
             <svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.5-5.8M4 4v4h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             Put back in the library</button>`,
@@ -2412,17 +2427,14 @@ async function showDetail(id, push = false) {
         <svg class="btn-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none"
           stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>` : ''}
-      ${statusAction}
+      ${f.status === 'empty' ? statusAction : duplicateBtn() + statusAction}
       <button class="btn" data-act="edit">
         <svg viewBox="0 0 24 24"><path d="M4 20h4L20 8l-4-4L4 16z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
         Edit</button>
       <button class="btn" data-act="print" ${printable ? '' : 'disabled title="Set LABEL_RELAY_URL to enable printing"'}>
         <svg viewBox="0 0 24 24"><path d="M7 9V3h10v6M7 19H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2m-10 0v3h10v-6H7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
         Print QR</button>
-      <button class="btn span2" data-act="duplicate">
-        <svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-        Add another sealed one</button>
-      ${f.status === 'opened' ? `<button class="btn ghost span2" data-act="unopen">Actually, it's still sealed</button>` : ''}
+      ${f.status === 'empty' ? duplicateBtn('span2') : ''}
     </div>
 
     ${f.status === 'opened' ? `
