@@ -2408,7 +2408,10 @@ async function showDetail(id, push = false) {
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-5.5 7-11a7 7 0 1 0-14 0c0 5.5 7 11 7 11z"
             fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="10"
             r="2.6" fill="none" stroke="currentColor" stroke-width="2"/></svg>`}
-        ${f.location ? `In ${esc(f.location)} — move it` : 'Put it somewhere'}</button>` : ''}
+        ${f.location ? `In ${esc(f.location)} — move it` : 'Put it somewhere'}
+        <svg class="btn-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>` : ''}
       ${statusAction}
       <button class="btn" data-act="edit">
         <svg viewBox="0 0 24 24"><path d="M4 20h4L20 8l-4-4L4 16z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
