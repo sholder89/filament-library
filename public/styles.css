@@ -2620,6 +2620,18 @@ input[type="range"] {
 .loc-chip.is-printer { color: var(--loaded); }
 .loc-chip.is-empty { color: var(--muted); opacity: .8; }
 
+/* Shown only by the density that hides the name — see the medium-card rule. */
+.loc-code {
+  display: none;
+  font-weight: 750;
+  /* Fixed rather than relative: it inherits from an 11.5px meta line, and a
+     fraction of that lands under 11px, which is where three capitals stop
+     being read at a glance and start being squinted at. */
+  font-size: 11.5px;
+  letter-spacing: .02em;
+  font-variant-numeric: tabular-nums;
+}
+
 /* A span rather than a button: the card itself is a button, and a button inside
    a button is invalid - the parser lifts it straight out of the card and drops
    it loose in the grid. The printer flag on the card solves it the same way.
@@ -2722,7 +2734,7 @@ input[type="range"] {
 
 .loc-row {
   display: grid;
-  grid-template-columns: auto 1fr auto auto;
+  grid-template-columns: auto 1fr auto auto auto;
   align-items: center;
   gap: 8px;
   padding: 6px;
@@ -2770,6 +2782,28 @@ input[type="range"] {
   cursor: pointer;
 }
 .loc-row-kind[aria-pressed="true"] { border-color: var(--loaded); color: var(--loaded); }
+
+/* Quiet until it holds something: an unset code is an offer, not a field
+   demanding to be filled in. */
+.loc-row-code {
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  padding: 4px 8px;
+  min-width: 52px;
+  cursor: pointer;
+}
+.loc-row-code.has-code {
+  border-style: solid;
+  border-color: var(--loaded);
+  color: var(--loaded);
+}
+.loc-row-code:hover { border-color: var(--accent); color: var(--accent); }
 
 .loc-row-del {
   width: 32px;
@@ -2846,10 +2880,13 @@ input[type="range"] {
   .timeline li .undo-btn { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
 }
 
-/* A medium card has room for the icon and not the name. The name is still in
-   the title attribute, and one tap shows it — truncating "Ender 3" to "En"
-   told you less than the icon does. */
+/* A medium card has room for the icon and not the name — truncating "Ender 3"
+   to "En" told you less than the icon does. Where a place has been given a
+   code, that shows instead: three characters are the whole name of the thing
+   rather than the front of it, which is the difference that makes them worth
+   the room. The full name stays in the title attribute either way. */
 .grid.view-medium .loc-head .loc-name { display: none; }
+.grid.view-medium .loc-head .loc-code { display: inline; }
 .grid.view-medium .loc-head { max-width: none; padding: 2px 4px; }
 .loc-name { font-weight: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

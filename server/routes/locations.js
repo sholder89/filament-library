@@ -24,6 +24,24 @@ const KINDS = ['storage', 'printer'];
  */
 const ICON_RE = /^[a-z][a-z0-9-]{0,23}$/;
 
+/*
+ * Digits allowed, because the printers are named with them: A1M, H2S, X1C,
+ * MK4S. Letters-only would reject almost every machine anyone owns.
+ *
+ * Four rather than three, for the same reason — MK4S is one character past
+ * what a rule of thumb would allow and is what the printer is called.
+ */
+const CODE_RE = /^[A-Z0-9]{1,4}$/;
+
+const readCode = (v) => {
+  const code = str(v).toUpperCase();
+  if (!code) return '';                       // cleared, which is allowed
+  if (!CODE_RE.test(code)) {
+    throw new BadRequest('A code is up to 4 letters or numbers, like H2S or A1M.');
+  }
+  return code;
+};
+
 function readBody(body) {
   const name = str(body.name);
   if (!name) throw new BadRequest('A location needs a name.');
@@ -33,7 +51,11 @@ function readBody(body) {
   if (!KINDS.includes(kind)) throw new BadRequest(`Kind must be one of: ${KINDS.join(', ')}.`);
 
   const icon = str(body.icon).toLowerCase();
-  return { name, kind, icon: ICON_RE.test(icon) ? icon : (kind === 'printer' ? 'printer' : 'box') };
+  return {
+    name, kind,
+    icon: ICON_RE.test(icon) ? icon : (kind === 'printer' ? 'printer' : 'box'),
+    code: readCode(body.code),
+  };
 }
 
 /**
@@ -44,7 +66,7 @@ function readBody(body) {
  * a thumb lands.
  */
 const listAll = db.prepare(`
-  SELECT id, name, icon, kind FROM locations
+  SELECT id, name, icon, kind, code FROM locations
   ORDER BY kind = 'printer' DESC, name COLLATE NOCASE ASC
 `);
 
@@ -64,17 +86,17 @@ router.get('/', (_req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { name, icon, kind } = readBody(req.body ?? {});
+  const { name, icon, kind, code } = readBody(req.body ?? {});
   const now = nowISO();
 
   const existing = db.prepare('SELECT * FROM locations WHERE name = ? COLLATE NOCASE').get(name);
   if (existing) throw new BadRequest(`There is already a location called ${existing.name}.`);
 
   const { lastInsertRowid } = db.prepare(`
-    INSERT INTO locations (name, icon, kind, created_at, updated_at) VALUES (?, ?, ?, ?, ?)
-  `).run(name, icon, kind, now, now);
+    INSERT INTO locations (name, icon, kind, code, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+  `).run(name, icon, kind, code, now, now);
 
-  res.status(201).json(db.prepare('SELECT id, name, icon, kind FROM locations WHERE id = ?').get(lastInsertRowid));
+  res.status(201).json(db.prepare('SELECT id, name, icon, kind, code FROM locations WHERE id = ?').get(lastInsertRowid));
 });
 
 router.patch('/:id', (req, res) => {
@@ -82,7 +104,7 @@ router.patch('/:id', (req, res) => {
   const existing = db.prepare('SELECT * FROM locations WHERE id = ?').get(id);
   if (!existing) return res.status(404).json({ error: 'No such location.' });
 
-  const { name, icon, kind } = readBody({ ...existing, ...req.body });
+  const { name, icon, kind, code } = readBody({ ...existing, ...req.body });
 
   const clash = db.prepare('SELECT id, name FROM locations WHERE name = ? COLLATE NOCASE AND id <> ?').get(name, id);
   if (clash) throw new BadRequest(`There is already a location called ${clash.name}.`);
@@ -97,8 +119,8 @@ router.patch('/:id', (req, res) => {
    */
   db.exec('BEGIN');
   try {
-    db.prepare('UPDATE locations SET name = ?, icon = ?, kind = ?, updated_at = ? WHERE id = ?')
-      .run(name, icon, kind, nowISO(), id);
+    db.prepare('UPDATE locations SET name = ?, icon = ?, kind = ?, code = ?, updated_at = ? WHERE id = ?')
+      .run(name, icon, kind, code, nowISO(), id);
 
     if (name !== existing.name) {
       db.prepare('UPDATE filaments SET location = ? WHERE location = ? COLLATE NOCASE')
@@ -110,7 +132,7 @@ router.patch('/:id', (req, res) => {
     throw err;
   }
 
-  res.json(db.prepare('SELECT id, name, icon, kind FROM locations WHERE id = ?').get(id));
+  res.json(db.prepare('SELECT id, name, icon, kind, code FROM locations WHERE id = ?').get(id));
 });
 
 /**
@@ -138,8 +160,8 @@ export const isPrinterLocation = (name) => byName.get(String(name ?? '').trim())
 export function importLocations(rows) {
   const now = nowISO();
   const add = db.prepare(`
-    INSERT OR IGNORE INTO locations (name, icon, kind, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT OR IGNORE INTO locations (name, icon, kind, code, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
   `);
   let n = 0;
   for (const raw of rows ?? []) {
@@ -147,7 +169,11 @@ export function importLocations(rows) {
     if (!name || name.length > 40) continue;
     const kind = KINDS.includes(str(raw?.kind)) ? str(raw.kind) : 'storage';
     const icon = str(raw?.icon).toLowerCase();
-    n += add.run(name, ICON_RE.test(icon) ? icon : 'box', kind, now, now).changes;
+    // A malformed code in a backup is dropped rather than failing the restore:
+    // one bad row should not cost someone the rest of their list.
+    const code = str(raw?.code).toUpperCase();
+    n += add.run(name, ICON_RE.test(icon) ? icon : 'box', kind,
+                 CODE_RE.test(code) ? code : '', now, now).changes;
   }
   return n;
 }

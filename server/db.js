@@ -109,7 +109,7 @@ db.exec('PRAGMA foreign_keys = ON');
  * Schema is versioned through PRAGMA user_version so upgrades are additive and
  * never lose a spool record. Bump SCHEMA_VERSION and add a migration below.
  */
-const SCHEMA_VERSION = 11;
+const SCHEMA_VERSION = 12;
 
 function migrate() {
   const current = db.prepare('PRAGMA user_version').get().user_version;
@@ -391,6 +391,25 @@ function migrate() {
     `);
 
     db.exec(`PRAGMA user_version = 11`);
+  }
+
+  if (current < 12) {
+    /*
+     * A short code for a place, for where the name will not fit.
+     *
+     * The medium card gives a location an icon and no words, which works for
+     * one printer and stops working at three: the same printer drawing sits on
+     * every spool that is loaded, and which machine has the cyan in it is
+     * exactly the question being asked. Three or four characters answer it in
+     * the room an icon leaves spare, where "Bambu H2S" truncated to "Ba" never
+     * could.
+     *
+     * Empty by default rather than derived from the name. An abbreviation
+     * guessed from "Bambu H2S" is "BH2" or "BAM", and neither is what anyone
+     * calls it.
+     */
+    db.exec(`ALTER TABLE locations ADD COLUMN code TEXT NOT NULL DEFAULT ''`);
+    db.exec(`PRAGMA user_version = 12`);
   }
 }
 

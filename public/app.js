@@ -4597,12 +4597,19 @@ const savedLocation = (name) => state.locations.find(
   (l) => l.name.toLowerCase() === String(name ?? '').trim().toLowerCase(),
 );
 
-/** A location as it appears inline: its icon when we know it, its name always. */
+/**
+ * A location as it appears inline: its icon when we know it, its name always.
+ *
+ * The code rides along beside them and is shown only where the name has been
+ * hidden for want of room. Both at once would read "H2S Bambu H2S", which is
+ * the code doing no work.
+ */
 function locationChipHTML(name) {
   if (!name) return '';
   const saved = savedLocation(name);
   return `<span class="loc-chip${saved?.kind === 'printer' ? ' is-printer' : ''}">`
     + `${saved ? locIconSVG(saved.icon) : locIconSVG('box')}`
+    + `${saved?.code ? `<b class="loc-code">${esc(saved.code)}</b>` : ''}`
     + `<b class="loc-name">${esc(name)}</b></span>`;
 }
 
@@ -4800,6 +4807,9 @@ function renderLocManage() {
           <span>${esc(l.name)}</span>
           <i>${l.kind === 'printer' ? 'printer' : ''}${l.kind === 'printer' && l.spools ? ' · ' : ''}${l.spools ? `${l.spools} spool${l.spools === 1 ? '' : 's'}` : ''}</i>
         </button>
+        <button type="button" class="loc-row-code${l.code ? ' has-code' : ''}" data-loc-code
+          title="A short code for the cards, where the name will not fit"
+          >${l.code ? esc(l.code) : '+ code'}</button>
         <button type="button" class="loc-row-kind" data-loc-kind title="Is this a printer?"
           aria-pressed="${l.kind === 'printer'}">${l.kind === 'printer' ? 'Printer' : 'Storage'}</button>
         <button type="button" class="loc-row-del" data-loc-del aria-label="Forget ${esc(l.name)}">
@@ -4822,7 +4832,7 @@ async function saveLocation(id, patch) {
 /**
  * The icon chooser, as a grid of the drawings themselves.
  *
- * Shown rather than named: the whole reason these exist is to be recognised
+ * Shown rather than named: the whole reason these exist is to be recognized
  * without reading, so picking one from a list of words would be choosing the
  * thing by the wrong sense.
  */
@@ -4854,6 +4864,16 @@ $('#locManage').addEventListener('click', async (e) => {
   if (e.target.closest('[data-loc-rename]')) {
     const name = prompt('Call it what?', loc.name);
     if (name && name.trim() && name.trim() !== loc.name) saveLocation(id, { name: name.trim() });
+    return;
+  }
+
+  if (e.target.closest('[data-loc-code]')) {
+    const code = prompt(
+      `A short code for ${loc.name} — up to 4 letters or numbers, like H2S. Empty for none.`,
+      loc.code ?? '');
+    // null is the cancel button; an empty string is a deliberate clearing.
+    if (code === null) return;
+    if (code.trim().toUpperCase() !== (loc.code ?? '')) saveLocation(id, { code: code.trim() });
     return;
   }
 
