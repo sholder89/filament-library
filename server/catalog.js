@@ -214,8 +214,21 @@ const CSS_COLORS = {
   White: '#FFFFFF', 'White Smoke': '#F5F5F5', Yellow: '#FFFF00', 'Yellow Green': '#9ACD32',
 };
 
-/** Names that turn up on spools but that CSS has never heard of. */
+/**
+ * Names that turn up on spools but that CSS has never heard of — and the few
+ * it has heard of and gets wrong for filament. Spread over CSS_COLORS below,
+ * so an entry here wins.
+ *
+ * Lavender is the one that matters: CSS puts it at #E6E6FA, a tint so pale it
+ * renders as white on a card, because the CSS name describes the flower's
+ * palest cast. A seller printing "Lavender Purple" means the flower, and the
+ * swatch has to look like a purple or the spool is unfindable on the shelf.
+ * The value is the floral lavender, which sits where it should against the
+ * picker's own Violet (#9B6BD8) and Purple (#7B3FBF) — both likewise chosen
+ * for what filament looks like rather than for what CSS says.
+ */
 const FILAMENT_COLORS = {
+  Lavender: '#B57EDC',
   Natural: '#E8E2D5', Transparent: '#D8E8EE', Clear: '#DCECF2', Translucent: '#DDEAEF',
   Bronze: '#9C7A3C', Copper: '#B87333', Brass: '#B5A642', Gunmetal: '#4C5866',
   Charcoal: '#36454F', Graphite: '#41474D', Slate: '#5A6570', Ash: '#B2BEB5',

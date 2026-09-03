@@ -205,8 +205,14 @@ RoHS`,
       'New',
       'Made in China',
     ].join('\n'),
-    expect: { material: 'PETG', color_name: 'Lavender Purple', diameter: 1.75 },
-    absent: ['brand'],
+    // The swatch has to be a purple. Longest-match picks "Lavender" over
+    // "Purple", which is right — lavender is the more specific of the two —
+    // and was landing on the CSS tint, which renders as white on a card.
+    expect: {
+      material: 'PETG', color_name: 'Lavender Purple',
+      color_hex: '#B57EDC', diameter: 1.75,
+    },
+    absent: ['brand', 'color_hex2'],
   },
 
   {
