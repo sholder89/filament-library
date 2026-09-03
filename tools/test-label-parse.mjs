@@ -192,6 +192,37 @@ RoHS`,
     // a name rather than a list, and nothing extra should be invented from it.
     absent: ['color_hex2', 'color_hex3', 'finish'],
   },
+
+  {
+    // The sticker is the Amazon listing title printed as-is, ellipsis and all.
+    // Every word of it landed in the color field: the line is short enough to
+    // be a candidate, "Lavender" and "Purple" made it score, and nothing
+    // penalised the four words of product name in front of them.
+    name: 'Seller sticker printed from a truncated listing title',
+    text: [
+      'X004ZGE223',
+      'PETG Filament 1.75...mm, Lavender Purple',
+      'New',
+      'Made in China',
+    ].join('\n'),
+    expect: { material: 'PETG', color_name: 'Lavender Purple', diameter: 1.75 },
+    absent: ['brand'],
+  },
+
+  {
+    // The same shape without the ellipsis, and one character past the 40 a
+    // bare line is allowed — the title is over the cap by exactly the part
+    // that isn't the color, so the trim has to happen before the measuring.
+    //
+    // "Matte" stays in the name as well as becoming the finish, the way
+    // "Clear Wine Red" keeps its "Clear": the name is what the label says.
+    name: 'Listing title too long to be a candidate until it is trimmed',
+    text: 'Sunlu PLA+ Filament 1.75mm, Matte Dark Blue\n1KG',
+    expect: {
+      brand: 'Sunlu', material: 'PLA+', color_name: 'Matte Dark Blue',
+      diameter: 1.75, spool_weight_g: 1000, finish: 'Matte',
+    },
+  },
 ];
 
 let failures = 0;

@@ -36,6 +36,21 @@ const MODIFIERS = new Set(['clear', 'transparent', 'translucent', 'natural']);
 /** Label words that end a color value when they run onto the same line. */
 const VALUE_STOP = /\b(?:diameter|直径|n\.?w\.?|weight|重量|print\s*temp|打印温度|extruder|hot\s*end|heated\s*bed|speed|made\s+in|rohs|s\/n)\b/i;
 
+/**
+ * The product-title preamble that runs in front of a color on a listing label.
+ *
+ * A seller's sticker is often the product title printed as-is — "PETG Filament
+ * 1.75mm, Lavender Purple" — so the color is real, it just has the whole title
+ * in front of it. Cut at the LAST marker rather than the first: stopping at
+ * "Filament" would leave "1.75mm, Lavender Purple" behind.
+ *
+ * Only "filament" and a diameter, because both are certain to come before a
+ * color and never to be part of one. Cutting at a material name would catch
+ * more titles and risks eating a finish that belongs to the name ("Silk
+ * Silver"), which is a worse trade than missing a case.
+ */
+const COLOR_PREAMBLE = /^.*(?:\bfilamento?\b|\d[\d.]*\s*mm\b)[\s.,:;)\]|-]*/i;
+
 const norm = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
 const upper = (s) => norm(s).toUpperCase();
 
@@ -107,7 +122,7 @@ function findFinish(text, colorName) {
 /**
  * Color is the messiest field: it shows up after a "Color" label, inside
  * parentheses, or as a bare line. Candidates are gathered from all three and
- * scored by how much of the phrase is recognisable color vocabulary.
+ * scored by how much of the phrase is recognizable color vocabulary.
  */
 function findColor(rawText) {
   const text = rawText.replace(/\r/g, '');
@@ -147,27 +162,47 @@ function findColor(rawText) {
     candidates.push({ value: m[1], weight: 2 });
   }
 
+  /*
+   * Every short line is worth a look, and so is any line short enough once the
+   * product-title preamble comes off it. The cap is there to keep paragraphs
+   * out, and a listing title is over it by exactly the part that isn't the
+   * color — "Sunlu PLA+ Filament 1.75mm, Matte Dark Blue" is 43 characters of
+   * which the last 15 are the answer.
+   */
   for (const line of lines) {
     const trimmed = norm(line);
-    if (trimmed && trimmed.length <= 40) candidates.push({ value: trimmed, weight: 1 });
+    if (!trimmed) continue;
+    const forms = new Set([trimmed, norm(trimmed.replace(COLOR_PREAMBLE, ''))]);
+    for (const form of forms) {
+      if (form && form.length <= 40) candidates.push({ value: form, weight: 1 });
+    }
   }
 
   let best = null;
-  for (const candidate of candidates) {
-    // Trim at a label word and drop trailing size/weight noise like "-1KG(N.W)".
-    let value = candidate.value.split(VALUE_STOP)[0];
+
+  /**
+   * Weighs one phrase and keeps it if it beats what we have.
+   *
+   * Split out so a candidate can be offered twice — as printed, and with a
+   * product-title preamble cut off the front. Nothing has to decide which of
+   * the two is right: the score already prefers the phrase that is more color
+   * and less of everything else, and a cut that guessed wrong loses its color
+   * words and is dropped below, leaving the untrimmed one to win.
+   */
+  const consider = (raw, weight) => {
+    let value = raw;
     value = value.replace(/[-–]\s*\d.*$/, '');
     // Drop non-Latin script — labels repeat the color in Chinese right after.
     value = value.replace(/[^\x20-\x7E]/g, ' ');
     value = norm(value).replace(/^[^A-Za-z]+|[^A-Za-z)]+$/g, '');
-    if (!value || value.length < 3) continue;
+    if (!value || value.length < 3) return;
 
     /*
      * The cap counts what's printed, not what the split produced. "SkyBlue
      * RoseRed LightGreen" is three things on the label and six words after
      * splitting, and counting the latter threw out the whole phrase.
      */
-    if (value.split(/[\s-]+/).filter(Boolean).length > 5) continue;
+    if (value.split(/[\s-]+/).filter(Boolean).length > 5) return;
 
     // Kept as printed as well as split: the grouping is information. "SkyBlue
     // RoseRed LightGreen" is three colors precisely because it's three words,
@@ -181,10 +216,19 @@ function findColor(rawText) {
     // How many words are actual color vocabulary?
     const known = words.filter((w) => Object.keys(COLOR_NAMES)
       .some((n) => n.toLowerCase() === w.toLowerCase())).length;
-    if (!known) continue;
+    if (!known) return;
 
-    const score = candidate.weight * 10 + known * 4 - words.length;
+    const score = weight * 10 + known * 4 - words.length;
     if (!best || score > best.score) best = { value, score, printed };
+  };
+
+  for (const candidate of candidates) {
+    // Trim at a label word; consider() does the rest of the cleaning.
+    const value = candidate.value.split(VALUE_STOP)[0];
+
+    consider(value, candidate.weight);
+    const trimmed = value.replace(COLOR_PREAMBLE, '');
+    if (trimmed !== value) consider(trimmed, candidate.weight);
   }
 
   return best ? { name: titleCase(best.value), printed: best.printed } : { name: '', printed: [] };
@@ -382,11 +426,14 @@ function tonesForColor(name, text = '', tokens = []) {
 }
 
 function findDiameter(text) {
-  const m = /(\d\.\d{1,2})\s*MM/i.exec(text);
+  // The ellipsis is a truncated listing title reprinted on the sticker —
+  // "PETG Filament 1.75...mm" is where a seller's product name ran out of
+  // room, and the diameter in front of it is still the real one.
+  const m = /(\d\.\d{1,2})\s*(?:\.{2,3}\s*)?MM/i.exec(text);
   if (!m) return null;
   const value = parseFloat(m[1]);
   // Only the diameters filament actually ships in — guards against picking up
-  // some unrelated millimetre measurement.
+  // some unrelated millimeter measurement.
   return [1.75, 2.85, 3].includes(value) ? value : null;
 }
 
