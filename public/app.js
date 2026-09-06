@@ -2277,11 +2277,16 @@ function pctFromTotal(total, f) {
  *
  * Filtered against the pattern rather than trusted: these go straight into a
  * style attribute, and a stored value that is not a hex has no business there.
- * Gradients keep all three, in the order the swatch paints them.
+ * Gradients keep all three, in the order the swatch paints them, each paired
+ * with the column it came from — a spool can carry a third tone and no second,
+ * so a position in the list is not a field name.
  */
-const hexesOf = (f) => [f.color_hex, f.color_hex2, f.color_hex3]
-  .filter((h) => /^#[0-9a-f]{6}$/i.test(h ?? ''))
-  .map((h) => h.toUpperCase());
+const HEX_FIELDS = ['color_hex', 'color_hex2', 'color_hex3'];
+
+const hexesOf = (f) => HEX_FIELDS
+  .map((field) => [field, f[field]])
+  .filter(([, h]) => /^#[0-9a-f]{6}$/i.test(h ?? ''))
+  .map(([field, h]) => [field, h.toUpperCase()]);
 
 /**
  * One line of history, in the words someone would use for it.
@@ -2476,9 +2481,15 @@ async function showDetail(id, push = false) {
       ${spec('Brand', f.brand)}
       ${spec('Type', f.material)}
       ${spec('Finish', f.finish)}
-      ${specHTML('Color', hexesOf(f).map((h) =>
-        `<button type="button" class="hex" data-hex="${h}" title="Copy ${h}">`
-        + `<i style="background:${h}"></i>${h}</button>`).join(''))}
+      ${specHTML('Color', hexesOf(f).map(([field, h]) =>
+        `<span class="hex-pair">`
+        + `<button type="button" class="hex" data-hex="${h}" title="Copy ${h}">`
+        + `<i style="background:${h}"></i>${h}</button>`
+        + `<button type="button" class="hex-edit" data-edit-hex="${field}" data-hex="${h}"`
+        + ` title="Change this color" aria-label="Change this color">`
+        + `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L20 8l-4-4L4 16z"`
+        + ` fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>`
+        + `</button></span>`).join(''))}
       ${spec('Spool', `${f.spool_weight_g} g`)}
       ${spec('Nozzle', f.nozzle_temp ? `${f.nozzle_temp} °C` : '')}
       ${spec('Bed', f.bed_temp ? `${f.bed_temp} °C` : '')}
@@ -2526,6 +2537,14 @@ async function showDetail(id, push = false) {
 }
 
 el.detail.addEventListener('click', async (e) => {
+  const edit = e.target.closest('[data-edit-hex]');
+  if (edit) {
+    // Checked before the copy branch below: the two sit side by side, and a
+    // press on the pencil must not also put the old code on the clipboard.
+    editHex(el.detailBody.dataset.id, edit.dataset.editHex, edit.dataset.hex, edit);
+    return;
+  }
+
   const hex = e.target.closest('.hex');
   if (hex) {
     const code = hex.dataset.hex;
@@ -3134,7 +3153,7 @@ $('#f_color_hex_text').addEventListener('input', (e) => {
 });
 
 $('#f_color_swatch').addEventListener('click', () => {
-  openColourPicker({
+  openColorPicker({
     anchor: $('#f_color_swatch'),
     value: form.elements.color_hex.value,
     confirm: 'Use this color',
@@ -3237,7 +3256,7 @@ $('#extraColors').addEventListener('click', (e) => {
   const slot = e.target.closest('[data-slot]');
   if (slot) {
     const field = form.elements[`color_hex${slot.dataset.slot}`];
-    openColourPicker({
+    openColorPicker({
       anchor: slot,
       value: field.value,
       confirm: 'Use this color',
@@ -3969,7 +3988,7 @@ let pickerPick = null;
  * operating system's picker, which looks like another application and, on iOS,
  * can't be opened at all.
  */
-function openColourPicker({ anchor, value, confirm, onPick }) {
+function openColorPicker({ anchor, value, confirm, onPick }) {
   pickerAnchor = anchor;
   pickerPick = onPick;
 
@@ -4014,7 +4033,7 @@ function closePicker2() {
 
 $('#matchBtn').addEventListener('click', () => {
   if (!el.picker2.hidden) return closePicker2();
-  openColourPicker({
+  openColorPicker({
     anchor: $('#matchBtn'),
     value: state.matchColor ?? '#D32029',
     confirm: 'Find the closest',
@@ -4692,6 +4711,41 @@ function closeLocationPicker() {
 }
 
 /** Moves a spool, and says so in a way that can be taken back. */
+/**
+ * Repainting a spool without opening the editor.
+ *
+ * The hex is on this page to be read, and the moment you can read it is the
+ * moment you notice it is wrong — the trip through the editor to fix one
+ * value was the whole distance between noticing and correcting.
+ *
+ * Writes the column the code came from, so a gradient's second and third
+ * tones are editable in place too rather than only the first.
+ */
+async function editHex(id, field, current, anchor) {
+  if (!id || !HEX_FIELDS.includes(field)) return;
+
+  openColorPicker({
+    anchor,
+    value: current,
+    confirm: 'Use this color',
+    onPick: async (hex) => {
+      const before = state.filaments.find((x) => x.id === id) ?? state.currentFilament;
+      if (!before || (before[field] || '').toUpperCase() === hex.toUpperCase()) return;
+
+      try {
+        await api(`/api/filaments/${encodeURIComponent(id)}`, {
+          method: 'PATCH', body: { [field]: hex },
+        });
+        await refresh();
+        if (el.detail.open && el.detailBody.dataset.id === id) await showDetail(id);
+        toast(`Color set to ${hex}`, { undo: undoer(id, before, 'Color put back') });
+      } catch (err) {
+        toast(err.message, true);
+      }
+    },
+  });
+}
+
 async function moveSpool(id, location) {
   const before = state.filaments.find((x) => x.id === id) ?? state.currentFilament;
   if (!before || (before.location || '') === location) return closeLocationPicker();

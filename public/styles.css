@@ -2311,6 +2311,35 @@ input[type="range"] {
 }
 .spec .hex:hover { border-color: var(--accent); }
 
+/* The pencil rides with its own code rather than with the row, so a gradient's
+   three tones each get one and it is never ambiguous which is being changed.
+   The margin moves off the chip and onto the pair, keeping the two halves
+   together when the row wraps. */
+.hex-pair { display: inline-flex; align-items: center; margin: 0 8px 0 0; }
+.hex-pair .hex { margin: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+
+.hex-edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  align-self: stretch;
+  padding: 0;
+  border: 1px solid var(--border);
+  /* Butted against the chip: one control with two halves, which is what it is
+     — the same color, read or changed. */
+  border-left: 0;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+.hex-edit svg { width: 13px; height: 13px; }
+.hex-edit:hover { border-color: var(--accent); color: var(--accent); }
+/* The seam belongs to whichever half is hovered, so the border does not look
+   like it is missing on the unhovered side. */
+.hex-pair:has(.hex-edit:hover) .hex { border-right-color: var(--accent); }
+
 /* Spool history. Newest first, because the question is almost always "what
    just happened to this" rather than "how did it begin". */
 .timeline {
