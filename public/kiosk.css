@@ -234,7 +234,7 @@ svg { display: block; }
 }
 
 .spool-left { display: grid; align-content: start; justify-items: center; gap: 10px; }
-.spool-art svg { width: 280px; height: 280px; }
+.spool-art svg { width: 250px; height: 250px; }
 .spool-left-text { margin: 4px 0 0; font-size: 24px; font-weight: 700; text-align: center; }
 .spool-where {
   margin: 0;
@@ -246,6 +246,9 @@ svg { display: block; }
 }
 .spool-where svg { width: 22px; height: 22px; }
 .muted { color: var(--muted); }
+
+.roll-action { width: 100%; margin-top: 8px; }
+.roll-action .act { width: 100%; }
 
 .actions {
   display: flex;

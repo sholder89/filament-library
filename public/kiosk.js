@@ -165,14 +165,19 @@ function renderSpool() {
     </div></div>`);
   }
 
-  const status = {
+  $('#actions').innerHTML = groups.join('');
+
+  /*
+   * The roll's own state goes under its picture rather than at the foot of the
+   * button column. It's one button, it's about the roll rather than where the
+   * roll goes, and the column below the spool had the room — at the bottom of
+   * the actions it was the first thing pushed off a 600-pixel screen.
+   */
+  $('#rollAction').innerHTML = {
     new: button('Mark as opened', { cls: 'primary', data: 'data-status="open"' }),
     opened: button('Used up', { cls: 'warn', data: 'data-status="empty"' }),
     empty: button('Put back in the library', { cls: 'primary', data: 'data-status="restore"' }),
   }[f.status];
-  groups.push(`<div class="group"><h3>This roll</h3><div class="row">${status}</div></div>`);
-
-  $('#actions').innerHTML = groups.join('');
 }
 
 // ── Doing things ────────────────────────────────────────────────────────────
@@ -208,7 +213,7 @@ async function change(message, request) {
   }
 }
 
-$('#actions').addEventListener('click', (e) => {
+function onAction(e) {
   const f = state.current;
   if (!f) return;
   const id = encodeURIComponent(f.id);
@@ -238,7 +243,9 @@ $('#actions').addEventListener('click', (e) => {
     const said = { open: 'Marked as opened', empty: 'Marked as used up', restore: 'Back in the library' }[kind];
     change(said, () => api(`/api/filaments/${id}/${kind}`, { method: 'POST' }));
   }
-});
+}
+$('#actions').addEventListener('click', onAction);
+$('#rollAction').addEventListener('click', onAction);
 
 // ── Screens ─────────────────────────────────────────────────────────────────
 
