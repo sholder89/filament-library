@@ -193,7 +193,7 @@ svg { display: block; }
 
 .spool-head {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto 1fr auto auto;
   align-items: center;
   gap: 16px;
 }
@@ -210,6 +210,21 @@ svg { display: block; }
   font-weight: 650;
 }
 .back svg { width: 26px; height: 26px; }
+
+.head-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 58px;
+  padding: 0 22px 0 18px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 19px;
+  font-weight: 650;
+}
+.head-btn svg { width: 24px; height: 24px; }
+.head-btn:disabled { opacity: .55; }
 .spool-title { min-width: 0; }
 .spool-title h1 { margin: 0; font-size: 28px; line-height: 1.1; }
 .spool-title p { margin: 2px 0 0; font-size: 17px; color: var(--muted); }
@@ -294,6 +309,8 @@ svg { display: block; }
 .printer-btn .act-label { color: var(--text); }
 .printer-btn.on { border-color: var(--loaded); background: color-mix(in srgb, var(--loaded) 24%, var(--surface-2)); }
 .act.pct { font-variant-numeric: tabular-nums; }
+.act.nowhere { color: var(--muted); }
+.act.nowhere .act-label { color: var(--text); }
 
 .act.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .act.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 55%, var(--border)); }

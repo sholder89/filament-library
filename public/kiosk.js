@@ -25,6 +25,7 @@ const RECENT_MAX = 4;
 const state = {
   filaments: [],
   locations: [],
+  canPrint: false,   // whether the library has a label printer to send to
   current: null,     // the spool on screen, as the server last returned it
   busy: false,
 };
@@ -57,6 +58,11 @@ const placeNamed = (name) => state.locations.find((l) => sameName(l.name, name))
 const printers = () => state.locations.filter((l) => l.kind === 'printer');
 const shelves = () => state.locations.filter((l) => l.kind !== 'printer');
 const gramsLeft = (f) => Math.round(f.spool_weight_g * f.remaining_pct / 100);
+
+/* Nowhere in particular: the library's own mark for it, minus the plus — here
+   it's a choice being made, not an invitation to pick a place. */
+const NOWHERE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor"'
+  + ' stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.5" stroke-dasharray="3 3"/></svg>';
 
 // ── Recently used ───────────────────────────────────────────────────────────
 
@@ -147,15 +153,18 @@ function renderSpool() {
     </div></div>`);
   }
 
-  if (f.status !== 'empty' && shelves().length) {
+  if (f.status !== 'empty') {
     groups.push(`<div class="group"><h3>Put away</h3><div class="row wrap">
       ${shelves().map((p) => button(esc(p.name), {
         icon: locIconSVG(p.icon),
         data: `data-move="${esc(p.name)}"`,
         on: sameName(f.location, p.name),
       })).join('')}
+      ${button('Not put away', { icon: NOWHERE_ICON, cls: 'nowhere', data: 'data-move=""', on: !f.location })}
     </div></div>`);
   }
+
+  $('#printBtn').hidden = !state.canPrint;
 
   if (f.status === 'opened') {
     groups.push(`<div class="group"><h3>Amount left</h3><div class="row">
@@ -223,8 +232,12 @@ function onAction(e) {
     const to = move.dataset.move;
     if (sameName(f.location, to)) return;
     const place = placeNamed(to);
-    change(place?.kind === 'printer' ? `Loaded into ${place.code || to}` : `Put away in ${to}`,
-      () => api(`/api/filaments/${id}`, { method: 'PATCH', body: { location: to } }));
+    const from = placeNamed(f.location);
+    // Clearing the place also takes it out of a printer; the server does that.
+    const said = !to
+      ? (from?.kind === 'printer' ? `Taken out of ${from.code || from.name}` : 'Not put away')
+      : place?.kind === 'printer' ? `Loaded into ${place.code || to}` : `Put away in ${to}`;
+    change(said, () => api(`/api/filaments/${id}`, { method: 'PATCH', body: { location: to } }));
     return;
   }
 
@@ -278,6 +291,25 @@ async function showScan() {
 }
 
 $('#backBtn').addEventListener('click', showScan);
+
+/*
+ * Another label for the roll in hand, sent the same way the library's Print QR
+ * button sends one, with whatever size and copies are saved in its settings.
+ */
+$('#printBtn').addEventListener('click', async () => {
+  const f = state.current;
+  if (!f || state.busy) return;
+  const btn = $('#printBtn');
+  btn.disabled = true;
+  try {
+    await api(`/api/print/${encodeURIComponent(f.id)}`, { method: 'POST', body: {} });
+    toast('Label sent to the printer');
+  } catch (err) {
+    toast(err.message, null, true);
+  } finally {
+    btn.disabled = false;
+  }
+});
 document.addEventListener('click', (e) => {
   const row = e.target.closest('[data-open]');
   if (row) showSpool(row.dataset.open);
@@ -364,5 +396,9 @@ setInterval(async () => {
     if (was && now && was !== now) location.reload();
   } catch { /* offline for a moment; try again next time */ }
 }, 5 * 60 * 1000);
+
+api('/api/print/status')
+  .then((s) => { state.canPrint = s.mode && s.mode !== 'off'; })
+  .catch(() => { /* no printing, no button */ });
 
 showScan();
