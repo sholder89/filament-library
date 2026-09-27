@@ -13,6 +13,7 @@
   --loaded: #a970ff;
   --warn: #f5a524;
   --danger: #ff5d5d;
+  --ok: #34c77b;
   --radius: 16px;
 }
 
@@ -225,7 +226,7 @@ svg { display: block; }
 }
 .head-btn svg { width: 24px; height: 24px; }
 .head-btn:disabled { opacity: .55; }
-.spool-title { min-width: 0; }
+.spool-title { min-width: 0; view-transition-name: spool-title; }
 .spool-title h1 { margin: 0; font-size: 28px; line-height: 1.1; }
 .spool-title p { margin: 2px 0 0; font-size: 17px; color: var(--muted); }
 .spool-title h1, .spool-title p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -242,6 +243,7 @@ svg { display: block; }
 }
 
 .spool-body {
+  view-transition-name: spool-body;
   display: grid;
   grid-template-columns: 290px 1fr;
   gap: 24px;
@@ -316,6 +318,57 @@ svg { display: block; }
 .act.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 55%, var(--border)); }
 
 body.busy .act { opacity: .55; pointer-events: none; }
+
+/* ── A new spool arriving ───────────────────────────────────────────────
+   The old one slides out to the left and the new one comes in from the
+   right, so a change of spool reads as a change and not a flicker. */
+::view-transition-old(spool-body),
+::view-transition-old(spool-title) { animation: spool-out .2s ease-in both; }
+::view-transition-new(spool-body),
+::view-transition-new(spool-title) { animation: spool-in-slide .34s cubic-bezier(.2, .9, .3, 1) both; }
+@keyframes spool-out { to { opacity: 0; transform: translateX(-70px); } }
+@keyframes spool-in-slide { from { opacity: 0; transform: translateX(90px); } }
+
+/* ...its picture spins into place... */
+.new-spool .spool-art svg { animation: spool-spin .6s cubic-bezier(.2, .9, .3, 1); }
+@keyframes spool-spin { from { transform: rotate(-150deg) scale(.7); opacity: 0; } }
+
+/* ...and a scan rings the whole screen in green, which is visible from the
+   corner of an eye in a way a change of text is not. */
+#spoolView.just-scanned::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 7px var(--ok), inset 0 0 60px rgb(52 199 123 / .45);
+  animation: scan-ring 1.4s ease-out forwards;
+}
+@keyframes scan-ring { 0%, 35% { opacity: 1; } 100% { opacity: 0; } }
+
+.scan-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: 14px;
+  padding: 4px 12px;
+  vertical-align: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ok) 22%, transparent);
+  color: var(--ok);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  animation: chip-in .3s ease-out;
+}
+.scan-chip::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+@keyframes chip-in { from { opacity: 0; transform: scale(.8); } }
 
 /* ── Toast ──────────────────────────────────────────────────────────────── */
 

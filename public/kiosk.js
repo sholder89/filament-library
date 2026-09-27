@@ -262,19 +262,72 @@ $('#rollAction').addEventListener('click', onAction);
 
 // ── Screens ─────────────────────────────────────────────────────────────────
 
-async function showSpool(id) {
+/**
+ * Shows a spool, and when a label was just read, says so loudly.
+ *
+ * Switching is fast enough to be missed: move one roll away from the camera
+ * and a second one sitting beside it can take over the screen before you look
+ * back, leaving you pressing buttons for the wrong spool. So a different spool
+ * slides in over the old one rather than simply replacing it, its picture
+ * spins into place, and a scan also rings the screen in green and tags the
+ * name "Scanned" for a moment — at least one of those catches the eye from
+ * across the bench.
+ */
+async function showSpool(id, { scanned = false } = {}) {
+  let f;
   try {
-    state.current = await api(`/api/filaments/${encodeURIComponent(id)}`);
+    f = await api(`/api/filaments/${encodeURIComponent(id)}`);
   } catch {
     toast("That label's spool isn't in the library", null, true);
     return 'not found';
   }
-  remember(id);
-  renderSpool();
-  $('#scanView').hidden = true;
-  $('#spoolView').hidden = false;
+
+  const changed = state.current?.id !== f.id || $('#spoolView').hidden;
+  const swap = () => {
+    state.current = f;
+    renderSpool();
+    $('#scanView').hidden = true;
+    $('#spoolView').hidden = false;
+  };
+
+  if (changed && document.startViewTransition) {
+    /*
+     * A transition captures the old screen before changing anything, which
+     * takes a rendered frame — and while the display is asleep there are
+     * none, so it would wait indefinitely and the scanned spool would never
+     * arrive. Past a quarter second it's skipped: the change still happens,
+     * it just isn't animated.
+     */
+    const vt = document.startViewTransition(swap);
+    const guard = setTimeout(() => vt.skipTransition(), 250);
+    await vt.updateCallbackDone.catch(() => {});
+    clearTimeout(guard);
+  } else {
+    swap();
+  }
+
+  if (scanned) announceScan(changed);
+  remember(f.id);
   stillHere();
   return 'opened';
+}
+
+let chipTimer = null;
+function announceScan(changed) {
+  const view = $('#spoolView');
+  // Restarting an animation means taking the class off and letting the
+  // browser notice before putting it back; reading a layout property does that.
+  view.classList.remove('just-scanned', 'new-spool');
+  void view.offsetWidth;
+  view.classList.add('just-scanned');
+  if (changed) view.classList.add('new-spool');
+
+  $('#scanChip').hidden = false;
+  clearTimeout(chipTimer);
+  chipTimer = setTimeout(() => {
+    $('#scanChip').hidden = true;
+    view.classList.remove('just-scanned', 'new-spool');
+  }, 2500);
 }
 
 async function showScan() {
@@ -356,7 +409,7 @@ $('#toast').addEventListener('click', async (e) => {
 
 // ── The daemon's way in ─────────────────────────────────────────────────────
 
-window.kioskOpen = (id) => showSpool(id);
+window.kioskOpen = (id) => showSpool(id, { scanned: true });
 
 // Frames stop arriving if the daemon or camera does; say so rather than leave
 // the last frame frozen there looking live.
