@@ -66,14 +66,14 @@ svg { display: block; }
   background: #000;
   border: 1px solid var(--border);
 }
-/* Mirrored: the camera faces whoever holds the label up, and aiming at a
-   camera that faces you only feels natural when it behaves like a mirror. The
-   daemon decodes the unflipped frames, so the code doesn't need to be. */
+/* Shown exactly as the daemon sends it. Which way up the picture is depends on
+   how the camera is mounted, so it's set on the Pi (~/kiosk/camera.json) where
+   it can change with the mounting, not here. The whole frame is shown rather
+   than cropped to fill, so nothing the camera can see is off screen. */
 #cam {
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  transform: scaleX(-1);
+  object-fit: contain;
 }
 #cam:not([src]) { display: none; }
 
@@ -220,8 +220,7 @@ svg { display: block; }
 .cam-mini {
   width: 112px;
   aspect-ratio: 4 / 3;
-  object-fit: cover;
-  transform: scaleX(-1);
+  object-fit: contain;
   border-radius: 12px;
   border: 1px solid var(--border);
   background: #000;
