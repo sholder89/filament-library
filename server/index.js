@@ -242,6 +242,13 @@ app.get(/^\/(f\/.*|activity)?$/, (_req, res) => {
   res.sendFile(join(PUBLIC_DIR, 'index.html'));
 });
 
+// The bench touchscreen: its own small page over the same API, not the
+// library. no-cache for the same reason as index.html.
+app.get('/kiosk', (_req, res) => {
+  res.set('Cache-Control', 'no-cache');
+  res.sendFile(join(PUBLIC_DIR, 'kiosk.html'));
+});
+
 app.use((_req, res) => res.status(404).json({ error: 'Not found.' }));
 
 app.use((err, _req, res, _next) => {

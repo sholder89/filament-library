@@ -1,6 +1,6 @@
 /* Filament Library service worker — app shell offline, inventory read-only offline. */
 
-const VERSION = 'v125';
+const VERSION = 'v126';
 const SHELL = `shell-${VERSION}`;
 const DATA = `data-${VERSION}`;
 
@@ -14,6 +14,12 @@ const SHELL_FILES = [
   // deliberately not precached — it's only needed if you actually open the
   // scanner, and it gets cached on first use like any other static asset.
   '/scan.js',
+  '/location-icons.js',
+  // The bench kiosk's page, so a Wi-Fi blip on the Pi shows the kiosk rather
+  // than the library shell in its place.
+  '/kiosk',
+  '/kiosk.js',
+  '/kiosk.css',
   '/manifest.webmanifest',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
@@ -44,10 +50,12 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  // App shell for any client-side route (including the /f/<id> QR links).
+  // App shell for any client-side route (including the /f/<id> QR links), or
+  // the kiosk's own page for the kiosk.
   if (request.mode === 'navigate') {
+    const shell = url.pathname === '/kiosk' ? '/kiosk' : '/';
     event.respondWith(
-      fetch(request).catch(() => caches.match('/', { cacheName: SHELL })),
+      fetch(request).catch(() => caches.match(shell, { cacheName: SHELL })),
     );
     return;
   }

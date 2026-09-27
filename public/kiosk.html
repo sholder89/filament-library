@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Filament Kiosk</title>
+<!-- The bench touchscreen: a spool's label goes up to the camera, big buttons
+     come back. Not the library — just the things you do to a roll at the
+     printer. The Pi's scanning daemon drives it through kioskOpen() and feeds
+     the camera through kioskFrame(); see kiosk.js. -->
+<link rel="stylesheet" href="/kiosk.css">
+</head>
+<body>
+
+<!-- ── Waiting for a label ─────────────────────────────────────────────── -->
+<section id="scanView" class="view">
+  <div class="viewfinder">
+    <img id="cam" alt="">
+    <div class="finder-frame" aria-hidden="true"></div>
+    <p class="finder-hint">Hold a spool's label up to the camera</p>
+    <p class="finder-off" id="camOff">Camera starting…</p>
+  </div>
+
+  <aside class="side">
+    <h2>In the printers</h2>
+    <div id="printerList" class="printer-list"></div>
+    <h2 id="recentHead" hidden>Recently used</h2>
+    <div id="recentList" class="recent-list"></div>
+  </aside>
+</section>
+
+<!-- ── One spool ───────────────────────────────────────────────────────── -->
+<section id="spoolView" class="view" hidden>
+  <header class="spool-head">
+    <button class="back" id="backBtn" aria-label="Back to scanning">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor"
+        stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Scan
+    </button>
+    <div class="spool-title">
+      <h1 id="spoolName"></h1>
+      <p id="spoolSub"></p>
+    </div>
+    <img id="camMini" class="cam-mini" alt="" hidden>
+  </header>
+
+  <div class="spool-body">
+    <div class="spool-left">
+      <div id="spoolArt" class="spool-art"></div>
+      <p id="spoolLeft" class="spool-left-text"></p>
+      <p id="spoolWhere" class="spool-where"></p>
+    </div>
+    <div id="actions" class="actions"></div>
+  </div>
+</section>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<script type="module" src="/kiosk.js"></script>
+</body>
+</html>
