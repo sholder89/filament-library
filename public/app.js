@@ -17,6 +17,27 @@ import { QrScanner, StillCamera, cameraBlockedReason, filamentIdFrom } from './s
 const STANDALONE = matchMedia('(display-mode: standalone)').matches
   || navigator.standalone === true;
 
+/*
+ * The bench kiosk: a Pi with a 1024×600 touchscreen beside the printers, whose
+ * camera is read by a daemon on the Pi rather than by this page.
+ *
+ * Turned on by opening the app once with ?kiosk=1 and remembered in that
+ * browser, because opening a spool rewrites the URL and the query string would
+ * be gone by the second page. ?kiosk=0 turns it off again. Set before anything
+ * renders, so the first paint is already the kiosk layout.
+ */
+const KIOSK = (() => {
+  const flag = new URLSearchParams(location.search).get('kiosk');
+  try {
+    if (flag === '1') localStorage.setItem('kiosk', '1');
+    if (flag === '0') localStorage.removeItem('kiosk');
+    return localStorage.getItem('kiosk') === '1';
+  } catch {
+    return flag === '1';
+  }
+})();
+if (KIOSK) document.documentElement.classList.add('kiosk');
+
 const state = {
   filaments: [],
   catalog: { brands: [], materials: [], colors: [], locations: [] },
@@ -5538,12 +5559,96 @@ function routeFromPath() {
 
 addEventListener('popstate', routeFromPath);
 
+// ── Kiosk ────────────────────────────────────────────────────────────────────
+
+if (KIOSK) {
+  const KIOSK_IDLE_MS = 2 * 60 * 1000;
+  let idleTimer = null;
+
+  const closeOverlays = () => {
+    for (const d of [el.scanner, el.labelScanner, el.settings]) if (d.open) closeSheet(d);
+    if (pickerKind) closePicker();
+    if (!el.picker2.hidden) closePicker2();
+    if (!el.locPicker.hidden) closeLocationPicker();
+  };
+
+  /*
+   * Back to the shelf after a couple of minutes untouched, so whoever walks up
+   * next — or the next label scanned — starts from the library rather than
+   * from whatever spool was last left open.
+   *
+   * Never while the editor is open: walking away mid-edit to fetch a spool is
+   * normal, and coming back to find the form gone would lose the typing.
+   */
+  const goHome = () => {
+    if (el.editor.open) return;
+    closeOverlays();
+    if (el.detail.open) dismissDetail();
+    if (!el.activityView.hidden) closeActivity();
+    scrollTo({ top: 0 });
+  };
+
+  const stillHere = () => {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(goHome, KIOSK_IDLE_MS);
+  };
+  for (const type of ['pointerdown', 'keydown', 'wheel']) {
+    addEventListener(type, stillHere, { capture: true, passive: true });
+  }
+  stillHere();
+
+  /*
+   * How the scanning daemon on the Pi opens a spool: in place, without the
+   * reload that navigating to /f/<id> would cost.
+   *
+   * Declines while the editor is open rather than replacing it, for the same
+   * reason the idle reset does — a label passing in front of the camera must
+   * not throw away an edit. The daemon logs the refusal.
+   */
+  window.kioskOpen = async (id) => {
+    if (el.editor.open) return 'busy: editing';
+    closeOverlays();
+    stillHere();
+    await showDetail(id, true);
+    return 'opened';
+  };
+
+  /*
+   * The camera, live in the corner of the shelf, so a label can be aimed rather
+   * than waved about until something happens.
+   *
+   * Frames arrive from the scanning daemon as JPEG data URLs over the same
+   * DevTools connection that opens spools. That keeps the camera out of the
+   * browser entirely: no getUserMedia (which can't see the Pi camera anyway),
+   * and no request from this https page to a server on the Pi, which Chromium
+   * would treat as mixed content and a local-network request.
+   *
+   * Hidden again once frames stop, so a stopped daemon leaves nothing frozen on
+   * screen pretending to be live.
+   */
+  const camView = document.createElement('img');
+  camView.id = 'kioskCam';
+  camView.alt = '';
+  camView.hidden = true;
+  document.body.append(camView);
+
+  let camStale = null;
+  window.kioskFrame = (src) => {
+    camView.src = src;
+    camView.hidden = false;
+    clearTimeout(camStale);
+    camStale = setTimeout(() => { camView.hidden = true; }, 3000);
+  };
+}
+
 // ── Boot ─────────────────────────────────────────────────────────────────────
 
 (async function boot() {
   // Shown unconditionally: if the camera turns out to be unavailable the
   // scanner sheet explains why, which beats a button that silently isn't there.
-  $('#scanBtn').hidden = false;
+  // Except on the kiosk, whose camera belongs to the scanning daemon and is
+  // always watching — a button to start scanning would only fail to open it.
+  $('#scanBtn').hidden = KIOSK;
 
   loadSavedFilters();
   applyFiltersToUI();
