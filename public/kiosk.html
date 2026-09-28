@@ -6,8 +6,9 @@
 <title>Filament Kiosk</title>
 <!-- The bench touchscreen: a spool's label goes up to the camera, big buttons
      come back. Not the library — just the things you do to a roll at the
-     printer. The Pi's scanning daemon drives it through kioskOpen() and feeds
-     the camera through kioskFrame(); see kiosk.js. -->
+     printer, and adding a new one from its label. The Pi's scanning daemon
+     drives it through kioskOpen(), feeds the camera through kioskFrame(), and
+     answers a label photo through kioskLabelRead(); see kiosk.js. -->
 <link rel="stylesheet" href="/kiosk.css">
 </head>
 <body>
@@ -22,6 +23,11 @@
   </div>
 
   <aside class="side">
+    <button class="add-btn" id="addBtn" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4"
+        stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      Add a new spool
+    </button>
     <h2>In the printers</h2>
     <div id="printerList" class="printer-list"></div>
     <h2 id="recentHead" hidden>Recently used</h2>
@@ -59,6 +65,48 @@
     <div id="actions" class="actions"></div>
   </div>
 </section>
+
+<!-- ── A new spool, from its label ────────────────────────────────────── -->
+<section id="addView" class="view" hidden>
+  <header class="spool-head add-head">
+    <button class="back" id="addCancel" aria-label="Cancel adding">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor"
+        stroke-width="2.4" stroke-linecap="round"/></svg>
+      Cancel
+    </button>
+    <div class="spool-title">
+      <h1>New spool</h1>
+      <p>Lay it label-up under the camera, then read the label</p>
+    </div>
+  </header>
+
+  <div class="add-body">
+    <div class="add-left">
+      <div class="viewfinder add-finder" id="addFinder">
+        <img id="camAdd" alt="">
+        <div class="finder-frame" aria-hidden="true"></div>
+      </div>
+      <button class="act primary" id="readBtn">Read label</button>
+      <p class="read-note" id="readNote"></p>
+    </div>
+    <div class="add-right">
+      <div class="tiles" id="addTiles"></div>
+      <button class="act primary" id="addSave" disabled>Add to library</button>
+    </div>
+  </div>
+</section>
+
+<!-- One list to choose from, for whichever detail of a new spool was tapped:
+     a pick rather than a keyboard, which this screen doesn't have. -->
+<div id="picker" class="picker" hidden>
+  <div class="picker-panel">
+    <header class="picker-head">
+      <h2 id="pickerTitle"></h2>
+      <button class="back" id="pickerClose">Done</button>
+    </header>
+    <div id="pickerList" class="picker-list"></div>
+  </div>
+</div>
 
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 

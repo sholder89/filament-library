@@ -11,6 +11,9 @@
  * this page over Chromium's DevTools port:
  *   window.kioskFrame(dataUrl)  a preview frame, ~10 a second
  *   window.kioskOpen(id)        a label was read; show that spool
+ *   window.kioskLabelRead(r)    what a label photo said, for a new spool
+ * and the page asks it for things through window.kioskCommand(json), a
+ * DevTools binding the daemon installs.
  */
 import { spoolSVG, escapeXML as esc } from './spool.js';
 import { locIconSVG } from './location-icons.js';
@@ -19,6 +22,7 @@ const $ = (s) => document.querySelector(s);
 
 const STATUS_LABEL = { new: 'Sealed', opened: 'Opened', empty: 'Used up' };
 const IDLE_MS = 60 * 1000;          // a spool left on screen goes back to scanning
+const ADD_IDLE_MS = 3 * 60 * 1000;  // a half-entered new spool gets longer
 const REFRESH_MS = 30 * 1000;       // the printer panel, while it's showing
 const RECENT_MAX = 4;
 
@@ -28,6 +32,8 @@ const state = {
   canPrint: false,   // whether the library has a label printer to send to
   current: null,     // the spool on screen, as the server last returned it
   busy: false,
+  canRead: false,    // whether the library can read labels (a Vision key is set)
+  catalog: null,     // brands, types, colors: what a new spool's details come from
 };
 
 // ── Server ──────────────────────────────────────────────────────────────────
@@ -262,6 +268,11 @@ $('#rollAction').addEventListener('click', onAction);
 
 // ── Screens ─────────────────────────────────────────────────────────────────
 
+const VIEWS = ['scanView', 'spoolView', 'addView'];
+function showView(id) {
+  for (const v of VIEWS) $(`#${v}`).hidden = v !== id;
+}
+
 /**
  * Shows a spool, and when a label was just read, says so loudly.
  *
@@ -286,8 +297,7 @@ async function showSpool(id, { scanned = false } = {}) {
   const swap = () => {
     state.current = f;
     renderSpool();
-    $('#scanView').hidden = true;
-    $('#spoolView').hidden = false;
+    showView('spoolView');
   };
 
   if (changed && document.startViewTransition) {
@@ -332,8 +342,8 @@ function announceScan(changed) {
 
 async function showScan() {
   state.current = null;
-  $('#spoolView').hidden = true;
-  $('#scanView').hidden = false;
+  closePicker();
+  showView('scanView');
   hideToast();
   try {
     await loadAll();
@@ -373,7 +383,11 @@ document.addEventListener('click', (e) => {
 let idleTimer = null;
 function stillHere() {
   clearTimeout(idleTimer);
-  idleTimer = setTimeout(() => { if (!$('#spoolView').hidden) showScan(); }, IDLE_MS);
+  const adding = !$('#addView').hidden;
+  idleTimer = setTimeout(() => {
+    if (adding && adder.reading) return stillHere();    // Vision still thinking
+    if (!$('#spoolView').hidden || !$('#addView').hidden) showScan();
+  }, adding ? ADD_IDLE_MS : IDLE_MS);
 }
 addEventListener('pointerdown', stillHere, { capture: true, passive: true });
 
@@ -407,6 +421,267 @@ $('#toast').addEventListener('click', async (e) => {
   try { await run(); } catch (err) { toast(err.message, null, true); }
 });
 
+// ── A new spool, from its label ─────────────────────────────────────────────
+
+/*
+ * The phone's label reading, at the bench: the Pi photographs the label, the
+ * library's own reader (Google Vision, then the label parser) says what it
+ * found, and what it found fills in the details. Several photos add up — the
+ * brand on one face of a box and the specs on another — because each photo is
+ * sent with the text already read, and the server parses it all together.
+ *
+ * Nothing needs typing, which this screen has no keyboard for. Every detail is
+ * a tile, and a tile opens a list to choose from: the catalog's brands, types,
+ * colors and finishes. A detail chosen by hand is never overwritten by a later
+ * photo; one that was only read can be, by a sharper read.
+ */
+const ADD_FIELDS = [
+  { key: 'brand', label: 'Brand', required: true },
+  { key: 'material', label: 'Type', required: true },
+  { key: 'color_name', label: 'Color' },
+  { key: 'finish', label: 'Finish' },
+  { key: 'spool_weight_g', label: 'Spool size', show: (v) => (v >= 1000 ? `${v / 1000} kg` : `${v} g`) },
+  { key: 'diameter', label: 'Diameter', show: (v) => `${v} mm` },
+];
+
+// What a read can fill in, beyond the tiles: sent along when the spool is saved.
+const READ_KEYS = ['brand', 'material', 'color_name', 'color_hex', 'color_hex2', 'color_hex3',
+  'finish', 'diameter', 'spool_weight_g', 'nozzle_temp', 'bed_temp'];
+
+const adder = { fields: {}, picked: new Set(), context: '', reading: false, reads: 0, timer: null };
+
+async function showAdd() {
+  if (!state.catalog) {
+    try { state.catalog = await api('/api/catalog'); } catch (err) {
+      toast(`Can't load the catalog: ${err.message}`, null, true);
+      return;
+    }
+  }
+  Object.assign(adder, { fields: {}, picked: new Set(), context: '', reading: false, reads: 0 });
+  renderAdd();
+  note('');
+  showView('addView');
+  stillHere();
+}
+
+function note(text, kind = '') {
+  const n = $('#readNote');
+  n.textContent = text;
+  n.className = `read-note ${kind}`;
+}
+
+function colorOf(name) {
+  const known = state.catalog?.color_names ?? {};
+  const hit = Object.keys(known).find((k) => sameName(k, name));
+  return hit ? known[hit] : '';
+}
+
+function renderAdd() {
+  const f = adder.fields;
+  $('#addTiles').innerHTML = ADD_FIELDS.map(({ key, label, required, show }) => {
+    const v = f[key];
+    const has = v !== undefined && v !== null && v !== '';
+    const swatch = key === 'color_name' && has
+      ? `<i class="tile-swatch" style="background:${esc(f.color_hex || colorOf(v) || '#808080')}"></i>`
+      : '';
+    return `<button class="tile${has ? '' : ' empty'}${required && !has ? ' needed' : ''}" data-field="${key}">
+      <small>${label}${required ? '' : ' <em>optional</em>'}</small>
+      <b>${swatch}${has ? esc(show ? show(v) : v) : 'Tap to choose'}</b>
+    </button>`;
+  }).join('');
+
+  $('#addSave').disabled = !(f.brand && f.material);
+  $('#readBtn').disabled = adder.reading;
+  $('#readBtn').textContent = adder.reading ? 'Reading…' : adder.reads ? 'Read another side' : 'Read label';
+}
+
+$('#addBtn').addEventListener('click', showAdd);
+$('#addCancel').addEventListener('click', showScan);
+
+$('#readBtn').addEventListener('click', () => {
+  if (adder.reading) return;
+  if (typeof window.kioskCommand !== 'function') {
+    note("The camera isn't connected to this screen right now.", 'bad');
+    return;
+  }
+  adder.reading = true;
+  renderAdd();
+  note('Taking a photo and reading it…');
+  // A shutter blink, so it's plain the photo was taken and when.
+  const finder = $('#addFinder');
+  finder.classList.remove('shutter');
+  void finder.offsetWidth;
+  finder.classList.add('shutter');
+
+  window.kioskCommand(JSON.stringify({ cmd: 'read-label', context: adder.context }));
+  // Vision answers in seconds; if nothing comes back at all, say so rather
+  // than leave the button stuck on "Reading…".
+  clearTimeout(adder.timer);
+  adder.timer = setTimeout(() => {
+    if (!adder.reading) return;
+    adder.reading = false;
+    renderAdd();
+    note('No answer from the label reader. Try again?', 'bad');
+  }, 60000);
+});
+
+/**
+ * What a photo said. `fresh` is this photo alone and `fields` everything read
+ * so far, so a value from this photo replaces an earlier read one (you just
+ * aimed the camera at it) while the rest only fills in gaps. Anything chosen
+ * by hand stays as chosen.
+ */
+window.kioskLabelRead = (reply) => {
+  clearTimeout(adder.timer);
+  adder.reading = false;
+  if ($('#addView').hidden) return;
+  stillHere();
+
+  if (reply?.error) {
+    renderAdd();
+    note(reply.error, 'bad');
+    return;
+  }
+
+  adder.reads += 1;
+  if (reply.text) adder.context = [adder.context, reply.text].filter(Boolean).join('\n');
+
+  const before = Object.keys(adder.fields).length;
+  const fresh = reply.fresh ?? {};
+  const all = reply.fields ?? {};
+  for (const key of READ_KEYS) {
+    if (adder.picked.has(key)) continue;
+    if (fresh[key] != null && fresh[key] !== '') adder.fields[key] = fresh[key];
+    else if (adder.fields[key] == null && all[key] != null && all[key] !== '') adder.fields[key] = all[key];
+  }
+  renderAdd();
+
+  const gained = Object.keys(adder.fields).length - before;
+  const missing = ADD_FIELDS.filter((d) => d.required && !adder.fields[d.key]).map((d) => d.label.toLowerCase());
+  if (!gained && adder.reads === 1) {
+    note(reply.message || "Couldn't make out any details. Try another angle or side, or tap a box to choose.", 'bad');
+  } else if (missing.length) {
+    note(`Still need the ${missing.join(' and ')}: read another side, or tap to choose.`);
+  } else {
+    note(gained ? 'Check the details, then add it.' : 'Nothing new on that side. Check the details, then add it.', 'good');
+  }
+};
+
+$('#addSave').addEventListener('click', async () => {
+  const f = adder.fields;
+  if (!f.brand || !f.material || state.busy) return;
+  state.busy = true;
+  $('#addSave').disabled = true;
+  try {
+    const body = { status: 'new' };
+    for (const key of READ_KEYS) if (f[key] != null && f[key] !== '') body[key] = f[key];
+    if (body.color_name && !body.color_hex) body.color_hex = colorOf(body.color_name) || undefined;
+    const made = await api('/api/filaments', { method: 'POST', body });
+    state.busy = false;
+    await showSpool(made.id);
+    toast(state.canPrint ? 'Added. Print a label for it from the top corner.' : 'Added to the library');
+  } catch (err) {
+    state.busy = false;
+    renderAdd();
+    toast(err.message, null, true);
+  }
+});
+
+// ── Choosing a detail by hand ───────────────────────────────────────────────
+
+function optionsFor(key) {
+  const c = state.catalog;
+  const current = adder.fields[key];
+  const uniq = (list) => [...new Map(list.filter(Boolean).map((v) => [String(v).toLowerCase(), v])).values()];
+  switch (key) {
+    case 'brand': return uniq([current, ...(c.owned_brands ?? []), ...(c.brands ?? [])]);
+    case 'material': return uniq([current, ...(c.materials ?? []).map((m) => m.name)]);
+    case 'finish': return uniq([current, ...(c.finishes ?? []).map((x) => x.name)]);
+    case 'spool_weight_g': return uniq([current, ...(c.spool_weights ?? [])]);
+    case 'diameter': return uniq([current, 1.75, 2.85]);
+    default: return [];
+  }
+}
+
+function openPicker(key) {
+  const def = ADD_FIELDS.find((d) => d.key === key);
+  $('#pickerTitle').textContent = def.label;
+  const current = adder.fields[key];
+  const list = $('#pickerList');
+
+  if (key === 'color_name') {
+    const colors = state.catalog.colors ?? [];
+    const extra = current && !colors.some((x) => sameName(x.name, current))
+      ? [{ name: current, hex: adder.fields.color_hex || colorOf(current) || '#808080' }] : [];
+    list.className = 'picker-list swatches';
+    list.innerHTML = [...extra, ...colors].map((x) => `<button class="pick${sameName(x.name, current) ? ' on' : ''}"
+        data-value="${esc(x.name)}" data-hex="${esc(x.hex)}">
+        <i class="pick-swatch" style="background:${esc(x.hex)}"></i><span>${esc(x.name)}</span></button>`).join('');
+  } else if (key === 'brand') {
+    /*
+     * The catalog knows over three hundred brands, which is a lot of scrolling
+     * on a bench screen when you own six of them. So the ones already in the
+     * library come first under their own heading, and what the label said
+     * above even those when it's a brand you've never bought.
+     */
+    const owned = state.catalog.owned_brands ?? [];
+    const isOwned = (b) => owned.some((o) => sameName(o, b));
+    const pick = (v) => `<button class="pick${sameName(v, current) ? ' on' : ''}" data-value="${esc(v)}">${esc(v)}</button>`;
+    const head = (text) => `<h3 class="pick-head">${text}</h3>`;
+    const rest = (state.catalog.brands ?? []).filter((b) => !isOwned(b) && !sameName(b, current));
+    list.className = 'picker-list';
+    list.innerHTML = [
+      current && !isOwned(current) ? head('From the label') + pick(current) : '',
+      owned.length ? head('In your library') + owned.map(pick).join('') : '',
+      head('All brands') + rest.map(pick).join(''),
+    ].join('');
+  } else {
+    list.className = 'picker-list';
+    list.innerHTML = optionsFor(key).map((v) => `<button class="pick${String(v) === String(current) ? ' on' : ''}"
+        data-value="${esc(v)}">${esc(def.show ? def.show(v) : v)}</button>`).join('');
+  }
+  if (!def.required) list.insertAdjacentHTML('beforeend', '<button class="pick clear" data-clear>None</button>');
+
+  $('#picker').dataset.field = key;
+  $('#picker').hidden = false;
+  list.scrollTop = 0;
+}
+
+function closePicker() {
+  $('#picker').hidden = true;
+}
+
+$('#addTiles').addEventListener('click', (e) => {
+  const tile = e.target.closest('[data-field]');
+  if (tile) openPicker(tile.dataset.field);
+});
+
+$('#pickerClose').addEventListener('click', closePicker);
+
+$('#pickerList').addEventListener('click', (e) => {
+  const pick = e.target.closest('.pick');
+  if (!pick) return;
+  const key = $('#picker').dataset.field;
+  const f = adder.fields;
+
+  if (pick.hasAttribute('data-clear')) {
+    delete f[key];
+    if (key === 'color_name') { delete f.color_hex; delete f.color_hex2; delete f.color_hex3; }
+  } else if (key === 'color_name') {
+    f.color_name = pick.dataset.value;
+    f.color_hex = pick.dataset.hex;
+    delete f.color_hex2;              // a chosen swatch is one color
+    delete f.color_hex3;
+    adder.picked.add('color_hex');
+  } else {
+    const raw = pick.dataset.value;
+    f[key] = key === 'spool_weight_g' ? Number(raw) : key === 'diameter' ? Number(raw) : raw;
+  }
+  adder.picked.add(key);
+  closePicker();
+  renderAdd();
+});
+
 // ── The daemon's way in ─────────────────────────────────────────────────────
 
 window.kioskOpen = (id) => showSpool(id, { scanned: true });
@@ -417,13 +692,16 @@ let camStale = null;
 window.kioskFrame = (src) => {
   $('#cam').src = src;
   $('#camMini').src = src;
+  $('#camAdd').src = src;
   $('#cam').hidden = false;
   $('#camMini').hidden = false;
+  $('#camAdd').hidden = false;
   $('#camOff').hidden = true;
   clearTimeout(camStale);
   camStale = setTimeout(() => {
     $('#cam').hidden = true;
     $('#camMini').hidden = true;
+    $('#camAdd').hidden = true;
     $('#camOff').hidden = false;
     $('#camOff').textContent = 'Camera not responding';
   }, 3000);
@@ -449,6 +727,10 @@ setInterval(async () => {
     if (was && now && was !== now) location.reload();
   } catch { /* offline for a moment; try again next time */ }
 }, 5 * 60 * 1000);
+
+api('/api/scan/status')
+  .then((s) => { state.canRead = Boolean(s.enabled); $('#addBtn').hidden = !state.canRead; })
+  .catch(() => { /* no Vision key, no button */ });
 
 api('/api/print/status')
   .then((s) => { state.canPrint = s.mode && s.mode !== 'off'; })
