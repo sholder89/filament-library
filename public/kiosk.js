@@ -786,6 +786,100 @@ addEventListener('pointerdown', () => {
   tellPi('active');
 }, { capture: true, passive: true });
 
+// ── Restart and shut down (hidden) ─────────────────────────────────────────
+
+/*
+ * The Pi has no keyboard, and pulling its plug risks the SD card, so the
+ * screen can restart it or shut it down. Hidden, so it's never pressed by
+ * accident: hold a finger on the camera picture for three seconds. The picture
+ * dims while it's held, so a deliberate hold can tell it's working. Restart and
+ * Shut down each want a second tap to confirm.
+ */
+const HOLD_MS = 3000;
+const POWER_WORDS = {
+  reboot: { ask: 'Tap again to restart', doing: 'Restarting…',
+    after: 'Back in about a minute.' },
+  shutdown: { ask: 'Tap again to shut down', doing: 'Shutting down…',
+    after: 'Safe to unplug once the Pi\u2019s green light has stopped flickering.' },
+};
+const finder = $('#scanView .viewfinder');
+let holdTimer = null;
+
+function endHold() {
+  clearTimeout(holdTimer);
+  finder.classList.remove('holding');
+}
+finder.addEventListener('pointerdown', () => {
+  endHold();
+  finder.classList.add('holding');
+  holdTimer = setTimeout(() => { endHold(); openPower(); }, HOLD_MS);
+});
+for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) finder.addEventListener(ev, endHold);
+// A long press is also how a touchscreen asks for a context menu.
+finder.addEventListener('contextmenu', (e) => e.preventDefault());
+
+let armed = null;
+let armTimer = null;
+let powerIdle = null;
+
+function openPower() {
+  disarm();
+  const onPi = typeof window.kioskCommand === 'function';
+  for (const b of $('#powerMenu').querySelectorAll('[data-power=reboot], [data-power=shutdown]')) {
+    b.disabled = !onPi;
+  }
+  $('#powerNote').textContent = onPi ? '' : 'This isn\u2019t the kiosk, so only Reload works here.';
+  $('#powerPanel').hidden = false;
+  $('#powerBye').hidden = true;
+  $('#powerMenu').hidden = false;
+  clearTimeout(powerIdle);
+  powerIdle = setTimeout(closePower, 30000);
+}
+
+function closePower() {
+  disarm();
+  clearTimeout(powerIdle);
+  $('#powerMenu').hidden = true;
+}
+
+function disarm() {
+  clearTimeout(armTimer);
+  if (armed) {
+    armed.textContent = armed.dataset.label;
+    armed.classList.remove('armed');
+  }
+  armed = null;
+}
+
+$('#powerClose').addEventListener('click', closePower);
+$('#powerMenu').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-power]');
+  if (!b || b.disabled) return;
+  const what = b.dataset.power;
+  if (what === 'reload') { location.reload(); return; }
+  if (armed !== b) {
+    disarm();
+    armed = b;
+    b.dataset.label = b.textContent;
+    b.textContent = POWER_WORDS[what].ask;
+    b.classList.add('armed');
+    armTimer = setTimeout(disarm, 5000);
+    return;
+  }
+  disarm();
+  clearTimeout(powerIdle);
+  tellPi(what);
+  $('#powerPanel').hidden = true;
+  $('#powerBye').hidden = false;
+  $('#powerBye h2').textContent = POWER_WORDS[what].doing;
+  $('#powerBye p').textContent = POWER_WORDS[what].after;
+  // Still here a minute and a half later means the Pi never acted on it.
+  powerIdle = setTimeout(() => {
+    closePower();
+    toast('The Pi didn\u2019t respond. Try again, or unplug it.', null, true);
+  }, 90000);
+});
+
 // ── Keeping up with deploys ─────────────────────────────────────────────────
 
 /*
@@ -800,7 +894,7 @@ async function scriptTag() {
 }
 const loadedAs = scriptTag().catch(() => '');
 setInterval(async () => {
-  if ($('#scanView').hidden) return;
+  if ($('#scanView').hidden || !$('#powerMenu').hidden) return;
   try {
     const [was, now] = [await loadedAs, await scriptTag()];
     if (was && now && was !== now) location.reload();

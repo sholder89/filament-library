@@ -609,6 +609,33 @@ body.busy .act { opacity: .55; pointer-events: none; }
 }
 .pick-head:first-child { margin-top: 0; }
 
+/* ── Restart and shut down ─────────────────────────────────────────────────
+   Opened by holding the camera picture; it darkens while held. */
+#scanView .viewfinder { touch-action: none; user-select: none; -webkit-user-select: none; }
+#scanView .viewfinder::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s;
+}
+#scanView .viewfinder.holding::after { opacity: .75; transition: opacity 2.6s linear .4s; }
+
+.power { align-items: center; justify-content: center; }
+.power-panel, .power-bye { width: min(560px, 100% - 40px); display: grid; gap: 16px; text-align: center; }
+.power h2 { margin: 0; font-size: 28px; }
+.power-actions { display: grid; gap: 12px; }
+.power .back { justify-self: center; }
+.power-note { margin: 0; color: var(--muted); font-size: 16px; }
+.power-note:empty { display: none; }
+.power-bye h2 { font-size: 36px; }
+.power-bye p { margin: 0; color: var(--muted); font-size: 20px; }
+.act.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 55%, var(--border)); }
+.act.armed { background: var(--danger); border-color: var(--danger); color: #fff; }
+.act:disabled { opacity: .4; }
+
 /* Over everything while the display is off, to take the tap that wakes it. */
 #wakeSheet {
   position: fixed;

@@ -109,6 +109,26 @@
   </div>
 </div>
 
+<!-- Hidden: hold a finger on the camera picture for three seconds. For
+     restarting or shutting down the Pi, which otherwise takes a keyboard or
+     pulling its plug. -->
+<div id="powerMenu" class="picker power" hidden>
+  <div class="power-panel" id="powerPanel">
+    <h2>Kiosk</h2>
+    <div class="power-actions">
+      <button class="act" data-power="reload">Reload screen</button>
+      <button class="act" data-power="reboot">Restart</button>
+      <button class="act danger" data-power="shutdown">Shut down</button>
+    </div>
+    <p class="power-note" id="powerNote"></p>
+    <button class="back" id="powerClose">Cancel</button>
+  </div>
+  <div class="power-bye" id="powerBye" hidden>
+    <h2></h2>
+    <p></p>
+  </div>
+</div>
+
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
 <script type="module" src="/kiosk.js"></script>
