@@ -608,3 +608,11 @@ body.busy .act { opacity: .55; pointer-events: none; }
   color: var(--muted);
 }
 .pick-head:first-child { margin-top: 0; }
+
+/* Over everything while the display is off, to take the tap that wakes it. */
+#wakeSheet {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: transparent;
+}

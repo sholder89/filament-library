@@ -12,6 +12,7 @@
  *   window.kioskFrame(dataUrl)  a preview frame, ~10 a second
  *   window.kioskOpen(id)        a label was read; show that spool
  *   window.kioskLabelRead(r)    what a label photo said, for a new spool
+ *   window.kioskScreen(on)      the Pi has turned the display off, or back on
  * and the page asks it for things through window.kioskCommand(json), a
  * DevTools binding the daemon installs.
  */
@@ -741,6 +742,49 @@ window.kioskFrame = (src) => {
     $('#camOff').textContent = 'Camera not responding';
   }, 3000);
 };
+
+// ── The screen sleeping ─────────────────────────────────────────────────────
+
+/*
+ * The Pi turns the display off after five minutes of nothing and back on for
+ * movement under the camera or a label. A touch on the dark glass wakes it as
+ * well, and must only wake it: whatever button happens to be under a finger
+ * tapping blind mustn't also be pressed. So while it's dark, a clear sheet lies
+ * over everything and takes that first tap. It wakes the Pi on the way down,
+ * so the screen is coming up while the finger is still on it, and lifts on the
+ * way up, after the tap has landed on the sheet and nothing else.
+ */
+const wakeSheet = document.createElement('div');
+wakeSheet.id = 'wakeSheet';
+wakeSheet.hidden = true;
+document.body.append(wakeSheet);
+
+function tellPi(cmd) {
+  try { window.kioskCommand?.(JSON.stringify({ cmd })); } catch { /* daemon not attached */ }
+}
+
+wakeSheet.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  tellPi('wake');
+});
+wakeSheet.addEventListener('click', (e) => {
+  e.stopPropagation();
+  wakeSheet.hidden = true;
+});
+
+window.kioskScreen = (on) => {
+  wakeSheet.hidden = on;
+};
+
+// Someone touching the screen is someone using it, even with nothing moving
+// under the camera: say so, but no more than once every twenty seconds.
+let toldPiAt = 0;
+addEventListener('pointerdown', () => {
+  const now = Date.now();
+  if (now - toldPiAt < 20000) return;
+  toldPiAt = now;
+  tellPi('active');
+}, { capture: true, passive: true });
 
 // ── Keeping up with deploys ─────────────────────────────────────────────────
 
