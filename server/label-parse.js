@@ -51,6 +51,21 @@ const VALUE_STOP = /\b(?:diameter|直径|n\.?w\.?|weight|重量|print\s*temp|打
  */
 const COLOR_PREAMBLE = /^.*(?:\bfilamento?\b|\d[\d.]*\s*mm\b)[\s.,:;)\]|-]*/i;
 
+/**
+ * The color vocabulary is spelled the American way, and labels aren't: "Space
+ * Grey" didn't register as a color at all, so the spool came back with none.
+ * Matching goes through this; the name itself is kept as the label printed it.
+ */
+const toUS = (s) => String(s ?? '').replace(/grey/gi, (m) => (m[0] === 'G' ? 'Gray' : 'gray'));
+
+/**
+ * A size printed after the color: "PETG Space Grey Ø1.75mm". The preamble cut
+ * above handles a color that comes after the size; this is the other order,
+ * where everything from the diameter on is not the color. The Ø often comes
+ * through OCR as a zero, which the digits here already cover.
+ */
+const COLOR_TRAILER = /\s*(?:[Øø⌀]|\bdia(?:meter)?\.?)?\s*\d[\d.]*\s*mm\b.*$/i;
+
 const norm = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
 const upper = (s) => norm(s).toUpperCase();
 
@@ -215,20 +230,34 @@ function findColor(rawText) {
 
     // How many words are actual color vocabulary?
     const known = words.filter((w) => Object.keys(COLOR_NAMES)
-      .some((n) => n.toLowerCase() === w.toLowerCase())).length;
+      .some((n) => n.toLowerCase() === toUS(w).toLowerCase())).length;
     if (!known) return;
 
     const score = weight * 10 + known * 4 - words.length;
     if (!best || score > best.score) best = { value, score, printed };
   };
 
+  /*
+   * A line is offered in several cut-down forms and the score picks: as
+   * printed; with a product-title preamble off the front; with a trailing size
+   * off the back; and with the type it's printed beside off the front, since a
+   * spool's own label runs them together — "PETG Space Grey Ø1.75mm". A cut
+   * that guessed wrong loses its color words and scores nothing, so none of
+   * this has to be sure where the color starts and ends.
+   */
+  const material = findMaterial(text);
+  const leadingType = material
+    ? new RegExp(`^\\s*${material.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=[\\s,:-]|$)[\\s,:-]*`, 'i')
+    : null;
+
   for (const candidate of candidates) {
     // Trim at a label word; consider() does the rest of the cleaning.
     const value = candidate.value.split(VALUE_STOP)[0];
 
-    consider(value, candidate.weight);
-    const trimmed = value.replace(COLOR_PREAMBLE, '');
-    if (trimmed !== value) consider(trimmed, candidate.weight);
+    const forms = new Set([value, value.replace(COLOR_PREAMBLE, '')]);
+    for (const f of [...forms]) forms.add(f.replace(COLOR_TRAILER, ''));
+    if (leadingType) for (const f of [...forms]) forms.add(f.replace(leadingType, ''));
+    for (const f of forms) if (f.trim()) consider(f, candidate.weight);
   }
 
   return best ? { name: titleCase(best.value), printed: best.printed } : { name: '', printed: [] };
@@ -264,7 +293,7 @@ function splitCamel(s) {
  * is half the word — and a tie between two colors is no answer at all.
  */
 function nearestColorName(word) {
-  const w = String(word).toLowerCase().trim();
+  const w = toUS(word).toLowerCase().trim();
   if (w.length < 5) return '';
 
   const limit = w.length >= 8 ? 2 : 1;
@@ -287,7 +316,7 @@ function nearestColorName(word) {
 /** Resolves a color phrase to a hex, reusing the same vocabulary the UI does. */
 function hexForColor(name) {
   if (!name) return '';
-  const target = name.toLowerCase().replace(/[\s_-]+/g, ' ').trim();
+  const target = toUS(name).toLowerCase().replace(/[\s_-]+/g, ' ').trim();
 
   for (const [known, hex] of Object.entries(COLOR_NAMES)) {
     if (known.toLowerCase() === target) return hex;
@@ -327,7 +356,7 @@ function hexForColor(name) {
 function tonesForColor(name, text = '', tokens = []) {
   if (!name) return [];
 
-  const target = name.toLowerCase().replace(/[\s_,/&-]+/g, ' ').trim();
+  const target = toUS(name).toLowerCase().replace(/[\s_,/&-]+/g, ' ').trim();
 
   for (const known of Object.keys(COLOR_NAMES)) {
     if (known.toLowerCase() === target) return [];

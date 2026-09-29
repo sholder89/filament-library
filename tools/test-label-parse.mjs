@@ -229,6 +229,21 @@ RoHS`,
       diameter: 1.75, spool_weight_g: 1000, finish: 'Matte',
     },
   },
+
+  {
+    // Photographed by the bench kiosk, text exactly as Vision returned it. The
+    // color sits between the type and the diameter, and is spelled "Grey":
+    // the vocabulary only knew "Gray", and the preamble cut took the whole
+    // line, so the spool came back with every detail except its color. The
+    // Ø read as a zero.
+    name: 'Spool label with the color between type and diameter, spelled Grey',
+    text: 'PETG Space Grey 01.75mm\n00160423E\n1kg\nBed temp:60-70°C\nResistance\n:<70°C\n'
+      + 'Print Temp:230-240°C 50-100mm/s\nPrint Temp:240-260°C 100-200mm/s\nSpool Temperature\nOT F\nICCA',
+    expect: {
+      material: 'PETG', color_name: 'Space Grey', color_hex: '#4A4E54',
+      diameter: 1.75, spool_weight_g: 1000, nozzle_temp: 230, bed_temp: 60,
+    },
+  },
 ];
 
 let failures = 0;
