@@ -173,7 +173,18 @@ function renderSpool() {
   $('#printBtn').hidden = !state.canPrint;
 
   if (f.status === 'opened') {
-    groups.push(`<div class="group"><h3>Amount left</h3><div class="row">
+    /*
+     * A slider for anything the quick buttons don't land on, starting where the
+     * spool actually is. Steps of 1, not the library's 5: a spool at 48% set
+     * into a 5-step slider would be shown, and saved, as 50.
+     */
+    groups.push(`<div class="group"><h3>Amount left</h3>
+      <div class="level">
+        <input type="range" id="level" min="0" max="100" step="1" value="${f.remaining_pct}"
+          style="--pct:${f.remaining_pct}%" aria-label="Amount left">
+        <output id="levelOut">${f.remaining_pct}%</output>
+      </div>
+      <div class="row">
       ${[10, 25, 50, 75, 100].map((pct) => button(`${pct}%`, {
         cls: 'pct', data: `data-pct="${pct}"`, on: f.remaining_pct === pct,
       })).join('')}
@@ -264,6 +275,30 @@ function onAction(e) {
   }
 }
 $('#actions').addEventListener('click', onAction);
+
+/*
+ * Dragging shows the new amount everywhere it appears — the number, the grams
+ * and the spool picture — but saves nothing until the finger lifts, so a drag
+ * from 60 down to 35 is one change in the history rather than twenty-five.
+ */
+$('#actions').addEventListener('input', (e) => {
+  if (e.target.id !== 'level' || !state.current) return;
+  const pct = Number(e.target.value);
+  const preview = { ...state.current, remaining_pct: pct };
+  e.target.style.setProperty('--pct', `${pct}%`);
+  $('#levelOut').textContent = `${pct}%`;
+  $('#spoolLeft').textContent = `${pct}% left · about ${gramsLeft(preview)} g`;
+  $('#spoolArt').innerHTML = spoolSVG(preview, { title: false });
+});
+
+$('#actions').addEventListener('change', (e) => {
+  if (e.target.id !== 'level' || !state.current) return;
+  const value = Number(e.target.value);
+  if (value === state.current.remaining_pct) return;
+  const id = encodeURIComponent(state.current.id);
+  change(`${value}% left`,
+    () => api(`/api/filaments/${id}`, { method: 'PATCH', body: { remaining_pct: value } }));
+});
 $('#rollAction').addEventListener('click', onAction);
 
 // ── Screens ─────────────────────────────────────────────────────────────────
