@@ -38,6 +38,27 @@ through — used-up spools stay in the library as a record instead of vanishing.
   Polymaker, while *red* is too short to be corrected into anything. **States
   and sizes** are searchable too: *sealed*, *used up*, *in the printer*, *250g*.
   A leading minus excludes, as in `petg -black`.
+
+  **Commas mean OR.** `red, blue` finds either color; `sunlu red, elegoo blue`
+  finds either complete combination. Words within each entry still narrow it,
+  and synonyms, typo matching and exclusions work as before. Exclusions apply
+  only to their own entry: `red, blue -silk` excludes silk from the blue branch;
+  use `red -silk, blue -silk` to exclude it from both. Spaces around commas and
+  empty entries are ignored; a search containing only commas is an empty search.
+  Commas are separators, not literal text. Up to 32 nonempty entries are accepted,
+  with the existing limit of eight search words applied to each entry.
+
+  **Lists of IDs work too:** `ABCD2345, EFGH6789`. Each entry keeps the existing
+  text search **or** exact full-ID match (IDs are case-insensitive when searched).
+  This is not an ID-only selection: another spool whose notes mention an ID can
+  also appear. Check the results before sharing a palette. Brand, type, finish,
+  location and status filters still apply to all entries, and sorting is unchanged.
+
+  To share the result, choose **Swatches** (the third view button), then **Save
+  image**. The existing export uses the filtered results. Swatches omit used-up
+  spools and combine matching color names, color values and base materials, so
+  several matching IDs can produce one tile; brand and finish do not separate
+  those duplicates. The numbers on the palette are positions, not filament IDs.
 - **Grouped views** — sorting by brand, type or color also groups the library
   under collapsible headings with a count on each, so you can fold away the
   PLA and see what PETG you have. Type headings use the base material, so PLA+,

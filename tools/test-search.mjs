@@ -1,7 +1,7 @@
 /**
  * Search expansion, checked without a database.
  *
- * The SQL half is exercised by hand; this pins the part that decides what a
+ * The SQL half is covered by test-search-api.mjs; this pins what a
  * word is allowed to mean, which is where the damage would be silent — a group
  * that's too generous turns a search into "show me everything", and nobody
  * notices a search that returns too much.

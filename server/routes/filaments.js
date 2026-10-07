@@ -249,8 +249,10 @@ router.get('/', (req, res) => {
     where.push(`status != 'empty'`);
   }
 
-  const q = str(req.query.q);
-  if (q) {
+  const queries = str(req.query.q).split(',').map((s) => s.trim()).filter(Boolean);
+  // Bound the work without silently losing IDs from a long pasted list.
+  if (queries.length > 32) throw new BadRequest('Use at most 32 comma-separated searches.');
+  if (queries.length) {
     /*
      * Every word has to appear somewhere on the spool, but not all in the same
      * field. "purple translucent" is a color and a finish, "Sunlu yellow" a
@@ -258,9 +260,8 @@ router.get('/', (req, res) => {
      * found neither, even though both words were plainly there.
      *
      * So the fields are joined into one string per row and each word tested
-     * against that, ANDed together. Searching stays additive: every word you
-     * add narrows the result, which is what typing more into a search box is
-     * supposed to do.
+     * against that, ANDed together. Commas separate alternatives: each extra
+     * word narrows its branch, while another branch widens the result.
      *
      * The columns are all NOT NULL — worth keeping that way, since one NULL
      * would make the whole concatenation NULL and the spool unfindable by any
@@ -289,9 +290,6 @@ router.get('/', (req, res) => {
       || CASE loaded WHEN 1 THEN ' loaded in a printer ams' ELSE '' END
     )`;
 
-    // Capped so a pasted paragraph can't turn into hundreds of scans.
-    const words = normalizeQuery(q).split(/\s+/).filter(Boolean).slice(0, 8);
-
     // % and _ are LIKE's own wildcards: searching for either matched every row,
     // and "100% Cotton" or "shelf_a" could not be found at all.
     const like = (w) => `%${w.replace(/[\\%_]/g, '\\$&')}%`;
@@ -310,22 +308,28 @@ router.get('/', (req, res) => {
       db.prepare('SELECT brand, material, color_name, finish, location FROM filaments').all(),
     );
 
-    const clauses = [];
-    for (const word of words) {
-      // A leading minus excludes instead of requiring — "petg -black". Widened
-      // the same way, so excluding "gray" also excludes the ones spelled gray.
-      const negated = word.length > 1 && word.startsWith('-');
-      const forms = expandTerm(negated ? word.slice(1) : word, vocabulary);
-      const any = `(${forms.map(() => `${HAYSTACK} LIKE ? ESCAPE '\\'`).join(' OR ')})`;
+    const branches = [];
+    for (const q of queries) {
+      // Keep the existing per-search word cap for each alternative.
+      const words = normalizeQuery(q).split(/\s+/).filter(Boolean).slice(0, 8);
+      const clauses = [];
+      for (const word of words) {
+        // A leading minus excludes within this branch: "red -silk, blue -silk".
+        const negated = word.length > 1 && word.startsWith('-');
+        const forms = expandTerm(negated ? word.slice(1) : word, vocabulary);
+        const any = `(${forms.map(() => `${HAYSTACK} LIKE ? ESCAPE '\\'`).join(' OR ')})`;
 
-      clauses.push(negated ? `NOT ${any}` : any);
-      params.push(...forms.map(like));
+        clauses.push(negated ? `NOT ${any}` : any);
+        params.push(...forms.map(like));
+      }
+
+      // Preserve text matching alongside an exact ID match for each branch.
+      // A spool whose notes mention that ID can therefore also match.
+      branches.push(`((${clauses.join(' AND ')}) OR id = ?)`);
+      params.push(q.toUpperCase());
     }
-
-    // The id stays an exact whole-query match, so scanning a QR still lands on
-    // the one spool rather than anything whose notes mention the code.
-    where.push(`((${clauses.join(' AND ')}) OR id = ?)`);
-    params.push(q.toUpperCase());
+    // Other filters constrain every alternative, including ID matches.
+    where.push(`(${branches.join(' OR ')})`);
   }
 
   const order = SORTS[str(req.query.sort)] || SORTS.newest;
