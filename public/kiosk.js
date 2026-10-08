@@ -247,14 +247,21 @@ function onAction(e) {
 
   const move = e.target.closest('[data-move]');
   if (move) {
-    const to = move.dataset.move;
-    if (sameName(f.location, to)) return;
+    let to = move.dataset.move;
+    // Tapping the place it's already in takes it out of there, to not put
+    // away, until somewhere else is picked.
+    if (sameName(f.location, to)) {
+      if (!to) return;
+      to = '';
+    }
     const place = placeNamed(to);
     const from = placeNamed(f.location);
     // Clearing the place also takes it out of a printer; the server does that.
     const said = !to
       ? (from?.kind === 'printer' ? `Taken out of ${from.code || from.name}` : 'Not put away')
-      : place?.kind === 'printer' ? `Loaded into ${place.code || to}` : `Put away in ${to}`;
+      : place?.kind === 'printer'
+        ? `Loaded into ${place.code || to}${f.status === 'new' ? ' and opened' : ''}`
+        : `Put away in ${to}`;
     change(said, () => api(`/api/filaments/${id}`, { method: 'PATCH', body: { location: to } }));
     return;
   }
@@ -378,6 +385,9 @@ function announceScan(changed) {
 
 async function showScan() {
   state.current = null;
+  // The Pi ignores a label that stays in view once it's opened it. Back on the
+  // camera, it should look afresh: a spool still sitting there opens again.
+  tellPi('scanning');
   closePicker();
   showView('scanView');
   hideToast();
@@ -426,6 +436,12 @@ function stillHere() {
   }, adding ? ADD_IDLE_MS : IDLE_MS);
 }
 addEventListener('pointerdown', stillHere, { capture: true, passive: true });
+
+// The Pi says so every few seconds while a label stays in view. If it's the
+// spool on screen, it's still being worked on: no going back to scanning.
+window.kioskStillThere = (id) => {
+  if (!$('#spoolView').hidden && state.current?.id === id) stillHere();
+};
 
 // The printer panel stays current while nobody is using the screen.
 setInterval(() => {

@@ -140,17 +140,23 @@ const truthy = (v) => v === true || v === 1 || /^(1|true|yes|on)$/i.test(str(v))
  * whether the spool is loaded; taking it out of a printer clears the place it
  * was, since it is demonstrably no longer there. Pressing Load without naming
  * a printer is left alone: it still means what it always meant.
+ *
+ * A sealed spool going into a printer has been opened, so loading one marks it
+ * opened as well, rather than leaving a sealed roll loaded.
  */
 function reconcileLocation(existing, row, fields) {
   const movedTo = fields.location !== undefined && row.location !== existing.location;
   if (movedTo) {
     row.loaded = isPrinterLocation(row.location) ? 1 : 0;
-    return row;
+  } else {
+    const takenOut = fields.loaded !== undefined && !row.loaded && existing.loaded;
+    if (takenOut && isPrinterLocation(existing.location)) row.location = '';
   }
 
-  const takenOut = fields.loaded !== undefined && !row.loaded && existing.loaded;
-  if (takenOut && isPrinterLocation(existing.location)) row.location = '';
-
+  if (row.loaded && !existing.loaded && row.status === 'new') {
+    row.status = 'opened';
+    reconcileLifecycle(row);
+  }
   return row;
 }
 
