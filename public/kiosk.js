@@ -25,7 +25,7 @@ const STATUS_LABEL = { new: 'Sealed', opened: 'Opened', empty: 'Used up' };
 const IDLE_MS = 60 * 1000;          // a spool left on screen goes back to scanning
 const ADD_IDLE_MS = 3 * 60 * 1000;  // a half-entered new spool gets longer
 const REFRESH_MS = 30 * 1000;       // the printer panel, while it's showing
-const RECENT_MAX = 4;
+const RECENT_MAX = 10;
 
 const state = {
   filaments: [],
@@ -71,19 +71,21 @@ const gramsLeft = (f) => Math.round(f.spool_weight_g * f.remaining_pct / 100);
 const NOWHERE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor"'
   + ' stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.5" stroke-dasharray="3 3"/></svg>';
 
-// ── Recently used ───────────────────────────────────────────────────────────
+// ── Recently scanned ────────────────────────────────────────────────────────
 
 /*
- * The last few spools handled here, so the one you just put down can be picked
- * back up without finding its label again. Kept in this browser only: it's a
- * convenience of this screen, not something the library needs to know.
+ * The last ten spools whose labels were read here, newest first, so the one
+ * you just put down can be picked back up without finding its label again.
+ * Scans only: a spool tapped open from the list doesn't move up it. Kept in
+ * this browser only: it's a convenience of this screen, not something the
+ * library needs to know.
  */
 function recentIds() {
-  try { return JSON.parse(localStorage.getItem('kioskRecent') || '[]'); } catch { return []; }
+  try { return JSON.parse(localStorage.getItem('kioskScanned') || '[]'); } catch { return []; }
 }
 function remember(id) {
   const ids = [id, ...recentIds().filter((x) => x !== id)].slice(0, RECENT_MAX);
-  try { localStorage.setItem('kioskRecent', JSON.stringify(ids)); } catch { /* per-viewer nicety */ }
+  try { localStorage.setItem('kioskScanned', JSON.stringify(ids)); } catch { /* per-viewer nicety */ }
 }
 
 // ── The waiting screen ──────────────────────────────────────────────────────
@@ -115,10 +117,7 @@ function renderScanView() {
     }).join('')
     : '<p class="printer-empty">No printers saved yet. Add them as places in the library\'s Settings.</p>';
 
-  const inPrinters = new Set(list.flatMap((p) => state.filaments
-    .filter((f) => sameName(f.location, p.name)).map((f) => f.id)));
   const recent = recentIds()
-    .filter((id) => !inPrinters.has(id))
     .map((id) => state.filaments.find((f) => f.id === id))
     .filter(Boolean);
   $('#recentHead').hidden = !recent.length;
@@ -222,7 +221,6 @@ async function change(message, request) {
   try {
     const after = await request();
     state.current = after;
-    remember(after.id);
     renderSpool();
     toast(message, async () => {
       const back = await api(`/api/filaments/${encodeURIComponent(after.id)}/undo`, {
@@ -359,8 +357,10 @@ async function showSpool(id, { scanned = false } = {}) {
     swap();
   }
 
-  if (scanned) announceScan(changed);
-  remember(f.id);
+  if (scanned) {
+    announceScan(changed);
+    remember(f.id);
+  }
   stillHere();
   return 'opened';
 }
@@ -477,12 +477,22 @@ function refreshFromLive() {
     renderSpool();
   }).catch(() => { /* gone, or offline: leave it */ });
 }
-try {
-  new EventSource('/api/live').addEventListener('message', () => {
+function listen() {
+  let live;
+  try { live = new EventSource('/api/live'); } catch { return; /* the poll still runs */ }
+  live.addEventListener('message', () => {
     clearTimeout(liveTimer);
     liveTimer = setTimeout(refreshFromLive, 300);   // one fetch for a burst of changes
   });
-} catch { /* no stream; the poll still runs */ }
+  // A dropped connection is retried by the browser itself, but one refused
+  // outright (the server restarting on a deploy, say) is closed for good.
+  live.addEventListener('error', () => {
+    if (live.readyState !== EventSource.CLOSED) return;
+    setTimeout(listen, 10000);
+    refreshFromLive();                              // whatever was missed meanwhile
+  });
+}
+listen();
 
 // ── Toast ───────────────────────────────────────────────────────────────────
 
