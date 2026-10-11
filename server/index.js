@@ -75,6 +75,45 @@ app.use('/api', (_req, res, next) => {
   next();
 });
 
+/**
+ * Live updates, for screens left open such as the bench kiosk.
+ *
+ * A server-sent event stream that says only "changed" whenever anything was
+ * written, from any device; the screen fetches what it shows again. Without
+ * it, a spool loaded from a phone took up to a polling interval to show.
+ *
+ * no-transform keeps compression() from buffering the stream, and the
+ * comment line every 25 s keeps an idle connection from being timed out by
+ * the proxy in between.
+ */
+const liveScreens = new Set();
+app.get('/api/live', (req, res) => {
+  res.set({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    'X-Accel-Buffering': 'no',
+  });
+  res.flushHeaders();
+  res.write('retry: 3000\n\n');
+  liveScreens.add(res);
+  const ping = setInterval(() => res.write(': ping\n\n'), 25000);
+  req.on('close', () => {
+    clearInterval(ping);
+    liveScreens.delete(res);
+  });
+});
+
+app.use('/api', (req, res, next) => {
+  const writes = !['GET', 'HEAD', 'OPTIONS'].includes(req.method) && !req.path.startsWith('/print');
+  if (writes) {
+    res.on('finish', () => {
+      if (res.statusCode >= 400) return;
+      for (const screen of liveScreens) screen.write('data: changed\n\n');
+    });
+  }
+  next();
+});
+
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, print_mode: printMode(), label_scan: scanEnabled(), version: 1 });
 });

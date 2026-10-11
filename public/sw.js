@@ -1,6 +1,6 @@
 /* Filament Library service worker — app shell offline, inventory read-only offline. */
 
-const VERSION = 'v132';
+const VERSION = 'v133';
 const SHELL = `shell-${VERSION}`;
 const DATA = `data-${VERSION}`;
 
@@ -68,6 +68,8 @@ self.addEventListener('fetch', (event) => {
    * pressed the button expecting today's.
    */
   if (url.pathname.startsWith('/api/export')) return;
+  // A live stream, which never finishes: nothing to cache, and nothing offline.
+  if (url.pathname === '/api/live') return;
 
   // Inventory data: fresh when online, last-known when not.
   if (url.pathname.startsWith('/api/')) {

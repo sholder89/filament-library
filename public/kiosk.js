@@ -448,6 +448,42 @@ setInterval(() => {
   if (!$('#scanView').hidden) loadAll().then(renderScanView).catch(() => {});
 }, REFRESH_MS);
 
+/*
+ * Changes made anywhere else, a phone loading a spool say, show here straight
+ * away: the server says when something changed, and this fetches again. The
+ * poll above stays as a backstop for while the stream is reconnecting.
+ *
+ * The spool on screen is only redrawn if it actually changed, and not under a
+ * finger: redrawing mid-drag would snap the slider back.
+ */
+let touching = false;
+addEventListener('pointerdown', () => { touching = true; }, { capture: true, passive: true });
+for (const ev of ['pointerup', 'pointercancel']) {
+  addEventListener(ev, () => { touching = false; }, { capture: true, passive: true });
+}
+
+let liveTimer = null;
+function refreshFromLive() {
+  if (!$('#scanView').hidden) {
+    loadAll().then(renderScanView).catch(() => {});
+    return;
+  }
+  const shown = state.current;
+  if ($('#spoolView').hidden || !shown || state.busy || touching) return;
+  api(`/api/filaments/${encodeURIComponent(shown.id)}`).then((f) => {
+    if (state.current !== shown || state.busy || touching) return;
+    if (f.updated_at === shown.updated_at) return;
+    state.current = f;
+    renderSpool();
+  }).catch(() => { /* gone, or offline: leave it */ });
+}
+try {
+  new EventSource('/api/live').addEventListener('message', () => {
+    clearTimeout(liveTimer);
+    liveTimer = setTimeout(refreshFromLive, 300);   // one fetch for a burst of changes
+  });
+} catch { /* no stream; the poll still runs */ }
+
 // ── Toast ───────────────────────────────────────────────────────────────────
 
 let toastTimer = null;
