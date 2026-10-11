@@ -10,7 +10,7 @@ import { expandTerm, vocabularyFrom, normalizeQuery } from '../search-terms.js';
 
 export const router = Router();
 
-const STATUSES = ['new', 'opened', 'empty'];
+export const STATUSES = ['new', 'opened', 'empty'];
 
 /*
  * What counts as running low, as a percentage remaining.
@@ -21,7 +21,7 @@ const STATUSES = ['new', 'opened', 'empty'];
  */
 const LOW_AT = 25;
 
-const SORTS = {
+export const SORTS = {
   newest:   'created_at DESC',
   oldest:   'created_at ASC',
   brand:    'brand COLLATE NOCASE ASC, material COLLATE NOCASE ASC, color_name COLLATE NOCASE ASC',

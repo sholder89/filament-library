@@ -443,6 +443,81 @@ sorts. Running a spool out clears it, and duplicating one never copies it.
 
 ---
 
+## MCP server
+
+AI assistants on your home network (Claude Code, Claude Desktop, LM Studio and
+others) can look up and update the inventory through an MCP endpoint built
+into the app:
+
+```
+http://<server-ip>:8088/mcp            # direct
+https://filament.example.com/mcp       # through Traefik
+```
+
+It speaks MCP Streamable HTTP, statelessly, with plain JSON responses. Every
+tool goes through the same REST API as the web app, so changes made by an
+assistant are validated, show up in a spool's history, can be undone, and
+appear live on the kiosk like any other edit.
+
+It's meant for the LAN. There's no auth by default, deleting, importing and the
+Vision key are not exposed, and the Traefik labels answer `/mcp` only for
+home-network addresses (`127.0.0.1/32`, `10.0.0.0/8`, `172.16.0.0/12`,
+`192.168.0.0/16`). Remember to set the host on the `filament-library-mcp`
+router in your `docker-compose.override.yml` too.
+
+| Variable | Default | |
+|---|---|---|
+| `MCP_ENABLED` | `true` | `false` removes the endpoint entirely |
+| `MCP_TOKEN` | unset | When set, every request needs `Authorization: Bearer <token>` |
+| `MCP_ALLOWED_ORIGINS` | unset | Comma-separated browser origins allowed to call `/mcp`. Any other request carrying an `Origin` header gets `403`; MCP clients don't send one |
+
+### Tools
+
+| Tool | Kind | Purpose |
+|---|---|---|
+| `filament_list` | read | Find spools by search words, status, brand, material, finish, location or low stock |
+| `filament_get` | read | Every field of one spool |
+| `filament_history` | read | A spool's change log, newest first |
+| `filament_stats` | read | Totals by status, grams on hand, low spools |
+| `filament_list_locations` | read | Printers and storage places, with their ids |
+| `filament_catalog_search` | read | Known brand, material, color and finish names, temperatures, reference spool weights |
+| `filament_list_spool_tares` | read | Empty-spool weights weighed here |
+| `filament_print_status` | read | Whether label printing is set up |
+| `filament_create` | write | Add one or more spools |
+| `filament_update` | write | Change some fields of a spool, including where it is |
+| `filament_set_status` | write | Open, use up, restore or reseal a spool |
+| `filament_undo` | write | Revert a spool's most recent change, or one picked from its history |
+| `filament_duplicate` | write | Add more of a spool you already have |
+| `filament_create_location` | write | Add a printer or storage place |
+| `filament_update_location` | write | Rename or edit a place (its spools follow a rename) |
+| `filament_print_label` | write | Print a QR label (it prints, so only on request) |
+
+### Connecting clients
+
+- **Claude Code:**
+  `claude mcp add --transport http --scope user filament-library https://filament.example.com/mcp`
+- **Claude Desktop:** custom connectors added in Settings connect from
+  Anthropic's cloud and can't reach a LAN-only URL, so bridge through the local
+  config file instead:
+  `"filament-library": { "command": "npx", "args": ["-y", "mcp-remote", "https://filament.example.com/mcp"] }`.
+  Add `--allow-http` for a plain `http://` LAN address.
+- **Local assistants** (LM Studio, Open WebUI and others): point them at the
+  `/mcp` URL as a Streamable HTTP server, or use `mcp-remote` if they only speak
+  stdio.
+- **Codex / ChatGPT desktop:** these share `~/.codex/config.toml` and connect
+  from your machine, so the LAN URL works:
+  `codex mcp add filament-library --url https://filament.example.com/mcp`, or in
+  `config.toml`, `[mcp_servers.filament-library]` with
+  `url = "https://filament.example.com/mcp"`. With `MCP_TOKEN` set, add
+  `bearer_token_env_var = "<ENV_VAR_HOLDING_TOKEN>"`.
+- **ChatGPT on the web** connects from OpenAI's servers and can't reach a
+  LAN-only URL.
+
+To try it by hand, run `npx @modelcontextprotocol/inspector` and connect to
+`http://localhost:8088/mcp` with the Streamable HTTP transport.
+
+---
+
 ## Behind a reverse proxy
 
 The compose file ships Traefik labels using the `proxy` external network, `http`

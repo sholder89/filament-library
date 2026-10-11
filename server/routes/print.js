@@ -35,7 +35,7 @@ const NAME_LABEL = process.env.LABEL_NAME_LABEL === '1';
 const MODE_PREF  = (process.env.LABEL_MODE || 'auto').toLowerCase();
 
 /** Sizes the label client knows about — anything else would render wrong. */
-const VALID_SIZES = ['2x1', '4x2', '4x6', '3x2', '2x0.5', '1.1x3.5', '1.1x2.4',
+export const VALID_SIZES = ['2x1', '4x2', '4x6', '3x2', '2x0.5', '1.1x3.5', '1.1x2.4',
                      '50mm-round'];
 
 export function printMode() {

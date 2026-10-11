@@ -11,14 +11,16 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
-    "test": "node tools/test-label-parse.mjs && node tools/test-search.mjs && node tools/test-search-api.mjs",
+    "test": "node tools/test-label-parse.mjs && node tools/test-search.mjs && node tools/test-search-api.mjs && node tools/test-mcp.mjs",
     "icons": "node tools/build-icons.mjs",
     "catalog": "node tools/fetch-catalog.mjs"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
     "compression": "^1.8.1",
     "express": "^5.2.1",
-    "qrcode": "^1.5.4"
+    "qrcode": "^1.5.4",
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "jsqr": "^1.4.0",

@@ -12,7 +12,7 @@ class BadRequest extends Error {
 
 const str = (v) => (v === undefined || v === null ? '' : String(v).trim());
 
-const KINDS = ['storage', 'printer'];
+export const KINDS = ['storage', 'printer'];
 
 /**
  * Icons are stored as a key and drawn by the client, which owns the artwork.

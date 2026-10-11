@@ -57,6 +57,14 @@ services:
       # the scan button simply doesn't appear.
       VISION_API_KEY: ${VISION_API_KEY:-}
 
+      # MCP endpoint at /mcp for AI assistants on the LAN (see the README).
+      # MCP_TOKEN, if set, is required as "Authorization: Bearer <token>";
+      # MCP_ALLOWED_ORIGINS lists browser origins allowed to call it (none by
+      # default); MCP_ENABLED=false turns the endpoint off.
+      MCP_ENABLED: ${MCP_ENABLED:-true}
+      MCP_TOKEN: ${MCP_TOKEN:-}
+      MCP_ALLOWED_ORIGINS: ${MCP_ALLOWED_ORIGINS:-}
+
       TZ: ${TZ:-UTC}
 
     labels:
@@ -71,6 +79,18 @@ services:
       - "traefik.http.routers.filament-library-secure.tls.certresolver=cloudflare"
       - "traefik.http.routers.filament-library-secure.service=filament-library"
       - "traefik.http.services.filament-library.loadbalancer.server.port=8080"
+      # /mcp answers home-network addresses only, so an assistant can never be
+      # pointed at it from the internet. Through a Cloudflare proxy every
+      # request comes from Cloudflare's addresses and is refused, which is the
+      # safe way round.
+      - "traefik.http.routers.filament-library-mcp.entrypoints=https"
+      - "traefik.http.routers.filament-library-mcp.rule=Host(`your-domain.com`) && PathPrefix(`/mcp`)"  # override in docker-compose.override.yml
+      - "traefik.http.routers.filament-library-mcp.priority=100"
+      - "traefik.http.routers.filament-library-mcp.tls=true"
+      - "traefik.http.routers.filament-library-mcp.tls.certresolver=cloudflare"
+      - "traefik.http.routers.filament-library-mcp.service=filament-library"
+      - "traefik.http.routers.filament-library-mcp.middlewares=filament-library-mcp-lan"
+      - "traefik.http.middlewares.filament-library-mcp-lan.ipallowlist.sourcerange=127.0.0.1/32,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
       - "traefik.docker.network=proxy"
       - "com.centurylinklabs.watchtower.enable=false"
 

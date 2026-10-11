@@ -9,6 +9,8 @@ services:
     labels:
       - "traefik.http.routers.filament-library.rule=Host(`filament.example.com`)"
       - "traefik.http.routers.filament-library-secure.rule=Host(`filament.example.com`)"
+      # The LAN-only /mcp router (see docker-compose.yml) needs the same host.
+      - "traefik.http.routers.filament-library-mcp.rule=Host(`filament.example.com`) && PathPrefix(`/mcp`)"
 
     environment:
       # Traefik terminates TLS and forwards plain HTTP, so without this the QR

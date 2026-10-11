@@ -11,6 +11,7 @@ import { allEvents, recentEvents, searchEvents, ACTION_KEYS } from './events.js'
 import { router as appSettingsRouter } from './routes/app-settings.js';
 import { router as printRouter, printMode } from './routes/print.js';
 import { router as scanRouter, scanEnabled } from './routes/scan.js';
+import { mountMcp } from './mcp.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(__dirname, '..', 'public');
@@ -54,6 +55,9 @@ if (TRUST_PROXY) {
  * would only cover the half of the traffic that goes through Traefik.
  */
 app.use(compression());
+
+// The MCP endpoint for AI assistants (see mcp.js), with its own body parser.
+mountMcp(app);
 
 /*
  * Mounted ahead of the global body parser with a much larger limit of its own:
